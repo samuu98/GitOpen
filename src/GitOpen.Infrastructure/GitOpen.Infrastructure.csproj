@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\GitOpen.Domain\GitOpen.Domain.csproj" />
+    <ProjectReference Include="..\GitOpen.Application\GitOpen.Application.csproj" />
+  </ItemGroup>
+
+</Project>

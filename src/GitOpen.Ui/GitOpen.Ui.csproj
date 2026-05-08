@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>GitOpen.Ui</RootNamespace>
+    <AssemblyName>GitOpen</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GitOpen.Domain\GitOpen.Domain.csproj" />
+    <ProjectReference Include="..\GitOpen.Application\GitOpen.Application.csproj" />
+    <ProjectReference Include="..\GitOpen.Infrastructure\GitOpen.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
