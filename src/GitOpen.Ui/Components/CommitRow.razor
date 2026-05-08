@@ -12,7 +12,13 @@
         </svg>
     </div>
     <div class="sha">@Node.Commit.Sha.Short()</div>
-    <div class="message">@Node.Commit.Summary</div>
+    <div class="message">
+        @foreach (var r in Refs)
+        {
+            <RefPill Name="@r.name" IsRemote="@r.remote" IsTag="@r.tag" IsCurrent="@r.current" />
+        }
+        @Node.Commit.Summary
+    </div>
     <div class="author">@Node.Commit.Author.Name</div>
     <div class="when">@Node.Commit.Author.When.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</div>
 </div>
@@ -22,6 +28,8 @@
     [Parameter] public int MaxLane { get; set; }
     [Parameter] public bool Selected { get; set; }
     [Parameter] public EventCallback<CommitSha> OnSelect { get; set; }
+    [Parameter] public IReadOnlyList<(string name, bool remote, bool tag, bool current)> Refs { get; set; }
+        = Array.Empty<(string, bool, bool, bool)>();
 
     private const int LaneSpacing = 14;
     private const int LanePad = 10;

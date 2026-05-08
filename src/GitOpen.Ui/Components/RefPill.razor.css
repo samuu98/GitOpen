@@ -1,0 +1,14 @@
+.pill {
+    display: inline-block;
+    padding: 0 6px;
+    margin-right: 4px;
+    border-radius: 9px;
+    font-size: 10px;
+    line-height: 16px;
+    border: 1px solid #555;
+}
+.pill.branch { background: #1f4f1f; border-color: #2f7f2f; }
+.pill.remote { background: #2f4f6f; border-color: #4f7f9f; }
+.pill.tag    { background: #6f4f1f; border-color: #9f7f2f; }
+.pill.current { outline: 1px solid #fff; }
+.head-marker { font-weight: bold; opacity: 0.85; margin-right: 2px; }
