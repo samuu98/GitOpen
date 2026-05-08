@@ -59,7 +59,9 @@ try
 
     app.MainWindow
         .SetTitle("GitOpen")
-        .SetSize(1400, 900);
+        .SetSize(1400, 900)
+        .SetContextMenuEnabled(true)
+        .SetDevToolsEnabled(true);
 
     AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         Log.Fatal(e.ExceptionObject as Exception, "Unhandled exception");
