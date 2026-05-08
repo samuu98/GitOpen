@@ -12,7 +12,47 @@ namespace GitOpen.Infrastructure.Git;
 public sealed class LibGit2GitReadOperations : IGitReadOperations
 {
     public Task<RepoStatus> GetStatusAsync(RepoLocation repo, CancellationToken ct)
-        => throw new NotImplementedException();
+    {
+        ct.ThrowIfCancellationRequested();
+        using var lg = new LibGit2Sharp.Repository(repo.Path);
+        var head = lg.Head;
+        CommitSha? headSha = head.Tip is null ? null : new CommitSha(head.Tip.Sha);
+        var entries = new List<WorkingFileEntry>();
+
+        foreach (var s in lg.RetrieveStatus(new LibGit2Sharp.StatusOptions()))
+        {
+            var (idxState, wtState) = MapStatus(s.State);
+            if (idxState == WorkingFileState.Unmodified && wtState == WorkingFileState.Unmodified) continue;
+            entries.Add(new WorkingFileEntry(s.FilePath, idxState, wtState));
+        }
+
+        return Task.FromResult(new RepoStatus(
+            head.IsRemote ? null : head.FriendlyName,
+            headSha,
+            IsDetached: lg.Info.IsHeadDetached,
+            IsBare: lg.Info.IsBare,
+            entries));
+    }
+
+    private static (WorkingFileState index, WorkingFileState worktree) MapStatus(LibGit2Sharp.FileStatus s)
+    {
+        var idx = WorkingFileState.Unmodified;
+        var wt = WorkingFileState.Unmodified;
+
+        if (s.HasFlag(LibGit2Sharp.FileStatus.NewInIndex))      idx = WorkingFileState.Added;
+        if (s.HasFlag(LibGit2Sharp.FileStatus.ModifiedInIndex)) idx = WorkingFileState.Modified;
+        if (s.HasFlag(LibGit2Sharp.FileStatus.DeletedFromIndex))idx = WorkingFileState.Deleted;
+        if (s.HasFlag(LibGit2Sharp.FileStatus.RenamedInIndex))  idx = WorkingFileState.Renamed;
+
+        if (s.HasFlag(LibGit2Sharp.FileStatus.NewInWorkdir))       wt = WorkingFileState.Untracked;
+        if (s.HasFlag(LibGit2Sharp.FileStatus.ModifiedInWorkdir))  wt = WorkingFileState.Modified;
+        if (s.HasFlag(LibGit2Sharp.FileStatus.DeletedFromWorkdir)) wt = WorkingFileState.Deleted;
+        if (s.HasFlag(LibGit2Sharp.FileStatus.RenamedInWorkdir))   wt = WorkingFileState.Renamed;
+        if (s.HasFlag(LibGit2Sharp.FileStatus.Conflicted))         wt = WorkingFileState.Conflicted;
+        if (s.HasFlag(LibGit2Sharp.FileStatus.Ignored))            wt = WorkingFileState.Ignored;
+
+        return (idx, wt);
+    }
 
     public async IAsyncEnumerable<CommitInfo> GetCommitsAsync(
         RepoLocation repo,
