@@ -9,7 +9,9 @@
         <div class="main">
             @if (_activeRepo is not null)
             {
-                <CommitGraphPanel Repo="_activeRepo.Location" />
+                <CommitGraphPanel Repo="_activeRepo.Location"
+                                  OnCommitSelected="sha => { _selectedSha = sha; StateHasChanged(); }" />
+                <BottomPanel Repo="_activeRepo.Location" SelectedSha="_selectedSha" />
             }
             else
             {
@@ -21,6 +23,7 @@
 
 @code {
     private RepoId _active;
+    private CommitSha? _selectedSha;
     private Workspace? _activeRepo => Workspaces.All.FirstOrDefault(w => w.Location.Id == _active);
 
     protected override void OnInitialized()

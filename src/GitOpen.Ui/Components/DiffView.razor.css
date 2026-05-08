@@ -1,0 +1,19 @@
+.diff { padding: 8px; font-family: "JetBrains Mono", Menlo, Consolas, monospace; font-size: 12px; }
+.file { border: 1px solid #2a2a2a; margin-bottom: 8px; }
+.file-header { background: #2a2a2a; padding: 4px 8px; display: flex; gap: 12px; align-items: center; }
+.kind { padding: 1px 6px; border-radius: 4px; background: #444; font-size: 10px; text-transform: uppercase; }
+.kind.added { background: #1f4f1f; }
+.kind.deleted { background: #5a1f1f; }
+.kind.modified { background: #4a4a1f; }
+.kind.renamed { background: #1f4a5a; }
+.stats { margin-left: auto; opacity: 0.85; }
+.hunk-header { background: #1c2a3a; color: #6cf; padding: 2px 8px; font-style: italic; }
+.hunk { width: 100%; border-collapse: collapse; }
+.line td { padding: 0 4px; vertical-align: top; }
+.line.addition { background: #163a16; }
+.line.deletion { background: #3a1616; }
+.ln-old, .ln-new { width: 48px; text-align: right; opacity: 0.6; }
+.prefix { width: 14px; }
+.content { white-space: pre; }
+.empty { padding: 24px; opacity: 0.7; }
+.binary { padding: 12px; opacity: 0.7; }
