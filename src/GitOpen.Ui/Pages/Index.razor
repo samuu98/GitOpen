@@ -3,7 +3,10 @@
 @inject IFolderPicker FolderPicker
 
 <div class="shell">
-    <TabBar Active="_active" OnActivate="Activate" OnClose="Close" OnOpenRepo="OpenRepo" />
+    <TitleBar Active="_active"
+              OnActivate="Activate"
+              OnClose="Close"
+              OnOpenRepo="OpenRepo" />
     <div class="body">
         <Sidebar Repo="_activeRepo?.Location" />
         <div class="main">

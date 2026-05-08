@@ -54,6 +54,8 @@ internal static class Program
             app.MainWindow
                 .SetTitle("GitOpen")
                 .SetSize(1400, 900)
+                .SetChromeless(true)
+                .SetResizable(true)
                 .SetContextMenuEnabled(true)
                 .SetDevToolsEnabled(true);
 
