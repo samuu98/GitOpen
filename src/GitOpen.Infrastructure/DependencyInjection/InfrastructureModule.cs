@@ -14,6 +14,7 @@ public static class InfrastructureModule
         services.AddDbContext<GitOpenDbContext>(opts =>
             opts.UseSqlite($"Data Source={PathProvider.StateDbPath()}"));
         services.AddScoped<IRepositoryRegistry, RepositoryRegistry>();
+        services.AddScoped<IWorkspacePersistence, WorkspacePersistence>();
         services.AddSingleton<IGitReadOperations, LibGit2GitReadOperations>();
         return services;
     }
