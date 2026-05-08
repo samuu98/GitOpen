@@ -27,7 +27,7 @@ try
         .AddGitOpenApplication()
         .AddGitOpenInfrastructure()
         .AddSingleton<IFolderPicker, PhotinoFolderPicker>();
-    builder.RootComponents.Add<App>("#app");
+    builder.RootComponents.Add<App>("app");
 
     var app = builder.Build();
 
