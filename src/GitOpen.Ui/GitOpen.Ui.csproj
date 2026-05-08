@@ -16,4 +16,9 @@
     <ProjectReference Include="..\GitOpen.Application\GitOpen.Application.csproj" />
     <ProjectReference Include="..\GitOpen.Infrastructure\GitOpen.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Update="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>
