@@ -1,39 +1,39 @@
 <div class="row @(Selected ? "selected" : "")" @onclick="() => OnSelect.InvokeAsync(Node.Commit.Sha)">
     <div class="lanes">
-        <svg width="@SvgWidth" height="@RowHeight" xmlns="http://www.w3.org/2000/svg">
-            @foreach (var seg in Node.TopSegments)
-            {
-                @if (seg.FromLane == seg.ToLane)
+        <svg width="@SvgWidth" height="@RowHeight" shape-rendering="geometricPrecision"
+             xmlns="http://www.w3.org/2000/svg">
+            <g stroke-width="1.6" stroke-linecap="round" fill="none">
+                @foreach (var seg in Node.TopSegments)
                 {
-                    <line x1="@LaneX(seg.FromLane)" y1="0"
-                          x2="@LaneX(seg.ToLane)" y2="@HalfHeight"
-                          stroke="@Color(seg.Color)" stroke-width="1.5" />
+                    @if (seg.FromLane == seg.ToLane)
+                    {
+                        <line x1="@LaneX(seg.FromLane)" y1="0"
+                              x2="@LaneX(seg.ToLane)" y2="@HalfHeight"
+                              stroke="@Color(seg.Color)" />
+                    }
+                    else
+                    {
+                        <path d="@TopCurve(seg.FromLane, seg.ToLane)"
+                              stroke="@Color(seg.Color)" />
+                    }
                 }
-                else
+                @foreach (var seg in Node.BottomSegments)
                 {
-                    <path d="@TopCurve(seg.FromLane, seg.ToLane)"
-                          fill="none"
-                          stroke="@Color(seg.Color)" stroke-width="1.5" />
+                    @if (seg.FromLane == seg.ToLane)
+                    {
+                        <line x1="@LaneX(seg.FromLane)" y1="@HalfHeight"
+                              x2="@LaneX(seg.ToLane)" y2="@RowHeight"
+                              stroke="@Color(seg.Color)" />
+                    }
+                    else
+                    {
+                        <path d="@BottomCurve(seg.FromLane, seg.ToLane)"
+                              stroke="@Color(seg.Color)" />
+                    }
                 }
-            }
-            @foreach (var seg in Node.BottomSegments)
-            {
-                @if (seg.FromLane == seg.ToLane)
-                {
-                    <line x1="@LaneX(seg.FromLane)" y1="@HalfHeight"
-                          x2="@LaneX(seg.ToLane)" y2="@RowHeight"
-                          stroke="@Color(seg.Color)" stroke-width="1.5" />
-                }
-                else
-                {
-                    <path d="@BottomCurve(seg.FromLane, seg.ToLane)"
-                          fill="none"
-                          stroke="@Color(seg.Color)" stroke-width="1.5" />
-                }
-            }
-            <circle cx="@LaneX(Node.Lane)" cy="@HalfHeight" r="4.5"
-                    fill="var(--bg-1)"
-                    stroke="@Color(Node.Color)" stroke-width="2" />
+            </g>
+            <circle cx="@LaneX(Node.Lane)" cy="@HalfHeight" r="4"
+                    fill="@Color(Node.Color)" />
         </svg>
     </div>
     <div class="sha">@Node.Commit.Sha.Short()</div>

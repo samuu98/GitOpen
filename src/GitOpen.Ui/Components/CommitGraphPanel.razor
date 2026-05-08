@@ -12,7 +12,7 @@
     }
     else
     {
-        <Virtualize Items="_nodes" Context="node" ItemSize="24">
+        <Virtualize Items="_nodes" Context="node" ItemSize="26">
             <CommitRow Node="node" MaxLane="_maxLane"
                        Selected="@(node.Commit.Sha == _selected)"
                        OnSelect="OnSelectRow"
@@ -34,6 +34,22 @@
 
     private record RefDecoration(string Name, bool IsRemote, bool IsTag, bool IsCurrent);
 
+    private static int NodeMaxLane(CommitNode n)
+    {
+        var max = n.Lane;
+        foreach (var s in n.TopSegments)
+        {
+            if (s.FromLane > max) max = s.FromLane;
+            if (s.ToLane > max) max = s.ToLane;
+        }
+        foreach (var s in n.BottomSegments)
+        {
+            if (s.FromLane > max) max = s.FromLane;
+            if (s.ToLane > max) max = s.ToLane;
+        }
+        return max;
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         await ReloadAsync();
@@ -48,7 +64,7 @@
         await foreach (var c in Git.GetCommitsAsync(Repo, new CommitQuery(Take: 5000), default))
             commits.Add(c);
         _nodes = Layout.Compute(commits).ToList();
-        _maxLane = _nodes.Count == 0 ? 0 : _nodes.Max(n => n.Lane);
+        _maxLane = _nodes.Count == 0 ? 0 : _nodes.Max(NodeMaxLane);
         await ReloadRefsAsync();
         _loading = false;
         StateHasChanged();
