@@ -85,16 +85,63 @@ public sealed class LibGit2GitReadOperations : IGitReadOperations
     }
 
     public Task<IReadOnlyList<Branch>> GetBranchesAsync(RepoLocation repo, CancellationToken ct)
-        => throw new NotImplementedException();
+    {
+        ct.ThrowIfCancellationRequested();
+        using var lg = new LibGit2Sharp.Repository(repo.Path);
+        var headName = lg.Head.CanonicalName;
+        var branches = lg.Branches.Select(b => new Branch(
+            Name: b.FriendlyName,
+            FullName: b.CanonicalName,
+            IsRemote: b.IsRemote,
+            IsCurrent: b.CanonicalName == headName,
+            TipSha: b.Tip is null ? null : new CommitSha(b.Tip.Sha),
+            UpstreamFullName: b.TrackedBranch?.CanonicalName,
+            Ahead: b.TrackingDetails?.AheadBy ?? 0,
+            Behind: b.TrackingDetails?.BehindBy ?? 0)).ToList();
+        return Task.FromResult<IReadOnlyList<Branch>>(branches);
+    }
 
     public Task<IReadOnlyList<Tag>> GetTagsAsync(RepoLocation repo, CancellationToken ct)
-        => throw new NotImplementedException();
+    {
+        ct.ThrowIfCancellationRequested();
+        using var lg = new LibGit2Sharp.Repository(repo.Path);
+        var tags = lg.Tags.Select(t => new Tag(
+            Name: t.FriendlyName,
+            FullName: t.CanonicalName,
+            TargetSha: new CommitSha(t.Target.Sha),
+            IsAnnotated: t.IsAnnotated)).ToList();
+        return Task.FromResult<IReadOnlyList<Tag>>(tags);
+    }
 
     public Task<IReadOnlyList<Remote>> GetRemotesAsync(RepoLocation repo, CancellationToken ct)
-        => throw new NotImplementedException();
+    {
+        ct.ThrowIfCancellationRequested();
+        using var lg = new LibGit2Sharp.Repository(repo.Path);
+        var remotes = lg.Network.Remotes.Select(r =>
+        {
+            var remoteBranches = lg.Branches
+                .Where(b => b.IsRemote && b.RemoteName == r.Name)
+                .Select(b => new Branch(
+                    b.FriendlyName, b.CanonicalName, IsRemote: true, IsCurrent: false,
+                    TipSha: b.Tip is null ? null : new CommitSha(b.Tip.Sha),
+                    UpstreamFullName: null, Ahead: 0, Behind: 0))
+                .ToList();
+            return new Remote(r.Name, r.Url, remoteBranches);
+        }).ToList();
+        return Task.FromResult<IReadOnlyList<Remote>>(remotes);
+    }
 
     public Task<IReadOnlyList<Stash>> GetStashesAsync(RepoLocation repo, CancellationToken ct)
-        => throw new NotImplementedException();
+    {
+        ct.ThrowIfCancellationRequested();
+        using var lg = new LibGit2Sharp.Repository(repo.Path);
+        var stashes = lg.Stashes.Select((s, i) => new Stash(
+            Index: i,
+            Sha: new CommitSha(s.WorkTree.Sha),
+            Message: s.Message ?? "",
+            CreatedAt: s.WorkTree.Committer.When)).ToList();
+        return Task.FromResult<IReadOnlyList<Stash>>(stashes);
+    }
 
     public Task<DiffResult> GetDiffAsync(RepoLocation repo, DiffSpec spec, CancellationToken ct)
         => throw new NotImplementedException();
