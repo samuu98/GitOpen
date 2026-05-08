@@ -59,6 +59,12 @@ public sealed class LibGit2GitReadOperations : IGitReadOperations
         CommitQuery query,
         [EnumeratorCancellation] CancellationToken ct)
     {
+        // Photino.Blazor's SynchronousTaskScheduler runs continuations inline,
+        // so any per-iteration await (e.g. Task.Yield) recurses on the call
+        // stack and overflows after a few thousand commits. We iterate
+        // synchronously here; callers that want concurrency wrap in Task.Run.
+        await Task.CompletedTask;
+
         using var lg = new LibGit2Sharp.Repository(repo.Path);
         var filter = new LibGit2Sharp.CommitFilter
         {
@@ -80,7 +86,6 @@ public sealed class LibGit2GitReadOperations : IGitReadOperations
                 new CommitSignature(c.Committer.Name, c.Committer.Email, c.Committer.When),
                 c.MessageShort,
                 c.Message);
-            await Task.Yield();
         }
     }
 
