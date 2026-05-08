@@ -1,4 +1,58 @@
+@inject IGitReadOperations Git
+@inject ICommitGraphLayout Layout
+
+<div class="commit-graph">
+    @if (_loading)
+    {
+        <div class="loading">Loading&#8230;</div>
+    }
+    else if (_nodes.Count == 0)
+    {
+        <div class="empty-graph">No commits in this repository.</div>
+    }
+    else
+    {
+        <Virtualize Items="_nodes" Context="node" ItemSize="24">
+            <CommitRow Node="node" MaxLane="_maxLane"
+                       Selected="@(node.Commit.Sha == _selected)"
+                       OnSelect="OnSelectRow" />
+        </Virtualize>
+    }
+</div>
+
 @code {
     [Parameter] public RepoLocation Repo { get; set; } = default!;
+
+    private bool _loading;
+    private List<CommitNode> _nodes = new();
+    private int _maxLane;
+    private CommitSha? _selected;
+
+    [Parameter] public EventCallback<CommitSha> OnCommitSelected { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _nodes.Clear();
+        StateHasChanged();
+        var commits = new List<CommitInfo>();
+        await foreach (var c in Git.GetCommitsAsync(Repo, new CommitQuery(Take: 5000), default))
+            commits.Add(c);
+        _nodes = Layout.Compute(commits).ToList();
+        _maxLane = _nodes.Count == 0 ? 0 : _nodes.Max(n => n.Lane);
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task OnSelectRow(CommitSha sha)
+    {
+        _selected = sha;
+        await OnCommitSelected.InvokeAsync(sha);
+        StateHasChanged();
+    }
 }
-<div>Commit graph panel placeholder for @Repo.DisplayName</div>

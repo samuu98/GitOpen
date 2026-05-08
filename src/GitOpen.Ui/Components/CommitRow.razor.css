@@ -1,0 +1,15 @@
+.row {
+    display: grid;
+    grid-template-columns: auto 70px 1fr 160px 140px;
+    align-items: center;
+    height: 24px;
+    padding: 0 8px;
+    cursor: pointer;
+}
+.row:hover { background: #2a2d2e; }
+.row.selected { background: #094771; }
+.lanes svg { display: block; }
+.sha { color: #569cd6; }
+.message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.author { opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.when { opacity: 0.7; font-feature-settings: "tnum"; }
