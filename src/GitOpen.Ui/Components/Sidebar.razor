@@ -1,0 +1,58 @@
+@inject IGitReadOperations Git
+
+<div class="sidebar">
+    @if (Repo is not null)
+    {
+        <SidebarSection Title="Local Branches">
+            @foreach (var b in _branches.Where(b => !b.IsRemote))
+            {
+                <div class="ref-row @(b.IsCurrent ? "current" : "")">@b.Name</div>
+            }
+        </SidebarSection>
+        <SidebarSection Title="Remotes">
+            @foreach (var r in _remotes)
+            {
+                <div class="remote">@r.Name</div>
+                @foreach (var b in r.Branches)
+                {
+                    <div class="ref-row remote-branch">@b.Name</div>
+                }
+            }
+        </SidebarSection>
+        <SidebarSection Title="Tags">
+            @foreach (var t in _tags) { <div class="ref-row">@t.Name</div> }
+        </SidebarSection>
+        <SidebarSection Title="Stashes">
+            @foreach (var s in _stashes) { <div class="ref-row">stash@@@s.Index — @s.Message</div> }
+        </SidebarSection>
+    }
+    else
+    {
+        <div class="empty">No repository selected</div>
+    }
+</div>
+
+@code {
+    [Parameter] public RepoLocation? Repo { get; set; }
+
+    private IReadOnlyList<Branch> _branches = Array.Empty<Branch>();
+    private IReadOnlyList<Tag>    _tags = Array.Empty<Tag>();
+    private IReadOnlyList<Remote> _remotes = Array.Empty<Remote>();
+    private IReadOnlyList<Stash>  _stashes = Array.Empty<Stash>();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Repo is null)
+        {
+            _branches = Array.Empty<Branch>();
+            _tags = Array.Empty<Tag>();
+            _remotes = Array.Empty<Remote>();
+            _stashes = Array.Empty<Stash>();
+            return;
+        }
+        _branches = await Git.GetBranchesAsync(Repo, default);
+        _tags     = await Git.GetTagsAsync(Repo, default);
+        _remotes  = await Git.GetRemotesAsync(Repo, default);
+        _stashes  = await Git.GetStashesAsync(Repo, default);
+    }
+}
