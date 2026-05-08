@@ -233,20 +233,246 @@ final class GitCliReadOperations implements GitReadOperations {
   }
 
   @override
-  Future<List<Branch>> getBranches(RepoLocation repo) =>
-      throw UnimplementedError();
+  Future<List<Branch>> getBranches(RepoLocation repo) async {
+    final args = [
+      'for-each-ref',
+      '--format=%(refname)%00%(objectname)%00%(HEAD)%00%(upstream)%00%(upstream:track)',
+      'refs/heads',
+      'refs/remotes',
+    ];
+    final stdout = await _runner.run(repo.path, args);
+    if (stdout.trim().isEmpty) return [];
+
+    final lines = stdout.split('\n');
+    final branches = <Branch>[];
+    final aheadBehindRe =
+        RegExp(r'(?:ahead (\d+))?(?:.*?behind (\d+))?');
+
+    for (final line in lines) {
+      if (line.isEmpty) continue;
+      final fields = line.split('\x00');
+      if (fields.length < 5) continue;
+
+      final refname = fields[0];
+      final sha = fields[1];
+      final headMarker = fields[2];
+      final upstream = fields[3];
+      final track = fields[4];
+
+      String name;
+      bool isRemote;
+      if (refname.startsWith('refs/heads/')) {
+        name = refname.substring('refs/heads/'.length);
+        isRemote = false;
+      } else if (refname.startsWith('refs/remotes/')) {
+        name = refname.substring('refs/remotes/'.length);
+        isRemote = true;
+      } else {
+        continue;
+      }
+
+      int ahead = 0;
+      int behind = 0;
+      if (track.isNotEmpty) {
+        final m = aheadBehindRe.firstMatch(track);
+        if (m != null) {
+          ahead = int.tryParse(m.group(1) ?? '') ?? 0;
+          behind = int.tryParse(m.group(2) ?? '') ?? 0;
+        }
+      }
+
+      branches.add(Branch(
+        name: name,
+        fullName: refname,
+        isRemote: isRemote,
+        isCurrent: headMarker == '*',
+        tipSha: sha.isNotEmpty ? CommitSha(sha) : null,
+        upstreamFullName: upstream.isNotEmpty ? upstream : null,
+        ahead: ahead,
+        behind: behind,
+      ));
+    }
+
+    return branches;
+  }
 
   @override
-  Future<List<Tag>> getTags(RepoLocation repo) =>
-      throw UnimplementedError();
+  Future<List<Tag>> getTags(RepoLocation repo) async {
+    final args = [
+      'for-each-ref',
+      '--format=%(refname:short)%00%(refname)%00%(*objectname)%00%(objectname)%00%(objecttype)',
+      'refs/tags',
+    ];
+    final stdout = await _runner.run(repo.path, args);
+    if (stdout.trim().isEmpty) return [];
+
+    final lines = stdout.split('\n');
+    final tags = <Tag>[];
+
+    for (final line in lines) {
+      if (line.isEmpty) continue;
+      final fields = line.split('\x00');
+      if (fields.length < 5) continue;
+
+      final shortName = fields[0];
+      final fullName = fields[1];
+      final peeledSha = fields[2]; // non-empty for annotated tags
+      final objectSha = fields[3];
+      final objectType = fields[4];
+
+      final targetSha = peeledSha.isNotEmpty ? peeledSha : objectSha;
+      if (targetSha.isEmpty) continue;
+
+      tags.add(Tag(
+        name: shortName,
+        fullName: fullName,
+        targetSha: CommitSha(targetSha),
+        isAnnotated: objectType == 'tag',
+      ));
+    }
+
+    return tags;
+  }
 
   @override
-  Future<List<Remote>> getRemotes(RepoLocation repo) =>
-      throw UnimplementedError();
+  Future<List<Remote>> getRemotes(RepoLocation repo) async {
+    // Step 1: parse remote names and urls from `git remote -v`
+    final remoteVOutput = await _runner.run(repo.path, ['remote', '-v']);
+    if (remoteVOutput.trim().isEmpty) return [];
+
+    // Map from remote name to url (deduped; fetch entry preferred)
+    final remoteUrls = <String, String>{};
+    for (final line in remoteVOutput.split('\n')) {
+      if (line.isEmpty) continue;
+      // Format: "name\turl\t(fetch)" or "name\turl\t(push)"
+      final tab = line.indexOf('\t');
+      if (tab < 0) continue;
+      final name = line.substring(0, tab);
+      final rest = line.substring(tab + 1);
+      final tab2 = rest.lastIndexOf('\t');
+      if (tab2 < 0) continue;
+      final url = rest.substring(0, tab2);
+      final qualifier = rest.substring(tab2 + 1);
+      if (qualifier == '(fetch)' || !remoteUrls.containsKey(name)) {
+        remoteUrls[name] = url;
+      }
+    }
+
+    if (remoteUrls.isEmpty) return [];
+
+    // Step 2: get remote branches grouped by remote name
+    final branchArgs = [
+      'for-each-ref',
+      '--format=%(refname)%00%(objectname)%00%(HEAD)%00%(upstream)%00%(upstream:track)',
+      'refs/remotes',
+    ];
+    final branchOut = await _runner.run(repo.path, branchArgs);
+    final remoteBranches = <String, List<Branch>>{};
+    for (final name in remoteUrls.keys) {
+      remoteBranches[name] = [];
+    }
+
+    if (branchOut.trim().isNotEmpty) {
+      final aheadBehindRe = RegExp(r'(?:ahead (\d+))?(?:.*?behind (\d+))?');
+      for (final line in branchOut.split('\n')) {
+        if (line.isEmpty) continue;
+        final fields = line.split('\x00');
+        if (fields.length < 5) continue;
+
+        final refname = fields[0];
+        final sha = fields[1];
+        final headMarker = fields[2];
+        final upstream = fields[3];
+        final track = fields[4];
+
+        if (!refname.startsWith('refs/remotes/')) continue;
+        final withoutPrefix = refname.substring('refs/remotes/'.length);
+
+        // Determine which remote this belongs to
+        String? remoteName;
+        for (final rn in remoteUrls.keys) {
+          if (withoutPrefix.startsWith('$rn/')) {
+            remoteName = rn;
+            break;
+          }
+        }
+        if (remoteName == null) continue;
+
+        // Skip the HEAD symbolic ref (e.g., refs/remotes/origin/HEAD)
+        if (withoutPrefix.endsWith('/HEAD')) continue;
+
+        int ahead = 0;
+        int behind = 0;
+        if (track.isNotEmpty) {
+          final m = aheadBehindRe.firstMatch(track);
+          if (m != null) {
+            ahead = int.tryParse(m.group(1) ?? '') ?? 0;
+            behind = int.tryParse(m.group(2) ?? '') ?? 0;
+          }
+        }
+
+        remoteBranches[remoteName]!.add(Branch(
+          name: withoutPrefix,
+          fullName: refname,
+          isRemote: true,
+          isCurrent: headMarker == '*',
+          tipSha: sha.isNotEmpty ? CommitSha(sha) : null,
+          upstreamFullName: upstream.isNotEmpty ? upstream : null,
+          ahead: ahead,
+          behind: behind,
+        ));
+      }
+    }
+
+    return remoteUrls.entries
+        .map((e) => Remote(
+              name: e.key,
+              url: e.value,
+              branches: remoteBranches[e.key] ?? [],
+            ))
+        .toList();
+  }
 
   @override
-  Future<List<Stash>> getStashes(RepoLocation repo) =>
-      throw UnimplementedError();
+  Future<List<Stash>> getStashes(RepoLocation repo) async {
+    // git stash list exits 0 even with an empty stash; empty output = no stashes.
+    final stdout = await _runner.run(
+        repo.path, ['stash', 'list', '--format=%H%x00%gd%x00%gs%x00%ai']);
+    if (stdout.trim().isEmpty) return [];
+
+    final stashes = <Stash>[];
+    final indexRe = RegExp(r'stash@\{(\d+)\}');
+
+    for (final line in stdout.split('\n')) {
+      if (line.isEmpty) continue;
+      final fields = line.split('\x00');
+      if (fields.length < 4) continue;
+
+      final sha = fields[0];
+      final reflogSelector = fields[1]; // e.g., stash@{0}
+      final message = fields[2];
+      final dateStr = fields[3];
+
+      final indexMatch = indexRe.firstMatch(reflogSelector);
+      final index = indexMatch != null ? int.parse(indexMatch.group(1)!) : 0;
+
+      DateTime createdAt;
+      try {
+        createdAt = DateTime.parse(dateStr);
+      } catch (_) {
+        createdAt = DateTime.fromMillisecondsSinceEpoch(0);
+      }
+
+      stashes.add(Stash(
+        index: index,
+        sha: CommitSha(sha),
+        message: message,
+        createdAt: createdAt,
+      ));
+    }
+
+    return stashes;
+  }
 
   @override
   Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec) =>
