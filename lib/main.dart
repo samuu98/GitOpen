@@ -2,16 +2,29 @@ import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logger/logger.dart';
 
 import 'application/active_workspace_provider.dart';
 import 'application/providers.dart';
+import 'application/workspaces/workspace.dart';
 import 'ui/bottom_panel/bottom_panel.dart';
 import 'ui/commit_graph/commit_graph_panel.dart';
 import 'ui/shell/tab_bar.dart';
 import 'ui/sidebar/sidebar.dart';
 
-void main() {
-  runApp(const ProviderScope(child: GitOpenApp()));
+final _log = Logger();
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final container = ProviderContainer();
+  await _rehydrate(container);
+  _subscribePersistence(container);
+
+  runApp(UncontrolledProviderScope(
+    container: container,
+    child: const GitOpenApp(),
+  ));
 
   doWhenWindowReady(() {
     const initialSize = Size(1400, 900);
@@ -21,6 +34,43 @@ void main() {
     appWindow.title = 'GitOpen';
     appWindow.show();
   });
+}
+
+Future<void> _rehydrate(ProviderContainer container) async {
+  try {
+    final persistence = container.read(workspacePersistenceProvider);
+    final manager = container.read(workspaceManagerProvider.notifier);
+    final paths = await persistence.getOpenPaths();
+    for (final p in paths) {
+      try {
+        await manager.open(p);
+      } catch (e) {
+        _log.w('Failed to reopen workspace $p: $e');
+      }
+    }
+    final workspaces = container.read(workspaceManagerProvider);
+    if (workspaces.isNotEmpty) {
+      container.read(activeWorkspaceIdProvider.notifier).state =
+          workspaces.first.location.id;
+    }
+  } catch (e) {
+    _log.w('Rehydration failed: $e');
+  }
+}
+
+void _subscribePersistence(ProviderContainer container) {
+  container.listen<List<Workspace>>(
+    workspaceManagerProvider,
+    (previous, next) async {
+      final persistence = container.read(workspacePersistenceProvider);
+      final paths = next.map((w) => w.location.path).toList();
+      try {
+        await persistence.saveOpenPaths(paths);
+      } catch (e) {
+        _log.w('Persist failed: $e');
+      }
+    },
+  );
 }
 
 class GitOpenApp extends StatelessWidget {
