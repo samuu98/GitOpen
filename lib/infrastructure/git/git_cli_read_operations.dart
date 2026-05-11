@@ -187,7 +187,16 @@ final class GitCliReadOperations implements GitReadOperations {
     ];
     if (query.skip != null) args.add('--skip=${query.skip}');
     if (query.take != null) args.add('--max-count=${query.take}');
-    if (query.refSpec != null) args.add(query.refSpec!);
+    if (query.refs != null && query.refs!.isNotEmpty) {
+      args.addAll(query.refs!);
+    } else if (query.refSpec != null) {
+      args.add(query.refSpec!);
+    } else {
+      // Without explicit refs, include all commits reachable from any ref so
+      // that commits only referenced by tags (not by a branch HEAD) still
+      // appear in the graph and their tag decorations show correctly.
+      args.add('--all');
+    }
 
     String stdout;
     try {
