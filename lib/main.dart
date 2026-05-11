@@ -9,7 +9,7 @@ import 'application/providers.dart';
 import 'application/workspaces/workspace.dart';
 import 'ui/bottom_panel/bottom_panel.dart';
 import 'ui/commit_graph/commit_graph_panel.dart';
-import 'ui/shell/tab_bar.dart';
+import 'ui/shell/repo_selector.dart';
 import 'ui/sidebar/sidebar.dart';
 
 final _log = Logger();
@@ -153,11 +153,15 @@ class _TitleBar extends StatelessWidget {
         color: const Color(0xFF2C2C31),
         child: Row(
           children: [
-            const _Brand(),
-            const SizedBox(width: 8),
-            const Expanded(child: TabsBar()),
-            // A 16-px wide drag handle between tabs and controls
-            SizedBox(width: 16, height: 38, child: MoveWindow()),
+            // Brand: small, on its own draggable surface.
+            SizedBox(height: 38, child: MoveWindow(child: const _Brand())),
+            // Left drag spacer.
+            Expanded(child: MoveWindow()),
+            // Repo selector dropdown — non-draggable interactive area.
+            const RepoSelector(),
+            // Right drag spacer.
+            Expanded(child: MoveWindow()),
+            // Window controls (min/max/close) — interactive.
             const _WindowControls(),
           ],
         ),
@@ -173,28 +177,27 @@ class _Brand extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: MoveWindow(
-        child: Row(
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4EC9B0),
-                shape: BoxShape.circle,
-              ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: const BoxDecoration(
+              color: Color(0xFF4EC9B0),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 8),
-            const Text(
-              'GitOpen',
-              style: TextStyle(
-                color: Color(0xFFD4D4D4),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'GitOpen',
+            style: TextStyle(
+              color: Color(0xFFD4D4D4),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
