@@ -1,8 +1,12 @@
 import 'package:bitsdojo_window/bitsdojo_window.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'application/active_workspace_provider.dart';
+import 'application/providers.dart';
 import 'ui/shell/tab_bar.dart';
+import 'ui/sidebar/sidebar.dart';
 
 void main() {
   runApp(const ProviderScope(child: GitOpenApp()));
@@ -33,11 +37,17 @@ class GitOpenApp extends StatelessWidget {
   }
 }
 
-class Shell extends StatelessWidget {
+class Shell extends ConsumerWidget {
   const Shell({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeId = ref.watch(activeWorkspaceIdProvider);
+    final workspaces = ref.watch(workspaceManagerProvider);
+    final active = activeId == null
+        ? null
+        : workspaces.firstWhereOrNull((w) => w.location.id == activeId);
+
     return Scaffold(
       backgroundColor: const Color(0xFF1F1F23),
       body: WindowBorder(
@@ -47,13 +57,28 @@ class Shell extends StatelessWidget {
           children: [
             const _TitleBar(),
             Expanded(
-              child: Center(
-                child: Text(
-                  'GitOpen — Phase G (tabs + sidebar coming)',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: const Color(0xFFB8B8BC),
-                      ),
-                ),
+              child: Row(
+                children: [
+                  const Sidebar(),
+                  Expanded(
+                    child: Container(
+                      color: const Color(0xFF1F1F23),
+                      alignment: Alignment.center,
+                      child: active == null
+                          ? const Text(
+                              'Open a repository to begin.',
+                              style: TextStyle(
+                                  color: Color(0xFF888892), fontSize: 14),
+                            )
+                          : Text(
+                              'Repository: ${active.location.displayName}\n(commit graph coming in Phase H)',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  color: Color(0xFFB8B8BC), fontSize: 13),
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
