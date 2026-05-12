@@ -265,13 +265,35 @@ final class GitCliWriteOperations implements GitWriteOperations {
     }
   }
   @override
-  Future<GitResult<void>> stashSave(RepoLocation r, String message, {bool includeUntracked = false}) => throw UnimplementedError();
+  Future<GitResult<void>> stashSave(RepoLocation r, String message, {bool includeUntracked = false}) async {
+    try {
+      final args = <String>['stash', 'push', '-m', message];
+      if (includeUntracked) args.add('-u');
+      await _runner.run(r.path, args);
+      return const GitSuccess(null);
+    } on GitProcessException catch (e) {
+      return GitFailure(_classify(e), e.stderr, e.stderr);
+    }
+  }
+
   @override
-  Future<GitResult<void>> stashPop(RepoLocation r, int index) => throw UnimplementedError();
+  Future<GitResult<void>> stashPop(RepoLocation r, int index) async {
+    try { await _runner.run(r.path, ['stash', 'pop', 'stash@{$index}']); return const GitSuccess(null); }
+    on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
+  }
+
   @override
-  Future<GitResult<void>> stashApply(RepoLocation r, int index) => throw UnimplementedError();
+  Future<GitResult<void>> stashApply(RepoLocation r, int index) async {
+    try { await _runner.run(r.path, ['stash', 'apply', 'stash@{$index}']); return const GitSuccess(null); }
+    on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
+  }
+
   @override
-  Future<GitResult<void>> stashDrop(RepoLocation r, int index) => throw UnimplementedError();
+  Future<GitResult<void>> stashDrop(RepoLocation r, int index) async {
+    try { await _runner.run(r.path, ['stash', 'drop', 'stash@{$index}']); return const GitSuccess(null); }
+    on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
+  }
+
   @override
   Future<GitResult<MergeOutcome>> merge(RepoLocation r, String ref, {bool ffOnly = false, bool noCommit = false}) => throw UnimplementedError();
   @override
