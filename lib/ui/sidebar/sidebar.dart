@@ -81,13 +81,18 @@ class Sidebar extends ConsumerWidget {
   }
 }
 
-class _SidebarContent extends StatelessWidget {
+class _SidebarContent extends ConsumerWidget {
   final _SidebarData data;
   final RepoLocation repo;
   const _SidebarContent({required this.data, required this.repo});
 
+  void _refreshSidebar(WidgetRef ref) {
+    ref.invalidate(_sidebarDataProvider(repo));
+    ref.invalidate(gitReadOperationsProvider);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final localBranches = data.branches.where((b) => !b.isRemote).toList();
     final localTree = BranchTree.build(localBranches);
     return ListView(
@@ -131,7 +136,8 @@ class _SidebarContent extends StatelessWidget {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final t in data.tags) _RefRow(label: t.name)
+                    for (final t in data.tags)
+                      _TagRow(tag: t, repo: repo, onRefresh: () => _refreshSidebar(ref)),
                   ],
                 ),
         ),
@@ -143,13 +149,163 @@ class _SidebarContent extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final s in data.stashes)
-                      _RefRow(
-                          label: 'stash@{${s.index}} — ${s.message}'),
+                      _StashRow(stash: s, repo: repo, onRefresh: () => _refreshSidebar(ref)),
                   ],
                 ),
         ),
       ],
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tag row with context menu
+// ---------------------------------------------------------------------------
+
+class _TagRow extends ConsumerWidget {
+  final Tag tag;
+  final RepoLocation repo;
+  final VoidCallback onRefresh;
+
+  const _TagRow({required this.tag, required this.repo, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onSecondaryTapDown: (details) =>
+          _showContextMenu(context, ref, details.globalPosition),
+      child: InkWell(
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
+          child: Text(
+            tag.name,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFFB8B8BC), fontSize: 12.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showContextMenu(
+      BuildContext context, WidgetRef ref, Offset globalPos) async {
+    final rect = RelativeRect.fromLTRB(
+        globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy);
+
+    final selected = await showMenu<String>(
+      context: context,
+      position: rect,
+      items: const [
+        PopupMenuItem(value: 'checkout', child: Text('Checkout')),
+        PopupMenuItem(value: 'push_tag', child: Text('Push tag')),
+        PopupMenuDivider(),
+        PopupMenuItem(value: 'delete_tag', child: Text('Delete tag')),
+      ],
+    );
+
+    if (selected == null || !context.mounted) return;
+    final write = ref.read(gitWriteOperationsProvider);
+
+    switch (selected) {
+      case 'checkout':
+        await write.checkout(repo, tag.name);
+        onRefresh();
+
+      case 'push_tag':
+        // Push the specific tag to origin using the push stream; fire-and-forget
+        // with no progress tracking for simplicity.
+        final stream = write.push(repo, branch: tag.name, pushTags: true);
+        await stream.drain<void>();
+        onRefresh();
+
+      case 'delete_tag':
+        if (!context.mounted) return;
+        final confirmed = await ConfirmDialog.show(
+          context,
+          title: 'Delete tag',
+          body: 'Delete tag "${tag.name}"? This cannot be undone.',
+          confirmLabel: 'Delete',
+          dangerous: true,
+        );
+        if (!confirmed) return;
+        await write.deleteTag(repo, tag.name);
+        onRefresh();
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stash row with context menu
+// ---------------------------------------------------------------------------
+
+class _StashRow extends ConsumerWidget {
+  final Stash stash;
+  final RepoLocation repo;
+  final VoidCallback onRefresh;
+
+  const _StashRow({required this.stash, required this.repo, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onSecondaryTapDown: (details) =>
+          _showContextMenu(context, ref, details.globalPosition),
+      child: InkWell(
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
+          child: Text(
+            'stash@{${stash.index}} — ${stash.message}',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFFB8B8BC), fontSize: 12.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showContextMenu(
+      BuildContext context, WidgetRef ref, Offset globalPos) async {
+    final rect = RelativeRect.fromLTRB(
+        globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy);
+
+    final selected = await showMenu<String>(
+      context: context,
+      position: rect,
+      items: const [
+        PopupMenuItem(value: 'apply', child: Text('Apply')),
+        PopupMenuItem(value: 'pop', child: Text('Pop')),
+        PopupMenuDivider(),
+        PopupMenuItem(value: 'drop', child: Text('Drop')),
+      ],
+    );
+
+    if (selected == null || !context.mounted) return;
+    final write = ref.read(gitWriteOperationsProvider);
+
+    switch (selected) {
+      case 'apply':
+        await write.stashApply(repo, stash.index);
+        onRefresh();
+
+      case 'pop':
+        await write.stashPop(repo, stash.index);
+        onRefresh();
+
+      case 'drop':
+        if (!context.mounted) return;
+        final confirmed = await ConfirmDialog.show(
+          context,
+          title: 'Drop stash',
+          body: 'Drop "stash@{${stash.index}}"? This cannot be undone.',
+          confirmLabel: 'Drop',
+          dangerous: true,
+        );
+        if (!confirmed) return;
+        await write.stashDrop(repo, stash.index);
+        onRefresh();
+    }
   }
 }
 
@@ -215,28 +371,6 @@ class _EmptyHint extends StatelessWidget {
                 fontSize: 11.5,
                 fontStyle: FontStyle.italic)),
       );
-}
-
-class _RefRow extends StatelessWidget {
-  final String label;
-  const _RefRow({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {},
-      child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
-        child: Text(
-          label,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-              color: Color(0xFFB8B8BC), fontSize: 12.5),
-        ),
-      ),
-    );
-  }
 }
 
 class BranchTreeView extends ConsumerStatefulWidget {
