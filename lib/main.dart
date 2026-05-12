@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 
 import 'application/active_workspace_provider.dart';
+import 'application/git/repo_state_provider.dart';
 import 'application/providers.dart';
 import 'application/workspaces/workspace.dart';
 import 'ui/bottom_panel/bottom_panel.dart';
 import 'ui/commit_graph/commit_graph_panel.dart';
+import 'ui/conflicts/conflict_resolution_panel.dart';
 import 'ui/operations/toast_overlay.dart';
 import 'ui/shell/repo_selector.dart';
 import 'ui/sidebar/sidebar.dart';
@@ -129,14 +131,22 @@ class Shell extends ConsumerWidget {
                             : Builder(builder: (context) {
                                 final localChanges =
                                     ref.watch(localChangesSelectedProvider);
+                                final repoStateAsync = ref
+                                    .watch(repoStateProvider(active.location));
+                                final inProgressOp = repoStateAsync.valueOrNull;
+                                final hasConflict =
+                                    inProgressOp == InProgressOp.merge ||
+                                    inProgressOp == InProgressOp.cherryPick;
                                 return Column(
                                   children: [
                                     Expanded(child: CommitGraphPanel(repo: active.location)),
                                     SizedBox(
                                       height: 320,
-                                      child: localChanges
-                                          ? WorkingCopyPanel(repo: active.location)
-                                          : BottomPanel(repo: active.location),
+                                      child: hasConflict
+                                          ? ConflictResolutionPanel(repo: active.location)
+                                          : localChanges
+                                              ? WorkingCopyPanel(repo: active.location)
+                                              : BottomPanel(repo: active.location),
                                     ),
                                   ],
                                 );
