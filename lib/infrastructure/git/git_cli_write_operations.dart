@@ -295,11 +295,58 @@ final class GitCliWriteOperations implements GitWriteOperations {
   }
 
   @override
-  Future<GitResult<MergeOutcome>> merge(RepoLocation r, String ref, {bool ffOnly = false, bool noCommit = false}) => throw UnimplementedError();
+  Future<GitResult<MergeOutcome>> merge(RepoLocation r, String ref, {bool ffOnly = false, bool noCommit = false}) async {
+    final args = <String>['merge'];
+    if (ffOnly) args.add('--ff-only');
+    if (noCommit) args.add('--no-commit');
+    args.add(ref);
+    // Use Process.run directly so we can inspect both stdout and stderr on failure
+    final result = await Process.run(
+      _runner.executable, args,
+      workingDirectory: r.path,
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
+    final out = result.stdout.toString();
+    final err = result.stderr.toString();
+    if (result.exitCode == 0) {
+      final ff = out.contains('Fast-forward');
+      final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
+      if (ff) return GitSuccess(MergeFastForward(CommitSha(head)));
+      return GitSuccess(MergeMerged(CommitSha(head)));
+    }
+    // Check for conflict in both stdout and stderr
+    final combined = out + err;
+    if (combined.contains('CONFLICT') || combined.contains('Automatic merge failed')) {
+      // List unmerged files — ls-files --unmerged always exits 0
+      final raw = await _runner.run(r.path, ['ls-files', '--unmerged']);
+      // Each line: "<mode> <sha> <stage>\t<path>" — extract unique paths
+      final conflicted = raw
+          .split('\n')
+          .where((l) => l.isNotEmpty)
+          .map((l) => l.split('\t').last)
+          .toSet()
+          .toList();
+      return GitSuccess(MergeConflict(conflicted));
+    }
+    final exc = GitProcessException(args, result.exitCode, err);
+    return GitFailure(_classify(exc), err, err);
+  }
+
   @override
-  Future<GitResult<void>> mergeAbort(RepoLocation r) => throw UnimplementedError();
+  Future<GitResult<void>> mergeAbort(RepoLocation r) async {
+    try { await _runner.run(r.path, ['merge', '--abort']); return const GitSuccess(null); }
+    on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
+  }
+
   @override
-  Future<GitResult<CommitSha>> mergeContinue(RepoLocation r) => throw UnimplementedError();
+  Future<GitResult<CommitSha>> mergeContinue(RepoLocation r) async {
+    try {
+      await _runner.run(r.path, ['merge', '--continue', '--no-edit']);
+      final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
+      return GitSuccess(CommitSha(head));
+    } on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
+  }
   @override
   Future<GitResult<CherryPickOutcome>> cherryPick(RepoLocation r, CommitSha sha) => throw UnimplementedError();
   @override
