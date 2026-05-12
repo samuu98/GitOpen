@@ -8,6 +8,7 @@ import '../../application/providers.dart';
 import '../../domain/commits/commit_info.dart';
 import '../../domain/repositories/repo_location.dart';
 import 'commit_row.dart';
+import 'local_changes_row.dart';
 import 'ref_decoration.dart';
 
 class _GraphData {
@@ -171,22 +172,33 @@ class CommitGraphPanel extends ConsumerWidget {
             );
           }
           final selected = ref.watch(selectedCommitShaProvider);
-          return ListView.builder(
-            itemExtent: 26,
-            itemCount: data.nodes.length,
-            itemBuilder: (context, i) {
-              final node = data.nodes[i];
-              final refs = data.refsBySha[node.commit.sha.value] ?? const [];
-              return CommitRow(
-                node: node,
-                maxLane: data.maxLane,
-                refs: refs,
-                isSelected: selected == node.commit.sha,
-                onTap: () => ref
-                    .read(selectedCommitShaProvider.notifier)
-                    .state = node.commit.sha,
-              );
-            },
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LocalChangesRow(repo: repo),
+              Expanded(
+                child: ListView.builder(
+                  itemExtent: 26,
+                  itemCount: data.nodes.length,
+                  itemBuilder: (context, i) {
+                    final node = data.nodes[i];
+                    final refs = data.refsBySha[node.commit.sha.value] ?? const [];
+                    return CommitRow(
+                      node: node,
+                      maxLane: data.maxLane,
+                      refs: refs,
+                      isSelected: selected == node.commit.sha,
+                      onTap: () {
+                        ref.read(selectedCommitShaProvider.notifier).state =
+                            node.commit.sha;
+                        ref.read(localChangesSelectedProvider.notifier).state =
+                            false;
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
