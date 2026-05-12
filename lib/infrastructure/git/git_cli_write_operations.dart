@@ -403,5 +403,8 @@ final class GitCliWriteOperations implements GitWriteOperations {
     on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
   }
   @override
-  Stream<GitProgress> clone(String url, String destination, {AuthSpec? auth}) => throw UnimplementedError();
+  Stream<GitProgress> clone(String url, String destination, {AuthSpec? auth}) async* {
+    final args = ['clone', '--progress', url, destination];
+    await for (final p in _runProgressStream('.', args, auth: auth)) yield p;
+  }
 }
