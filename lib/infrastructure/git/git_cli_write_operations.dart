@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import '../../application/git/auth_spec.dart';
 import '../../application/git/commit_request.dart';
 import '../../application/git/git_progress.dart';
@@ -7,6 +10,7 @@ import '../../application/git/merge_outcome.dart';
 import '../../domain/commits/commit_sha.dart';
 import '../../domain/repositories/repo_location.dart';
 import 'git_process_runner.dart';
+import 'git_progress_parser.dart';
 
 final class GitCliWriteOperations implements GitWriteOperations {
   // ignore: unused_field
@@ -186,11 +190,76 @@ final class GitCliWriteOperations implements GitWriteOperations {
     }
   }
   @override
-  Stream<GitProgress> fetch(RepoLocation r, {String? remote, bool all = false, AuthSpec? auth}) => throw UnimplementedError();
+  Stream<GitProgress> fetch(RepoLocation r,
+      {String? remote, bool all = false, AuthSpec? auth}) async* {
+    final args = <String>['fetch', '--progress'];
+    if (all) {
+      args.add('--all');
+    } else if (remote != null) {
+      args.add(remote);
+    }
+    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+      yield p;
+    }
+  }
+
   @override
-  Stream<GitProgress> pull(RepoLocation r, PullStrategy strategy, {AuthSpec? auth}) => throw UnimplementedError();
+  Stream<GitProgress> pull(RepoLocation r, PullStrategy strategy,
+      {AuthSpec? auth}) async* {
+    final args = <String>['pull', '--progress'];
+    switch (strategy) {
+      case PullStrategy.ffOnly:
+        args.add('--ff-only');
+      case PullStrategy.merge:
+        args.add('--no-rebase');
+      case PullStrategy.rebase:
+        args.add('--rebase');
+    }
+    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+      yield p;
+    }
+  }
+
   @override
-  Stream<GitProgress> push(RepoLocation r, {String? remote, String? branch, bool forceWithLease = false, bool pushTags = false, AuthSpec? auth}) => throw UnimplementedError();
+  Stream<GitProgress> push(RepoLocation r,
+      {String? remote,
+      String? branch,
+      bool forceWithLease = false,
+      bool pushTags = false,
+      AuthSpec? auth}) async* {
+    final args = <String>['push', '--progress'];
+    if (forceWithLease) args.add('--force-with-lease');
+    if (pushTags) args.add('--tags');
+    if (remote != null) {
+      args.add(remote);
+      if (branch != null) args.add(branch);
+    }
+    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+      yield p;
+    }
+  }
+
+  Stream<GitProgress> _runProgressStream(String cwd, List<String> args,
+      {AuthSpec? auth}) async* {
+    final env = <String, String>{};
+    if (auth is AuthSsh) {
+      env['GIT_SSH_COMMAND'] =
+          'ssh -i ${auth.privateKeyPath} -F /dev/null -o IdentitiesOnly=yes';
+    }
+    final p = await Process.start(_runner.executable, args,
+        workingDirectory: cwd,
+        environment: env.isEmpty ? null : env);
+    await for (final line in p.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())) {
+      final parsed = GitProgressParser.parse(line);
+      if (parsed != null) yield parsed;
+    }
+    final exit = await p.exitCode;
+    if (exit != 0) {
+      throw GitProcessException(args, exit, '');
+    }
+  }
   @override
   Future<GitResult<void>> stashSave(RepoLocation r, String message, {bool includeUntracked = false}) => throw UnimplementedError();
   @override

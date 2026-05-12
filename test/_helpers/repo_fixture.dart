@@ -29,6 +29,13 @@ class RepoFixture {
     return f;
   }
 
+  static Future<RepoFixture> withFileRemote() async {
+    final origin = await withLinearHistory(3);
+    final local = await empty();
+    await _git(local.path, ['remote', 'add', 'origin', origin.path]);
+    return local;
+  }
+
   static Future<RepoFixture> withBranches() async {
     final f = await withLinearHistory(3);
     await _git(f.path, ['checkout', '-q', '-b', 'feature']);
