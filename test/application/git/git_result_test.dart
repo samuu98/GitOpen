@@ -16,7 +16,7 @@ void main() {
     });
 
     test('switch is exhaustive', () {
-      const r = GitSuccess<String>('ok');
+      const GitResult<String> r = GitSuccess<String>('ok');
       final out = switch (r) {
         GitSuccess(value: final v) => v,
         GitFailure() => 'err',

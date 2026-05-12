@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'commit_graph/commit_graph_layout.dart';
 import 'git/git_read_operations.dart';
 import 'git/git_write_operations.dart';
+import 'operations/operations_notifier.dart';
+import 'operations/running_operation.dart';
 import 'workspaces/repository_registry.dart';
 import 'workspaces/workspace.dart';
 import 'workspaces/workspace_manager.dart';
@@ -10,6 +12,7 @@ import 'workspaces/workspace_persistence.dart';
 import '../infrastructure/git/git_cli_read_operations.dart';
 import '../infrastructure/git/git_cli_write_operations.dart';
 import '../infrastructure/git/git_process_runner.dart';
+import '../infrastructure/operations/activity_log_repository.dart';
 import '../infrastructure/persistence/database.dart';
 import '../infrastructure/persistence/repository_registry_impl.dart';
 import '../infrastructure/persistence/workspace_persistence_impl.dart';
@@ -50,4 +53,12 @@ final folderPickerProvider = Provider<FolderPicker>((ref) => FolderPicker());
 
 final gitWriteOperationsProvider = Provider<GitWriteOperations>((ref) {
   return GitCliWriteOperations(runner: ref.watch(gitProcessRunnerProvider));
+});
+
+final activityLogRepositoryProvider = Provider<ActivityLogRepository>((ref) {
+  return ActivityLogRepository(ref.watch(appDatabaseProvider));
+});
+
+final operationsProvider = StateNotifierProvider<OperationsNotifier, List<RunningOperation>>((ref) {
+  return OperationsNotifier(ref.watch(activityLogRepositoryProvider));
 });
