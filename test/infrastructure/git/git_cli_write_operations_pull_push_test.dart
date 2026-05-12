@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/git/git_cli_write_operations.dart';
@@ -22,7 +21,7 @@ void main() {
           'git', ['commit', '--allow-empty', '-m', 'extra'],
           workingDirectory: seed.path);
       final sut = GitCliWriteOperations();
-      final events = await sut
+      await sut
           .push(
             RepoLocation(RepoId.newId(), seed.path, 't'),
             remote: 'bare',
