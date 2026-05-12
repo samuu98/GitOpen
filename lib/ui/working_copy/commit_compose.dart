@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../application/active_workspace_provider.dart';
 import '../../application/git/commit_request.dart';
 import '../../application/git/git_result.dart';
 import '../../application/providers.dart';
@@ -18,9 +19,19 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
   bool _amend = false;
   bool _signOff = false;
   bool _busy = false;
+  int _lastTrigger = 0;
 
   @override
   Widget build(BuildContext context) {
+    // React to keyboard shortcut (Ctrl+Enter) via triggerCommitProvider.
+    final triggerCount = ref.watch(triggerCommitProvider);
+    if (triggerCount != _lastTrigger) {
+      _lastTrigger = triggerCount;
+      // Schedule the commit after the current build frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _commit();
+      });
+    }
     return Container(
       color: const Color(0xFF25252A),
       padding: const EdgeInsets.all(12),

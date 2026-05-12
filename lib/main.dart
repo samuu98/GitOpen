@@ -1,11 +1,13 @@
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 
 import 'application/active_workspace_provider.dart';
 import 'application/git/repo_state_provider.dart';
+import 'application/operations/running_operation.dart';
 import 'application/providers.dart';
 import 'application/workspaces/workspace.dart';
 import 'ui/bottom_panel/bottom_panel.dart';
@@ -95,70 +97,123 @@ class GitOpenApp extends StatelessWidget {
   }
 }
 
-class Shell extends ConsumerWidget {
+class Shell extends ConsumerStatefulWidget {
   const Shell({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<Shell> createState() => _ShellState();
+}
+
+class _ShellState extends ConsumerState<Shell> {
+  /// F5 — fetch the active repo.
+  Future<void> _fetchActive() async {
+    final activeId = ref.read(activeWorkspaceIdProvider);
+    if (activeId == null) return;
+    final workspaces = ref.read(workspaceManagerProvider);
+    final active =
+        workspaces.firstWhereOrNull((w) => w.location.id == activeId);
+    if (active == null) return;
+    final repo = active.location;
+    final ops = ref.read(operationsProvider.notifier);
+    final id = ops.start(OpKind.fetch, 'Fetching origin', repo: repo);
+    try {
+      await for (final ev in ref
+          .read(gitWriteOperationsProvider)
+          .fetch(repo, auth: null)) {
+        ops.updateProgress(
+          id,
+          (ev as dynamic).fraction as double?,
+          (ev as dynamic).phase as String,
+        );
+      }
+      ops.finishSuccess(id);
+      ref.invalidate(gitReadOperationsProvider);
+    } catch (e) {
+      ops.finishFailure(id, e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final activeId = ref.watch(activeWorkspaceIdProvider);
     final workspaces = ref.watch(workspaceManagerProvider);
     final active = activeId == null
         ? null
         : workspaces.firstWhereOrNull((w) => w.location.id == activeId);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1F1F23),
-      body: WindowBorder(
-        color: const Color(0xFF2C2C31),
-        width: 1,
-        child: Stack(children: [
-          Column(
-            children: [
-              const _TitleBar(),
-              Expanded(
-                child: Row(
-                  children: [
-                    const Sidebar(),
-                    Expanded(
-                      child: Container(
-                        color: const Color(0xFF1F1F23),
-                        alignment: Alignment.center,
-                        child: workspaces.isEmpty
-                            ? const WelcomeScreen()
-                            : active == null
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        // Ctrl+Enter — trigger commit in the CommitCompose widget (if visible).
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
+          ref.read(triggerCommitProvider.notifier).state++;
+        },
+        // F5 — fetch origin for the active repository.
+        const SingleActivator(LogicalKeyboardKey.f5): _fetchActive,
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: const Color(0xFF1F1F23),
+          body: WindowBorder(
+            color: const Color(0xFF2C2C31),
+            width: 1,
+            child: Stack(children: [
+              Column(
+                children: [
+                  const _TitleBar(),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Sidebar(),
+                        Expanded(
+                          child: Container(
+                            color: const Color(0xFF1F1F23),
+                            alignment: Alignment.center,
+                            child: workspaces.isEmpty
                                 ? const WelcomeScreen()
-                                : Builder(builder: (context) {
-                                final localChanges =
-                                    ref.watch(localChangesSelectedProvider);
-                                final repoStateAsync = ref
-                                    .watch(repoStateProvider(active.location));
-                                final inProgressOp = repoStateAsync.valueOrNull;
-                                final hasConflict =
-                                    inProgressOp == InProgressOp.merge ||
-                                    inProgressOp == InProgressOp.cherryPick;
-                                return Column(
-                                  children: [
-                                    Expanded(child: CommitGraphPanel(repo: active.location)),
-                                    SizedBox(
-                                      height: 320,
-                                      child: hasConflict
-                                          ? ConflictResolutionPanel(repo: active.location)
-                                          : localChanges
-                                              ? WorkingCopyPanel(repo: active.location)
-                                              : BottomPanel(repo: active.location),
-                                    ),
-                                  ],
-                                );
-                              }),
-                      ),
+                                : active == null
+                                    ? const WelcomeScreen()
+                                    : Builder(builder: (context) {
+                                        final localChanges = ref
+                                            .watch(localChangesSelectedProvider);
+                                        final repoStateAsync = ref.watch(
+                                            repoStateProvider(active.location));
+                                        final inProgressOp =
+                                            repoStateAsync.valueOrNull;
+                                        final hasConflict =
+                                            inProgressOp == InProgressOp.merge ||
+                                            inProgressOp ==
+                                                InProgressOp.cherryPick;
+                                        return Column(
+                                          children: [
+                                            Expanded(
+                                                child: CommitGraphPanel(
+                                                    repo: active.location)),
+                                            SizedBox(
+                                              height: 320,
+                                              child: hasConflict
+                                                  ? ConflictResolutionPanel(
+                                                      repo: active.location)
+                                                  : localChanges
+                                                      ? WorkingCopyPanel(
+                                                          repo: active.location)
+                                                      : BottomPanel(
+                                                          repo: active.location),
+                                            ),
+                                          ],
+                                        );
+                                      }),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+              const ToastOverlay(),
+            ]),
           ),
-          const ToastOverlay(),
-        ]),
+        ),
       ),
     );
   }
