@@ -9,6 +9,7 @@ import 'application/providers.dart';
 import 'application/workspaces/workspace.dart';
 import 'ui/bottom_panel/bottom_panel.dart';
 import 'ui/commit_graph/commit_graph_panel.dart';
+import 'ui/operations/toast_overlay.dart';
 import 'ui/shell/repo_selector.dart';
 import 'ui/sidebar/sidebar.dart';
 
@@ -105,39 +106,42 @@ class Shell extends ConsumerWidget {
       body: WindowBorder(
         color: const Color(0xFF2C2C31),
         width: 1,
-        child: Column(
-          children: [
-            const _TitleBar(),
-            Expanded(
-              child: Row(
-                children: [
-                  const Sidebar(),
-                  Expanded(
-                    child: Container(
-                      color: const Color(0xFF1F1F23),
-                      alignment: Alignment.center,
-                      child: active == null
-                          ? const Text(
-                              'Open a repository to begin.',
-                              style: TextStyle(
-                                  color: Color(0xFF888892), fontSize: 14),
-                            )
-                          : Column(
-                              children: [
-                                Expanded(child: CommitGraphPanel(repo: active.location)),
-                                SizedBox(
-                                  height: 320,
-                                  child: BottomPanel(repo: active.location),
-                                ),
-                              ],
-                            ),
+        child: Stack(children: [
+          Column(
+            children: [
+              const _TitleBar(),
+              Expanded(
+                child: Row(
+                  children: [
+                    const Sidebar(),
+                    Expanded(
+                      child: Container(
+                        color: const Color(0xFF1F1F23),
+                        alignment: Alignment.center,
+                        child: active == null
+                            ? const Text(
+                                'Open a repository to begin.',
+                                style: TextStyle(
+                                    color: Color(0xFF888892), fontSize: 14),
+                              )
+                            : Column(
+                                children: [
+                                  Expanded(child: CommitGraphPanel(repo: active.location)),
+                                  SizedBox(
+                                    height: 320,
+                                    child: BottomPanel(repo: active.location),
+                                  ),
+                                ],
+                              ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const ToastOverlay(),
+        ]),
       ),
     );
   }
