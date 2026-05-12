@@ -7,7 +7,10 @@ import '../../domain/refs/branch.dart';
 import '../../domain/refs/remote.dart';
 import '../../domain/refs/stash.dart';
 import '../../domain/refs/tag.dart';
+import '../../application/git/git_result.dart';
+import '../../application/git/merge_outcome.dart';
 import '../../domain/repositories/repo_location.dart';
+import '../dialogs/confirm_dialog.dart';
 import 'branch_tree.dart';
 
 class _SidebarData {
@@ -57,10 +60,11 @@ class Sidebar extends ConsumerWidget {
               ),
             )
           : Consumer(builder: (context, ref, _) {
+              final repo = activeWs.location as RepoLocation;
               final async =
-                  ref.watch(_sidebarDataProvider(activeWs.location as RepoLocation));
+                  ref.watch(_sidebarDataProvider(repo));
               return async.when(
-                data: (data) => _SidebarContent(data: data),
+                data: (data) => _SidebarContent(data: data, repo: repo),
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(
@@ -79,7 +83,8 @@ class Sidebar extends ConsumerWidget {
 
 class _SidebarContent extends StatelessWidget {
   final _SidebarData data;
-  const _SidebarContent({required this.data});
+  final RepoLocation repo;
+  const _SidebarContent({required this.data, required this.repo});
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +95,7 @@ class _SidebarContent extends StatelessWidget {
       children: [
         _Section(
           title: 'LOCAL BRANCHES',
-          child: BranchTreeView(nodes: localTree),
+          child: BranchTreeView(nodes: localTree, repo: repo),
         ),
         _Section(
           title: 'REMOTES',
@@ -113,7 +118,8 @@ class _SidebarContent extends StatelessWidget {
                         ),
                       ),
                       BranchTreeView(
-                          nodes: BranchTree.build(r.branches)),
+                          nodes: BranchTree.build(r.branches),
+                          repo: repo),
                     ],
                   ],
                 ),
@@ -236,8 +242,9 @@ class _RefRow extends StatelessWidget {
 class BranchTreeView extends ConsumerStatefulWidget {
   final List<BranchTreeNode> nodes;
   final int depth;
+  final RepoLocation repo;
   const BranchTreeView(
-      {super.key, required this.nodes, this.depth = 0});
+      {super.key, required this.nodes, this.depth = 0, required this.repo});
 
   @override
   ConsumerState<BranchTreeView> createState() => _BranchTreeViewState();
@@ -258,6 +265,109 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     );
   }
 
+  /// Invalidates sidebar data so the tree refreshes after a write op.
+  void _refresh() {
+    ref.invalidate(_sidebarDataProvider(widget.repo));
+  }
+
+  Future<void> _handleContextMenu(
+      BuildContext context, BranchTreeNode n, Offset globalPos) async {
+    final branch = n.branch;
+    if (branch == null) return;
+    final branchName = branch.name;
+
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+          globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy),
+      items: const [
+        PopupMenuItem(value: 'checkout', child: Text('Checkout')),
+        PopupMenuItem(value: 'merge', child: Text('Merge into current')),
+        PopupMenuItem(value: 'rename', child: Text('Rename…')),
+        PopupMenuItem(value: 'delete', child: Text('Delete')),
+        PopupMenuItem(value: 'upstream', child: Text('Set upstream…')),
+      ],
+    );
+
+    if (selected == null || !context.mounted) return;
+    final write = ref.read(gitWriteOperationsProvider);
+
+    switch (selected) {
+      case 'checkout':
+        await write.checkout(widget.repo, branchName);
+        _refresh();
+
+      case 'merge':
+        final result = await write.merge(widget.repo, branchName);
+        _refresh();
+        if (!context.mounted) return;
+        if (result case GitSuccess(value: final MergeConflict outcome)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Merge conflict in ${outcome.conflictedPaths.length} file(s). Full conflict UI coming in 2D.'),
+              backgroundColor: const Color(0xFFC4314B),
+            ),
+          );
+        }
+
+      case 'rename':
+        final newName = await _promptText(context, 'Rename branch',
+            label: 'New name', initial: branchName);
+        if (newName == null || newName.trim().isEmpty) return;
+        await write.renameBranch(widget.repo, branchName, newName.trim());
+        _refresh();
+
+      case 'delete':
+        if (!context.mounted) return;
+        final confirmed = await ConfirmDialog.show(
+          context,
+          title: 'Delete branch',
+          body: 'Delete "$branchName"? This cannot be undone.',
+          confirmLabel: 'Delete',
+          dangerous: true,
+        );
+        if (!confirmed) return;
+        await write.deleteBranch(widget.repo, branchName);
+        _refresh();
+
+      case 'upstream':
+        final upstream = await _promptText(context, 'Set upstream',
+            label: 'Upstream ref (e.g. origin/main)');
+        if (upstream == null || upstream.trim().isEmpty) return;
+        await write.setUpstream(widget.repo, branchName, upstream.trim());
+        _refresh();
+    }
+  }
+
+  /// Shows a simple single-TextField AlertDialog and returns the entered text,
+  /// or null if the user cancelled.
+  Future<String?> _promptText(BuildContext context, String title,
+      {required String label, String? initial}) async {
+    final ctl = TextEditingController(text: initial);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: ctl,
+          autofocus: true,
+          decoration: InputDecoration(labelText: label),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, ctl.text),
+              child: const Text('OK')),
+        ],
+      ),
+    );
+    ctl.dispose();
+    return result;
+  }
+
   Widget _renderNode(BranchTreeNode n, int depth) {
     final indent = 6.0 + depth * 14.0;
     if (n.children.isEmpty) {
@@ -268,57 +378,61 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           ref.read(hiddenRefsProvider).contains(fullName);
       return Opacity(
         opacity: isHidden ? 0.5 : 1.0,
-        child: InkWell(
-          onTap: () {},
-          child: Padding(
-            padding: EdgeInsets.only(
-                left: indent + 18, right: 6, top: 3, bottom: 3),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 12,
-                  child: current
-                      ? const Text('✓',
-                          style: TextStyle(
-                              color: Color(0xFF4EC9B0), fontSize: 11))
-                      : null,
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    n.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: current
-                          ? const Color(0xFF4EC9B0)
-                          : const Color(0xFFB8B8BC),
-                      fontSize: 12.5,
-                      fontWeight: current
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                    ),
+        child: GestureDetector(
+          onSecondaryTapDown: (details) =>
+              _handleContextMenu(context, n, details.globalPosition),
+          child: InkWell(
+            onTap: () {},
+            child: Padding(
+              padding: EdgeInsets.only(
+                  left: indent + 18, right: 6, top: 3, bottom: 3),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 12,
+                    child: current
+                        ? const Text('✓',
+                            style: TextStyle(
+                                color: Color(0xFF4EC9B0), fontSize: 11))
+                        : null,
                   ),
-                ),
-                // Visibility eye icon — always visible, click toggles.
-                if (fullName != null)
-                  GestureDetector(
-                    onTap: () => ref
-                        .read(hiddenRefsProvider.notifier)
-                        .toggle(fullName),
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: Icon(
-                        isHidden
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        size: 13,
-                        color: isHidden
-                            ? const Color(0xFF5D5D65)
-                            : const Color(0xFF888892),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      n.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: current
+                            ? const Color(0xFF4EC9B0)
+                            : const Color(0xFFB8B8BC),
+                        fontSize: 12.5,
+                        fontWeight: current
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     ),
                   ),
-              ],
+                  // Visibility eye icon — always visible, click toggles.
+                  if (fullName != null)
+                    GestureDetector(
+                      onTap: () => ref
+                          .read(hiddenRefsProvider.notifier)
+                          .toggle(fullName),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Icon(
+                          isHidden
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          size: 13,
+                          color: isHidden
+                              ? const Color(0xFF5D5D65)
+                              : const Color(0xFF888892),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -358,7 +472,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
             ]),
           ),
         ),
-        if (open) BranchTreeView(nodes: n.children, depth: depth + 1),
+        if (open) BranchTreeView(nodes: n.children, depth: depth + 1, repo: widget.repo),
       ],
     );
   }
