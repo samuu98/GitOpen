@@ -348,13 +348,60 @@ final class GitCliWriteOperations implements GitWriteOperations {
     } on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
   }
   @override
-  Future<GitResult<CherryPickOutcome>> cherryPick(RepoLocation r, CommitSha sha) => throw UnimplementedError();
+  Future<GitResult<CherryPickOutcome>> cherryPick(RepoLocation r, CommitSha sha) async {
+    // Use Process.run directly to capture stdout for conflict detection (git may write CONFLICT to stdout)
+    final result = await Process.run(
+      _runner.executable, ['cherry-pick', sha.value],
+      workingDirectory: r.path,
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
+    final out = result.stdout.toString();
+    final err = result.stderr.toString();
+    if (result.exitCode == 0) {
+      final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
+      return GitSuccess(CherryPickApplied(CommitSha(head)));
+    }
+    final combined = out + err;
+    if (combined.contains('CONFLICT') || combined.contains('after resolving the conflicts')) {
+      final raw = await _runner.run(r.path, ['ls-files', '--unmerged']);
+      final conflicted = raw
+          .split('\n')
+          .where((l) => l.isNotEmpty)
+          .map((l) => l.split('\t').last)
+          .toSet()
+          .toList();
+      return GitSuccess(CherryPickConflict(conflicted));
+    }
+    final exc = GitProcessException(['cherry-pick', sha.value], result.exitCode, err);
+    return GitFailure(_classify(exc), err, err);
+  }
+
   @override
-  Future<GitResult<void>> cherryPickAbort(RepoLocation r) => throw UnimplementedError();
+  Future<GitResult<void>> cherryPickAbort(RepoLocation r) async {
+    try { await _runner.run(r.path, ['cherry-pick', '--abort']); return const GitSuccess(null); }
+    on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
+  }
+
   @override
-  Future<GitResult<CommitSha>> cherryPickContinue(RepoLocation r) => throw UnimplementedError();
+  Future<GitResult<CommitSha>> cherryPickContinue(RepoLocation r) async {
+    try {
+      await _runner.run(r.path, ['cherry-pick', '--continue']);
+      final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
+      return GitSuccess(CommitSha(head));
+    } on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
+  }
+
   @override
-  Future<GitResult<void>> reset(RepoLocation r, CommitSha to, ResetMode mode) => throw UnimplementedError();
+  Future<GitResult<void>> reset(RepoLocation r, CommitSha to, ResetMode mode) async {
+    final flag = switch (mode) {
+      ResetMode.soft => '--soft',
+      ResetMode.mixed => '--mixed',
+      ResetMode.hard => '--hard',
+    };
+    try { await _runner.run(r.path, ['reset', flag, to.value]); return const GitSuccess(null); }
+    on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
+  }
   @override
   Stream<GitProgress> clone(String url, String destination, {AuthSpec? auth}) => throw UnimplementedError();
 }
