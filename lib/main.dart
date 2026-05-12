@@ -15,6 +15,7 @@ import 'ui/operations/toast_overlay.dart';
 import 'ui/shell/repo_selector.dart';
 import 'ui/sidebar/sidebar.dart';
 import 'ui/toolbar/git_toolbar.dart';
+import 'ui/welcome/welcome_screen.dart';
 import 'ui/working_copy/working_copy_panel.dart';
 
 final _log = Logger();
@@ -122,13 +123,11 @@ class Shell extends ConsumerWidget {
                       child: Container(
                         color: const Color(0xFF1F1F23),
                         alignment: Alignment.center,
-                        child: active == null
-                            ? const Text(
-                                'Open a repository to begin.',
-                                style: TextStyle(
-                                    color: Color(0xFF888892), fontSize: 14),
-                              )
-                            : Builder(builder: (context) {
+                        child: workspaces.isEmpty
+                            ? const WelcomeScreen()
+                            : active == null
+                                ? const WelcomeScreen()
+                                : Builder(builder: (context) {
                                 final localChanges =
                                     ref.watch(localChangesSelectedProvider);
                                 final repoStateAsync = ref

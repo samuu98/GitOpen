@@ -4,6 +4,7 @@ import '../../application/active_workspace_provider.dart';
 import '../../application/providers.dart';
 import '../../application/workspaces/workspace.dart';
 import '../../domain/repositories/repo_id.dart';
+import '../dialogs/clone_dialog.dart';
 
 /// Dropdown placed in the title bar that picks the active workspace.
 /// Replaces the tab strip — the title bar gains drag area on either side.
@@ -78,6 +79,21 @@ class _RepoSelectorState extends ConsumerState<RepoSelector> {
             style: TextStyle(color: Color(0xFFD4D4D4), fontSize: 12.5),
           ),
         ),
+        MenuItemButton(
+          style: ButtonStyle(
+            padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) return const Color(0xFF34343A);
+              return Colors.transparent;
+            }),
+          ),
+          leadingIcon: const Icon(Icons.download, size: 16, color: Color(0xFFB8B8BC)),
+          onPressed: _cloneRepo,
+          child: const Text(
+            'Clone repository...',
+            style: TextStyle(color: Color(0xFFD4D4D4), fontSize: 12.5),
+          ),
+        ),
       ],
       builder: (context, controller, child) {
         return _SelectorButton(
@@ -103,6 +119,11 @@ class _RepoSelectorState extends ConsumerState<RepoSelector> {
     final manager = ref.read(workspaceManagerProvider.notifier);
     final ws = await manager.open(path);
     ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
+  }
+
+  Future<void> _cloneRepo() async {
+    _menu.close();
+    if (mounted) await CloneDialog.show(context);
   }
 
   Future<void> _close(RepoId id) async {

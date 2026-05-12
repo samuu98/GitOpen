@@ -405,6 +405,8 @@ final class GitCliWriteOperations implements GitWriteOperations {
   @override
   Stream<GitProgress> clone(String url, String destination, {AuthSpec? auth}) async* {
     final args = ['clone', '--progress', url, destination];
-    await for (final p in _runProgressStream('.', args, auth: auth)) yield p;
+    await for (final p in _runProgressStream('.', args, auth: auth)) {
+      yield p;
+    }
   }
 }
