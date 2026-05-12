@@ -12,6 +12,7 @@ import 'ui/commit_graph/commit_graph_panel.dart';
 import 'ui/operations/toast_overlay.dart';
 import 'ui/shell/repo_selector.dart';
 import 'ui/sidebar/sidebar.dart';
+import 'ui/working_copy/working_copy_panel.dart';
 
 final _log = Logger();
 
@@ -124,15 +125,21 @@ class Shell extends ConsumerWidget {
                                 style: TextStyle(
                                     color: Color(0xFF888892), fontSize: 14),
                               )
-                            : Column(
-                                children: [
-                                  Expanded(child: CommitGraphPanel(repo: active.location)),
-                                  SizedBox(
-                                    height: 320,
-                                    child: BottomPanel(repo: active.location),
-                                  ),
-                                ],
-                              ),
+                            : Builder(builder: (context) {
+                                final localChanges =
+                                    ref.watch(localChangesSelectedProvider);
+                                return Column(
+                                  children: [
+                                    Expanded(child: CommitGraphPanel(repo: active.location)),
+                                    SizedBox(
+                                      height: 320,
+                                      child: localChanges
+                                          ? WorkingCopyPanel(repo: active.location)
+                                          : BottomPanel(repo: active.location),
+                                    ),
+                                  ],
+                                );
+                              }),
                       ),
                     ),
                   ],
