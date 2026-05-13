@@ -86,7 +86,10 @@ class _AuthDialogState extends ConsumerState<AuthDialog>
                 children: [
                   _httpsTab(),
                   _sshTab(),
-                  if (isGitHub) _GitHubOAuthTab(onToken: _onGitHubToken),
+                  if (isGitHub) _GitHubOAuthTab(
+                    clientId: ref.read(appSettingsProvider).githubClientId ?? '',
+                    onToken: _onGitHubToken,
+                  ),
                 ],
               ),
             ),
@@ -184,8 +187,9 @@ class _AuthDialogState extends ConsumerState<AuthDialog>
 ///  3. User opens the verification URL in the browser (or we open it for them).
 ///  4. We poll in the background; on success we call [onToken].
 class _GitHubOAuthTab extends StatefulWidget {
+  final String clientId;
   final Future<void> Function(String token) onToken;
-  const _GitHubOAuthTab({required this.onToken});
+  const _GitHubOAuthTab({required this.clientId, required this.onToken});
 
   @override
   State<_GitHubOAuthTab> createState() => _GitHubOAuthTabState();
@@ -318,7 +322,8 @@ class _GitHubOAuthTabState extends State<_GitHubOAuthTab> {
   Future<void> _startDeviceFlow() async {
     setState(() => _state = _OAuthState.polling);
     try {
-      final resp = await GitHubDeviceFlow.requestDeviceCode();
+      final flow = GitHubDeviceFlow(clientId: widget.clientId);
+      final resp = await flow.requestDeviceCode();
       setState(() {
         _userCode = resp.userCode;
         _verificationUri = resp.verificationUri;
@@ -327,7 +332,7 @@ class _GitHubOAuthTabState extends State<_GitHubOAuthTab> {
       // Open the browser automatically.
       await _openBrowser();
       // Poll in the background.
-      final token = await GitHubDeviceFlow.pollForToken(resp);
+      final token = await flow.pollForToken(resp);
       await widget.onToken(token);
     } catch (e) {
       if (mounted) {

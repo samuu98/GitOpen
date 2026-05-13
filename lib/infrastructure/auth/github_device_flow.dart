@@ -18,22 +18,25 @@ import 'package:http/http.dart' as http;
 /// Register a public OAuth App at https://github.com/settings/applications/new
 /// (select "OAuth Apps", NOT "GitHub Apps").  Set the callback URL to
 /// `http://localhost` (unused for Device Flow).  Copy the generated
-/// `client_id` and replace [_clientId] below.
+/// `client_id` and pass it to the constructor.
 class GitHubDeviceFlow {
-  // TODO: Replace with the real client_id after registering the OAuth App at
-  // https://github.com/settings/applications/new
-  static const _clientId = 'PLACEHOLDER_GITHUB_CLIENT_ID';
+  final String clientId;
+
+  GitHubDeviceFlow({required this.clientId});
 
   /// Requests a device + user code from GitHub.
   ///
   /// [scope] defaults to `'repo'` which grants full repository access.
-  static Future<DeviceCodeResponse> requestDeviceCode({
+  Future<DeviceCodeResponse> requestDeviceCode({
     String scope = 'repo',
   }) async {
+    if (clientId.isEmpty) {
+      throw StateError('GitHub Client ID not configured. Settings → GitHub.');
+    }
     final r = await http.post(
       Uri.parse('https://github.com/login/device/code'),
       headers: {'Accept': 'application/json'},
-      body: {'client_id': _clientId, 'scope': scope},
+      body: {'client_id': clientId, 'scope': scope},
     );
     if (r.statusCode != 200) {
       throw HttpException(
@@ -56,7 +59,7 @@ class GitHubDeviceFlow {
   /// Returns the access token string on success.
   /// Throws [TimeoutException] if the device code expires before authorisation.
   /// Throws [StateError] for unexpected error responses from GitHub.
-  static Future<String> pollForToken(DeviceCodeResponse resp) async {
+  Future<String> pollForToken(DeviceCodeResponse resp) async {
     final deadline = DateTime.now().add(resp.expiresIn);
     var pollInterval = resp.interval;
 
@@ -66,7 +69,7 @@ class GitHubDeviceFlow {
         Uri.parse('https://github.com/login/oauth/access_token'),
         headers: {'Accept': 'application/json'},
         body: {
-          'client_id': _clientId,
+          'client_id': clientId,
           'device_code': resp.deviceCode,
           'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
         },
