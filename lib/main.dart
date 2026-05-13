@@ -36,6 +36,7 @@ Future<void> main() async {
   final container = ProviderContainer();
   await _rehydrate(container);
   _subscribePersistence(container);
+  _subscribeRepoSwitch(container);
 
   if (container.read(appSettingsProvider).autoUpdateCheck) {
     unawaited(_checkForUpdatesQuietly(container));
@@ -76,6 +77,16 @@ Future<void> _rehydrate(ProviderContainer container) async {
   } catch (e) {
     _log.w('Rehydration failed: $e');
   }
+}
+
+/// Clears per-repo selection state whenever the active workspace changes.
+/// Without this the commit-details pane keeps showing the previous repo's
+/// selection after switching.
+void _subscribeRepoSwitch(ProviderContainer container) {
+  container.listen(activeWorkspaceIdProvider, (previous, next) {
+    if (previous == next) return;
+    container.read(selectedCommitShaProvider.notifier).state = null;
+  });
 }
 
 void _subscribePersistence(ProviderContainer container) {

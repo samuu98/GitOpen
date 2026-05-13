@@ -15,6 +15,7 @@ import 'workspaces/workspace_persistence.dart';
 import '../infrastructure/auth/secure_credentials_store.dart';
 import '../infrastructure/git/git_cli_read_operations.dart';
 import '../infrastructure/git/git_cli_write_operations.dart';
+import '../infrastructure/git/git_identity_service.dart';
 import '../infrastructure/git/git_process_runner.dart';
 import '../infrastructure/operations/activity_log_repository.dart';
 import '../infrastructure/persistence/database.dart';
@@ -83,4 +84,8 @@ final appSettingsProvider = StateNotifierProvider<AppSettingsNotifier, AppSettin
 
 final updaterProvider = Provider<GitHubReleaseUpdater>((ref) {
   return GitHubReleaseUpdater();
+});
+
+final gitIdentityServiceProvider = Provider<GitIdentityService>((ref) {
+  return GitIdentityService(runner: ref.watch(gitProcessRunnerProvider));
 });

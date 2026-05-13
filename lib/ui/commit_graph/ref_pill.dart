@@ -8,7 +8,10 @@ import 'ref_decoration.dart';
 /// remote name(s) prefixed with ⇄ to signal the sync.
 class RefPill extends StatelessWidget {
   final RefDecoration decoration;
-  const RefPill({super.key, required this.decoration});
+  /// Invoked when the user left-clicks the pill. When null the pill is
+  /// rendered without any tap handling.
+  final VoidCallback? onTap;
+  const RefPill({super.key, required this.decoration, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -21,8 +24,9 @@ class RefPill extends StatelessWidget {
       fg: palette.fg,
     );
 
+    final Widget pill;
     if (!decoration.isSynced) {
-      return Container(
+      pill = Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
         decoration: BoxDecoration(
           color: palette.bg,
@@ -31,38 +35,47 @@ class RefPill extends StatelessWidget {
         ),
         child: localSide,
       );
+    } else {
+      pill = Container(
+        decoration: BoxDecoration(
+          color: palette.bg,
+          border: Border.all(color: palette.border, width: 1),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+                child: localSide,
+              ),
+              Container(
+                width: 1,
+                color: palette.border,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+                color: palette.remoteTintBg,
+                child: _Section(
+                  icon: Icon(Icons.sync_alt, size: 10, color: palette.remoteFg),
+                  label: decoration.syncedRemotes.join(', '),
+                  fg: palette.remoteFg,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
-    // Synced pill: local section + divider + remote section.
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.bg,
-        border: Border.all(color: palette.border, width: 1),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
-              child: localSide,
-            ),
-            Container(
-              width: 1,
-              color: palette.border,
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
-              color: palette.remoteTintBg,
-              child: _Section(
-                icon: Icon(Icons.sync_alt, size: 10, color: palette.remoteFg),
-                label: decoration.syncedRemotes.join(', '),
-                fg: palette.remoteFg,
-              ),
-            ),
-          ],
-        ),
+    if (onTap == null) return pill;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: pill,
       ),
     );
   }

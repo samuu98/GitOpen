@@ -15,6 +15,8 @@ class CommitRow extends StatelessWidget {
   /// Called when the user right-clicks / secondary-taps on this row.
   /// Receives the global position of the tap for context-menu placement.
   final void Function(Offset globalPosition)? onSecondaryTap;
+  /// Called when the user left-clicks one of the ref pills.
+  final void Function(RefDecoration ref)? onRefTap;
 
   const CommitRow({
     super.key,
@@ -24,6 +26,7 @@ class CommitRow extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.onSecondaryTap,
+    this.onRefTap,
   });
 
   static final _dateFmt = DateFormat('yyyy-MM-dd HH:mm');
@@ -83,7 +86,12 @@ class CommitRow extends StatelessWidget {
                           for (final r in refs)
                             Padding(
                               padding: const EdgeInsets.only(right: 4),
-                              child: RefPill(decoration: r),
+                              child: RefPill(
+                                decoration: r,
+                                onTap: onRefTap == null || r.isCurrent
+                                    ? null
+                                    : () => onRefTap!(r),
+                              ),
                             ),
                           if (refs.isNotEmpty) const SizedBox(width: 4),
                           Flexible(

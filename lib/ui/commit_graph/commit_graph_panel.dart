@@ -11,6 +11,7 @@ import '../../application/git/repo_state_provider.dart';
 import '../../application/providers.dart';
 import '../../domain/commits/commit_sha.dart';
 import '../../domain/repositories/repo_location.dart';
+import '../checkout/safe_checkout.dart';
 import '../dialogs/branch_create_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
 import '../theme/app_palette.dart';
@@ -206,6 +207,17 @@ class CommitGraphPanel extends ConsumerWidget {
                         node.commit.sha,
                         globalPos,
                       ),
+                      onRefTap: (r) async {
+                        final ok = await safeCheckout(
+                          context: context,
+                          ref: ref,
+                          repo: repo,
+                          targetRef: r.name,
+                        );
+                        if (ok) {
+                          ref.invalidate(commitGraphDataProvider(repo));
+                        }
+                      },
                     );
                   },
                 ),

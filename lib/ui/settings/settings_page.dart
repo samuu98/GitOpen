@@ -5,11 +5,20 @@ import '../theme/app_palette.dart';
 import 'sections/about_section.dart';
 import 'sections/authentication_section.dart';
 import 'sections/general_section.dart';
+import 'sections/git_identity_section.dart';
 import 'sections/github_section.dart';
 import 'sections/keybindings_section.dart';
 import 'sections/updates_section.dart';
 
-enum SettingsSectionId { general, authentication, keybindings, github, updates, about }
+enum SettingsSectionId {
+  general,
+  gitIdentity,
+  authentication,
+  keybindings,
+  github,
+  updates,
+  about,
+}
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -61,6 +70,7 @@ class _State extends ConsumerState<SettingsPage> {
   Widget _renderSection(SettingsSectionId s) {
     return switch (s) {
       SettingsSectionId.general => const GeneralSection(),
+      SettingsSectionId.gitIdentity => const GitIdentitySection(),
       SettingsSectionId.authentication => const AuthenticationSection(),
       SettingsSectionId.keybindings => const KeybindingsSection(),
       SettingsSectionId.github => const GitHubSection(),
@@ -96,6 +106,7 @@ class _NavItem extends StatelessWidget {
   String _label(SettingsSectionId s) {
     return switch (s) {
       SettingsSectionId.general => 'General',
+      SettingsSectionId.gitIdentity => 'Git Identity',
       SettingsSectionId.authentication => 'Authentication',
       SettingsSectionId.keybindings => 'Keybindings',
       SettingsSectionId.github => 'GitHub',

@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../infrastructure/persistence/settings_repository.dart';
+import '../git_identity/git_identity.dart';
 import 'app_settings.dart';
 
 const _defaultBindings = <String, List<LogicalKeyboardKey>>{
@@ -39,6 +40,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
       githubClientId: all['github_client_id'] as String?,
       autoUpdateCheck: (all['auto_update_check'] as bool?) ?? true,
       keybindings: _decodeBindings(all['keybindings']) ?? state.keybindings,
+      gitIdentities: _decodeIdentities(all['git_identities']),
     );
   }
 
@@ -87,6 +89,27 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
     next[action] = keys;
     state = state.copyWith(keybindings: next);
     await _repo.put('keybindings', _encodeBindings(next));
+  }
+
+  Future<void> addGitIdentity(GitIdentity identity) async {
+    final next = [...state.gitIdentities, identity];
+    state = state.copyWith(gitIdentities: next);
+    await _repo.put('git_identities', next.map((i) => i.toJson()).toList());
+  }
+
+  Future<void> removeGitIdentity(int index) async {
+    if (index < 0 || index >= state.gitIdentities.length) return;
+    final next = [...state.gitIdentities]..removeAt(index);
+    state = state.copyWith(gitIdentities: next);
+    await _repo.put('git_identities', next.map((i) => i.toJson()).toList());
+  }
+
+  List<GitIdentity> _decodeIdentities(dynamic v) {
+    if (v is! List) return const [];
+    return v
+        .map(GitIdentity.fromJson)
+        .whereType<GitIdentity>()
+        .toList(growable: false);
   }
 
   Future<void> resetKeybinding(String action) async {
