@@ -1,7 +1,6 @@
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 
@@ -106,6 +105,13 @@ class GitOpenApp extends ConsumerWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Intent classes for the reactive Shortcuts block in Shell
+// ---------------------------------------------------------------------------
+class _CommitIntent extends Intent { const _CommitIntent(); }
+class _FetchIntent extends Intent { const _FetchIntent(); }
+class _OpenSettingsIntent extends Intent { const _OpenSettingsIntent(); }
+
 class Shell extends ConsumerStatefulWidget {
   const Shell({super.key});
 
@@ -150,17 +156,34 @@ class _ShellState extends ConsumerState<Shell> {
         ? null
         : workspaces.firstWhereOrNull((w) => w.location.id == activeId);
     final settingsOpen = ref.watch(settingsOpenProvider);
+    final bindings = ref.watch(appSettingsProvider.select((s) => s.keybindings));
 
-    return CallbackShortcuts(
-      bindings: <ShortcutActivator, VoidCallback>{
-        // Ctrl+Enter — trigger commit in the CommitCompose widget (if visible).
-        const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
-          ref.read(triggerCommitProvider.notifier).state++;
-        },
-        // F5 — fetch origin for the active repository.
-        const SingleActivator(LogicalKeyboardKey.f5): _fetchActive,
+    return Shortcuts(
+      shortcuts: <ShortcutActivator, Intent>{
+        if (bindings['commit'] != null) bindings['commit']!: const _CommitIntent(),
+        if (bindings['fetch'] != null) bindings['fetch']!: const _FetchIntent(),
+        if (bindings['openSettings'] != null) bindings['openSettings']!: const _OpenSettingsIntent(),
       },
-      child: Focus(
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _CommitIntent: CallbackAction<_CommitIntent>(
+            onInvoke: (_) {
+              ref.read(triggerCommitProvider.notifier).state++;
+              return null;
+            },
+          ),
+          _FetchIntent: CallbackAction<_FetchIntent>(
+            onInvoke: (_) { _fetchActive(); return null; },
+          ),
+          _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
+            onInvoke: (_) {
+              final notifier = ref.read(settingsOpenProvider.notifier);
+              notifier.state = !notifier.state;
+              return null;
+            },
+          ),
+        },
+        child: Focus(
         autofocus: true,
         child: Builder(builder: (context) {
           final palette = AppPalette.of(context);
@@ -229,6 +252,7 @@ class _ShellState extends ConsumerState<Shell> {
           ),
         );
         }),
+      ),
       ),
     );
   }
