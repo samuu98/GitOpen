@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +34,10 @@ Future<void> main() async {
   final container = ProviderContainer();
   await _rehydrate(container);
   _subscribePersistence(container);
+
+  if (container.read(appSettingsProvider).autoUpdateCheck) {
+    unawaited(_checkForUpdatesQuietly(container));
+  }
 
   runApp(UncontrolledProviderScope(
     container: container,
@@ -83,6 +89,19 @@ void _subscribePersistence(ProviderContainer container) {
       }
     },
   );
+}
+
+Future<void> _checkForUpdatesQuietly(ProviderContainer container) async {
+  try {
+    const currentVersion = '0.1.0';
+    final updater = container.read(updaterProvider);
+    final newer = await updater.checkForUpdates(currentVersion);
+    if (newer != null) {
+      _log.i('Update available: $newer');
+    }
+  } catch (e) {
+    _log.d('Startup update check failed (non-critical): $e');
+  }
 }
 
 class GitOpenApp extends ConsumerWidget {

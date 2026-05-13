@@ -21,6 +21,7 @@ import '../infrastructure/persistence/database.dart';
 import '../infrastructure/persistence/repository_registry_impl.dart';
 import '../infrastructure/persistence/settings_repository.dart';
 import '../infrastructure/persistence/workspace_persistence_impl.dart';
+import '../infrastructure/updates/github_release_updater.dart';
 import '../ui/services/folder_picker.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -78,4 +79,8 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
 
 final appSettingsProvider = StateNotifierProvider<AppSettingsNotifier, AppSettingsState>((ref) {
   return AppSettingsNotifier(ref.watch(settingsRepositoryProvider));
+});
+
+final updaterProvider = Provider<GitHubReleaseUpdater>((ref) {
+  return GitHubReleaseUpdater();
 });
