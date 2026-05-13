@@ -488,14 +488,21 @@ final class GitCliReadOperations implements GitReadOperations {
 
   @override
   Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec) async {
-    if (spec is! DiffSpecCommitVsParent) {
-      throw UnsupportedError(
-          'Only DiffSpecCommitVsParent is supported in Slice 1');
-    }
-    final sha = spec.commitSha.value;
-    final stdout = await _runner.run(repo.path, [
-      'show', sha, '--format=', '--raw', '-p', '--no-color',
-    ]);
+    final args = switch (spec) {
+      DiffSpecCommitVsParent(:final commitSha) => [
+          'show', commitSha.value, '--format=', '--raw', '-p', '--no-color',
+        ],
+      DiffSpecCommitVsCommit(:final from, :final to) => [
+          'diff', '${from.value}..${to.value}', '--raw', '-p', '--no-color',
+        ],
+      DiffSpecIndexVsHead() => [
+          'diff', '--cached', '--raw', '-p', '--no-color',
+        ],
+      DiffSpecWorkingTreeVsIndex() => [
+          'diff', '--raw', '-p', '--no-color',
+        ],
+    };
+    final stdout = await _runner.run(repo.path, args);
 
     final files = <FileDiff>[];
     final rawByPath = <String, _RawEntry>{};
