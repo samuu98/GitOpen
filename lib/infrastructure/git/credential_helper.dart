@@ -1,29 +1,34 @@
-import 'dart:io';
-
-import 'package:path/path.dart' as p;
+import 'dart:convert';
 
 import '../../application/git/auth_spec.dart';
 
-/// Produces environment variables for a git subprocess to satisfy credential
-/// prompts without blocking on interactive TTY input.
+/// Produces the environment variables and extra `-c` arguments needed to make
+/// a git subprocess authenticate without an interactive prompt.
 ///
-/// For HTTPS auth (PAT / Basic / GitHub OAuth) it writes the username and
-/// password to temp files and installs a tiny GIT_ASKPASS script that echoes
-/// the correct value based on git's prompt string.
+/// For HTTPS-based credentials (PAT / Basic / GitHub OAuth) it returns an
+/// `http.extraheader` `-c` override carrying a Basic `Authorization` header.
+/// This works for `git push / fetch / pull / clone` against any host that
+/// honours standard HTTP Basic auth (GitHub, GitLab, Bitbucket, Gitea, …)
+/// and avoids the OS credential helper entirely.
 ///
-/// For SSH it sets GIT_SSH_COMMAND with the specific key file.
-///
-/// Callers MUST call the returned `dispose` function after the subprocess
-/// finishes (in a `finally` block) so the temp files are cleaned up.
+/// For SSH it sets `GIT_SSH_COMMAND` with the chosen private key.
 class CredentialHelper {
-  /// Returns `({env, dispose})` where `env` should be merged into the
-  /// subprocess environment and `dispose` deletes any temp files created.
-  ///
-  /// [host] is informational only (not used in the current Slice-2 approach).
-  static Future<({Map<String, String> env, void Function() dispose})> setup(
-      AuthSpec? auth, String host) async {
+  /// Returns `({env, extraArgs, dispose})`:
+  /// - `env` is merged into the subprocess environment
+  /// - `extraArgs` are prepended to the git argv (`-c key=value` pairs)
+  /// - `dispose` releases any temp resources; safe to call multiple times
+  static Future<
+      ({
+        Map<String, String> env,
+        List<String> extraArgs,
+        void Function() dispose,
+      })> setup(AuthSpec? auth, String host) async {
     if (auth == null || auth is AuthSystemDefault) {
-      return (env: <String, String>{}, dispose: () {});
+      return (
+        env: <String, String>{},
+        extraArgs: const <String>[],
+        dispose: () {},
+      );
     }
 
     if (auth is AuthSsh) {
@@ -32,19 +37,13 @@ class CredentialHelper {
           'GIT_SSH_COMMAND':
               'ssh -i ${auth.privateKeyPath} -F /dev/null -o IdentitiesOnly=yes',
         },
+        extraArgs: const <String>[],
         dispose: () {},
       );
     }
 
-    // HTTPS or GitHub OAuth — produce an ASKPASS helper script.
-    final tmp = Directory.systemTemp.createTempSync('gitopen-askpass-');
-    final usrFile = File(p.join(tmp.path, 'user.txt'));
-    final pwdFile = File(p.join(tmp.path, 'pass.txt'));
-    final scriptFile = File(
-        p.join(tmp.path, Platform.isWindows ? 'askpass.bat' : 'askpass.sh'));
-
-    String username;
-    String secret;
+    String? username;
+    String? secret;
     if (auth is AuthHttpsPat) {
       username = auth.username;
       secret = auth.token;
@@ -54,40 +53,29 @@ class CredentialHelper {
     } else if (auth is AuthGitHubOauth) {
       username = 'x-access-token';
       secret = auth.accessToken;
-    } else {
-      // Unknown HTTPS variant — fall through to system default.
-      return (env: <String, String>{}, dispose: () {});
     }
 
-    await usrFile.writeAsString(username);
-    await pwdFile.writeAsString(secret);
-
-    if (Platform.isWindows) {
-      // The prompt arg contains "ame" for "Username" and not for "Password".
-      await scriptFile.writeAsString(
-          '@echo off\r\n'
-          'echo %1 | findstr /i "ame" >nul && type "${usrFile.path}" || type "${pwdFile.path}"\r\n');
-    } else {
-      await scriptFile.writeAsString('#!/bin/sh\n'
-          'case "\$1" in\n'
-          '  *[Uu]sername*) cat "${usrFile.path}" ;;\n'
-          '  *) cat "${pwdFile.path}" ;;\n'
-          'esac\n');
-      await Process.run('chmod', ['+x', scriptFile.path]);
+    if (username == null || secret == null) {
+      return (
+        env: <String, String>{},
+        extraArgs: const <String>[],
+        dispose: () {},
+      );
     }
 
-    void dispose() {
-      try {
-        tmp.deleteSync(recursive: true);
-      } catch (_) {}
-    }
-
+    final basic = base64.encode(utf8.encode('$username:$secret'));
+    final extra = <String>[
+      // Reset any inherited credential helpers (e.g. GCM on Windows) so the
+      // extraheader is the only credential source git sees.
+      '-c', 'credential.helper=',
+      '-c', 'http.extraheader=Authorization: Basic $basic',
+      // Refuse to fall back to the terminal prompt — surface a real error
+      // instead of hanging waiting for stdin.
+    ];
     return (
-      env: {
-        'GIT_ASKPASS': scriptFile.path,
-        'GIT_TERMINAL_PROMPT': '0',
-      },
-      dispose: dispose,
+      env: {'GIT_TERMINAL_PROMPT': '0'},
+      extraArgs: extra,
+      dispose: () {},
     );
   }
 }

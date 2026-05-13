@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -243,12 +244,13 @@ final class GitCliWriteOperations implements GitWriteOperations {
   Stream<GitProgress> _runProgressStream(String cwd, List<String> args,
       {AuthSpec? auth}) async* {
     final helper = await CredentialHelper.setup(auth, '');
-    // When we have credentials to inject, disable any inherited credential
-    // helper (notably Git Credential Manager on Windows) so git uses our
-    // GIT_ASKPASS instead of popping a system account-picker dialog.
-    final effectiveArgs = helper.env.isEmpty
+    // The helper-supplied `-c key=value` overrides must come BEFORE the
+    // git subcommand. They inject the Authorization header and reset
+    // inherited credential helpers (so GCM is bypassed).
+    final effectiveArgs = helper.extraArgs.isEmpty
         ? args
-        : <String>['-c', 'credential.helper=', ...args];
+        : <String>[...helper.extraArgs, ...args];
+    final stderrBuf = StringBuffer();
     try {
       final proc = await Process.start(
         _runner.executable,
@@ -256,15 +258,23 @@ final class GitCliWriteOperations implements GitWriteOperations {
         workingDirectory: cwd,
         environment: helper.env.isEmpty ? null : helper.env,
       );
+      // Drain stdout so the process never blocks on a full pipe.
+      unawaited(proc.stdout.drain<void>());
       await for (final line in proc.stderr
           .transform(utf8.decoder)
           .transform(const LineSplitter())) {
         final parsed = GitProgressParser.parse(line);
-        if (parsed != null) yield parsed;
+        if (parsed != null) {
+          yield parsed;
+        } else {
+          // Non-progress stderr lines — usually error messages. Keep them
+          // for the exception in case the process exits non-zero.
+          stderrBuf.writeln(line);
+        }
       }
       final exit = await proc.exitCode;
       if (exit != 0) {
-        throw GitProcessException(args, exit, '');
+        throw GitProcessException(effectiveArgs, exit, stderrBuf.toString().trim());
       }
     } finally {
       helper.dispose();
