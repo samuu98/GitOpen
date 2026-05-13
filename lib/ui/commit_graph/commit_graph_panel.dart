@@ -5,7 +5,9 @@ import '../../application/active_workspace_provider.dart';
 import '../../application/branch_visibility_provider.dart';
 import '../../application/commit_graph/commit_node.dart';
 import '../../application/git/git_read_operations.dart';
+import '../../application/git/git_result.dart';
 import '../../application/git/git_write_operations.dart';
+import '../../application/git/repo_state_provider.dart';
 import '../../application/providers.dart';
 import '../../domain/commits/commit_sha.dart';
 import '../../domain/repositories/repo_location.dart';
@@ -241,6 +243,8 @@ class CommitGraphPanel extends ConsumerWidget {
         const PopupMenuItem(
             value: 'cherry_pick', child: Text('Cherry-pick into current')),
         const PopupMenuItem(
+            value: 'revert', child: Text('Revert this commit')),
+        const PopupMenuItem(
             value: 'branch_here', child: Text('Create branch here…')),
         const PopupMenuItem(value: 'tag_here', child: Text('Tag here…')),
         const PopupMenuDivider(),
@@ -273,6 +277,15 @@ class CommitGraphPanel extends ConsumerWidget {
       case 'cherry_pick':
         await write.cherryPick(repo, sha);
         ref.invalidate(gitReadOperationsProvider);
+
+      case 'revert':
+        final res = await write.revert(repo, sha);
+        if (res is GitFailure && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Revert failed: ${(res as GitFailure).message}')));
+        }
+        ref.invalidate(commitGraphDataProvider(repo));
+        ref.invalidate(repoStateProvider(repo));
 
       case 'branch_here':
         await BranchCreateDialog.show(context, repo, at: sha);

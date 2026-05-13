@@ -41,6 +41,12 @@ class ConflictResolutionPanel extends ConsumerWidget {
             if (op == InProgressOp.none || files.isEmpty) {
               return const SizedBox.shrink();
             }
+            final opLabel = switch (op) {
+              InProgressOp.merge => 'Merge',
+              InProgressOp.cherryPick => 'Cherry-pick',
+              InProgressOp.revert => 'Revert',
+              _ => op.name,
+            };
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -52,7 +58,7 @@ class ConflictResolutionPanel extends ConsumerWidget {
                         color: palette.accentTag, size: 16),
                     const SizedBox(width: 8),
                     Text(
-                      '${op == InProgressOp.merge ? "Merge" : "Cherry-pick"} in progress — '
+                      '$opLabel in progress — '
                       '${files.length} conflict${files.length == 1 ? "" : "s"}',
                       style: TextStyle(
                           color: palette.fg0,
@@ -128,6 +134,7 @@ class ConflictResolutionPanel extends ConsumerWidget {
     final write = ref.read(gitWriteOperationsProvider);
     if (op == InProgressOp.merge) await write.mergeAbort(repo);
     if (op == InProgressOp.cherryPick) await write.cherryPickAbort(repo);
+    if (op == InProgressOp.revert) await write.revertAbort(repo);
     ref.invalidate(repoStateProvider(repo));
   }
 
@@ -135,6 +142,7 @@ class ConflictResolutionPanel extends ConsumerWidget {
     final write = ref.read(gitWriteOperationsProvider);
     if (op == InProgressOp.merge) await write.mergeContinue(repo);
     if (op == InProgressOp.cherryPick) await write.cherryPickContinue(repo);
+    if (op == InProgressOp.revert) await write.revertContinue(repo);
     ref.invalidate(repoStateProvider(repo));
   }
 }

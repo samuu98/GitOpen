@@ -219,8 +219,8 @@ class _ShellState extends ConsumerState<Shell> {
                                                 repoStateAsync.valueOrNull;
                                             final hasConflict =
                                                 inProgressOp == InProgressOp.merge ||
-                                                inProgressOp ==
-                                                    InProgressOp.cherryPick;
+                                                inProgressOp == InProgressOp.cherryPick ||
+                                                inProgressOp == InProgressOp.revert;
                                             return Column(
                                               children: [
                                                 Expanded(
