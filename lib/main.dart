@@ -19,6 +19,7 @@ import 'ui/operations/toast_overlay.dart';
 import 'ui/settings/settings_page.dart';
 import 'ui/shell/repo_selector.dart';
 import 'ui/sidebar/sidebar.dart';
+import 'ui/status_bar/status_bar.dart';
 import 'ui/toolbar/git_toolbar.dart';
 import 'ui/welcome/welcome_screen.dart';
 import 'ui/working_copy/working_copy_panel.dart';
@@ -237,6 +238,7 @@ class _ShellState extends ConsumerState<Shell> {
                                                           : BottomPanel(
                                                               repo: active.location),
                                                 ),
+                                                const StatusBar(),
                                               ],
                                             );
                                           }),
