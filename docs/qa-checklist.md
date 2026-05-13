@@ -73,3 +73,33 @@ Run on Windows before the `slice-2-write-ops` release tag.
 ## Keyboard shortcuts
 - [ ] With Working Copy open, Ctrl+Enter triggers commit (when message is non-empty)
 - [ ] F5 triggers fetch for the active repo (toast appears)
+
+---
+
+# Manual QA Checklist (Slice 3 — Distribution & Polish)
+
+Run on Windows and Linux before the `slice-3-distribution-polish` release tag.
+
+## Theme
+- [ ] Switch theme to Light → all panels respect light palette
+
+## Keybindings
+- [ ] Rebind Commit to Ctrl+S in Settings → Keybindings → shortcut works in commit textarea
+
+## External editor
+- [ ] Set external editor path → trigger merge conflict → click Open → custom editor launches
+
+## Auto-update
+- [ ] Toggle autoUpdateCheck off → no startup toast
+- [ ] "Check for updates now" returns plausible result
+
+## Revert
+- [ ] Right-click commit → Revert this commit → graph shows new revert commit
+- [ ] Trigger revert conflict → resolve via Conflict panel → Continue
+
+## Status bar
+- [ ] Status bar shows current branch and ahead/behind
+
+## Packaging
+- [ ] Build MSIX locally → install → app launches → uninstall
+- [ ] Build AppImage on Linux → ./GitOpen-x86_64.AppImage launches

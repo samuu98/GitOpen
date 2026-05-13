@@ -54,6 +54,18 @@ flutter test
 - **Keyboard shortcuts**: Ctrl+Enter (commit), F5 (fetch)
 - **Activity panel**: running-operation toasts with progress fraction
 
+## Slice 3 — Distribution & Polish
+
+- **Settings UI**: full settings page with General, Auth, Keybindings, GitHub, Updates, and About tabs
+- **Light/Dark themes**: switchable in Settings → General; all panels and panels respect the selected palette
+- **Custom keybindings**: rebind 6 actions (Commit, Fetch, Push, Pull, Cherry-pick, Stash) in Settings → Keybindings
+- **Revert**: right-click any commit in the graph → "Revert this commit"; conflict flow reuses the Conflict Resolution panel
+- **Status bar**: persistent bar showing current branch name, ahead/behind counts, and running-ops counter
+- **MSIX packaging** (Windows): `dart run msix:create` — produces a signed-layout `.msix` installer
+  > **Note:** The MSIX is not code-signed. Windows SmartScreen will warn on first install — click **More info → Run anyway** to proceed.
+- **AppImage build** (Linux): run `bash scripts/build-appimage.sh`; outputs `GitOpen-x86_64.AppImage`
+- **Auto-update checker**: on startup (and via Settings → Updates → "Check now") queries GitHub Releases for a newer `v*.*.*` tag and prompts the user to download
+
 ## License
 
 MIT
