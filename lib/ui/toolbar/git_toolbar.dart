@@ -1,15 +1,17 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/active_workspace_provider.dart';
+import '../../application/auth/auth_profile.dart';
 import '../../application/git/auth_spec.dart';
 import '../../application/git/git_write_operations.dart';
+import '../../application/launcher/repo_launcher.dart';
 import '../../application/operations/running_operation.dart';
 import '../../application/providers.dart';
 import '../../application/settings/app_settings.dart';
 import '../../domain/repositories/repo_location.dart';
+import '../../infrastructure/git/git_process_runner.dart';
+import '../dialogs/account_switcher_dialog.dart';
 import '../dialogs/auth_dialog.dart';
 import '../dialogs/branch_create_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
@@ -63,6 +65,8 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
         _BranchDropdown(enabled: enabled, repo: repo),
         const SizedBox(width: 2),
         _StashDropdown(enabled: enabled, repo: repo),
+        const SizedBox(width: 2),
+        _OpenDropdown(enabled: enabled, repo: repo),
       ],
     );
   }
@@ -97,26 +101,24 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
 
   /// Runs a streaming git operation, tracking it in [operationsProvider].
   ///
-  /// If the stream throws with an auth-related error the user is prompted
-  /// with [AuthDialog].  On success the operation is retried once with the
-  /// new credential.  [streamFactory] accepts an optional [AuthSpec] so the
-  /// retry can inject it.
+  /// On an auth-style failure (bad credential) or wrong-account failure
+  /// (HTTP 404 "repository not found" — typical when two GitHub accounts
+  /// share the same host and the wrong one is being used) the user is
+  /// prompted with [AccountSwitcherDialog].  The chosen profile is bound
+  /// to this repo so subsequent operations pick it up automatically; the
+  /// operation is then retried once.
   Future<void> _runStream(
     OpKind kind,
     String label,
     RepoLocation repo,
     Stream<dynamic> Function(AuthSpec? auth) streamFactory, {
-    AuthSpec? auth,
+    AuthProfile? profile,
   }) async {
     final ops = ref.read(operationsProvider.notifier);
     final id = ops.start(kind, label, repo: repo);
-    // If the caller did not pass an explicit auth (typical first attempt),
-    // look up any credential stored in-app for this repo's remote host.
-    // This avoids falling through to the system credential manager (GCM on
-    // Windows) which would pop an account-picker dialog.
-    auth ??= await ref.read(authResolverProvider).resolveForRepo(repo);
+    profile ??= await ref.read(authResolverProvider).resolveForRepo(repo);
     try {
-      await for (final ev in streamFactory(auth)) {
+      await for (final ev in streamFactory(profile?.spec)) {
         ops.updateProgress(
           id,
           (ev as dynamic).fraction as double?,
@@ -126,72 +128,89 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
       ops.finishSuccess(id);
       ref.invalidate(gitReadOperationsProvider);
     } catch (e) {
-      final msg = e.toString();
-      if (_isAuthError(msg)) {
-        ops.finishFailure(id, 'Authentication required');
-        await _promptAuthAndRetry(kind, label, repo, streamFactory, msg);
+      // Inspect ONLY the git stderr — never `e.toString()`, which embeds the
+      // git argv. With the credential helper active those args contain the
+      // literal word `Authorization` (from `http.extraheader=Authorization:`),
+      // which would otherwise falsely match the auth-error heuristic.
+      final stderr = e is GitProcessException ? e.stderr : e.toString();
+      final auth = _isAuthError(stderr);
+      final wrongAccount = !auth && _isWrongAccountError(stderr);
+      if (auth || wrongAccount) {
+        ops.finishFailure(
+          id,
+          wrongAccount
+              ? 'Repository not visible to current account'
+              : 'Authentication required',
+        );
+        await _promptAccountAndRetry(
+          kind,
+          label,
+          repo,
+          streamFactory,
+          currentProfile: profile,
+          contextMessage: wrongAccount
+              ? 'Git returned "repository not found" — '
+                  'the active account likely cannot see this repo.'
+              : 'The active credential was rejected.',
+        );
       } else {
-        ops.finishFailure(id, msg);
+        ops.finishFailure(id, e.toString());
       }
     }
   }
 
-  /// Detects common auth-failure signals from git stderr / exception messages.
-  bool _isAuthError(String msg) {
-    final lower = msg.toLowerCase();
+  /// Detects auth-failure signals from git stderr.  Patterns are scoped to
+  /// phrases git actually emits — avoid loose substrings like `'auth'`.
+  bool _isAuthError(String stderr) {
+    final lower = stderr.toLowerCase();
     return lower.contains('authentication failed') ||
-        lower.contains('auth') ||
-        lower.contains('401') ||
-        lower.contains('403') ||
         lower.contains('invalid username or password') ||
+        lower.contains('could not read username') ||
+        lower.contains('could not read password') ||
+        lower.contains('terminal prompts disabled') ||
+        lower.contains('http basic: access denied') ||
+        lower.contains('remote: invalid credentials') ||
         lower.contains('remote: denied') ||
-        lower.contains('permission denied');
+        lower.contains('permission denied') ||
+        lower.contains('error: 401') ||
+        lower.contains('error: 403');
   }
 
-  /// Derives the git host from the remote URL stored in the repo.
-  ///
-  /// Checks `git remote get-url origin` and matches common URL forms:
-  ///   https://github.com/...  → github.com
-  ///   git@github.com:...      → github.com
-  /// Falls back to 'github.com' if detection fails.
-  Future<String> _hostFromRepo(RepoLocation repo) async {
-    try {
-      final result = await Process.run(
-        'git',
-        ['remote', 'get-url', 'origin'],
-        workingDirectory: repo.path,
-      );
-      if (result.exitCode == 0) {
-        final url = (result.stdout as String).trim();
-        // https://hostname/...
-        final httpsMatch = RegExp(r'^https?://([^/]+)').firstMatch(url);
-        if (httpsMatch != null) return httpsMatch.group(1)!;
-        // git@hostname:...
-        final sshMatch = RegExp(r'^git@([^:]+):').firstMatch(url);
-        if (sshMatch != null) return sshMatch.group(1)!;
-      }
-    } catch (_) {
-      // ignore — fall through to default
-    }
-    return 'github.com';
+  /// "Repository not found" is GitHub's response when the authenticated user
+  /// lacks access to a private repo — common when multiple accounts share
+  /// the host and the wrong one is being used.
+  bool _isWrongAccountError(String stderr) {
+    final lower = stderr.toLowerCase();
+    return lower.contains('repository not found') ||
+        lower.contains('remote: not found') ||
+        lower.contains('error: 404');
   }
 
-  /// Shows [AuthDialog] for the detected host and, if the user provides
-  /// credentials, re-runs the same operation with the new [AuthSpec].
-  Future<void> _promptAuthAndRetry(
+  /// Shows [AccountSwitcherDialog]; on selection binds the chosen profile to
+  /// this repo and re-runs the operation once with the new credential.
+  Future<void> _promptAccountAndRetry(
     OpKind kind,
     String label,
     RepoLocation repo,
-    Stream<dynamic> Function(AuthSpec? auth) streamFactory,
-    String originalError,
-  ) async {
+    Stream<dynamic> Function(AuthSpec? auth) streamFactory, {
+    required AuthProfile? currentProfile,
+    required String contextMessage,
+  }) async {
     if (!mounted) return;
-    final host = await _hostFromRepo(repo);
+    final host = await ref.read(authResolverProvider).hostFromRepo(repo, 'origin')
+        ?? 'github.com';
     if (!mounted) return;
-    final spec = await AuthDialog.show(context, host);
-    if (spec == null) return; // user cancelled
-    // Retry once with the new credential (no further auth-retry loop).
-    await _runStream(kind, label, repo, streamFactory, auth: spec);
+    final chosen = await AccountSwitcherDialog.show(
+      context,
+      host: host,
+      contextMessage: contextMessage,
+      currentProfileId: currentProfile?.id,
+    );
+    if (chosen == null) return;
+    await ref
+        .read(appSettingsProvider.notifier)
+        .setAuthBinding(repo.id.value, chosen.id);
+    await _runStream(kind, label, repo, streamFactory, profile: chosen);
   }
 }
 
@@ -514,6 +533,105 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
     );
     ctl.dispose();
     return result;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Open dropdown — reveal in files / terminal / editor
+// ---------------------------------------------------------------------------
+
+class _OpenDropdown extends ConsumerStatefulWidget {
+  final bool enabled;
+  final RepoLocation? repo;
+  const _OpenDropdown({required this.enabled, required this.repo});
+
+  @override
+  ConsumerState<_OpenDropdown> createState() => _OpenDropdownState();
+}
+
+class _OpenDropdownState extends ConsumerState<_OpenDropdown> {
+  final _menuController = MenuController();
+
+  @override
+  Widget build(BuildContext context) {
+    final editorsAsync = ref.watch(availableEditorsProvider);
+    return MenuAnchor(
+      controller: _menuController,
+      menuChildren: widget.enabled && widget.repo != null
+          ? _buildMenuItems(widget.repo!, editorsAsync.valueOrNull ?? const [])
+          : const [],
+      child: _ToolbarDropdownButton(
+        icon: Icons.open_in_new,
+        label: 'Open',
+        enabled: widget.enabled,
+        onTap: () => _menuController.isOpen
+            ? _menuController.close()
+            : _menuController.open(),
+      ),
+    );
+  }
+
+  List<Widget> _buildMenuItems(RepoLocation repo, List<EditorTarget> editors) {
+    final items = <Widget>[
+      MenuItemButton(
+        leadingIcon: const Icon(Icons.folder_open, size: 14),
+        onPressed: () {
+          _menuController.close();
+          _run(() => ref.read(repoLauncherProvider).revealInFiles(repo));
+        },
+        child: const Text('Show in file explorer'),
+      ),
+      MenuItemButton(
+        leadingIcon: const Icon(Icons.terminal, size: 14),
+        onPressed: () {
+          _menuController.close();
+          _run(() => ref.read(repoLauncherProvider).openInTerminal(repo));
+        },
+        child: const Text('Open in terminal'),
+      ),
+      const Divider(height: 1),
+    ];
+
+    if (editors.isEmpty) {
+      items.add(MenuItemButton(
+        leadingIcon: const Icon(Icons.code, size: 14),
+        onPressed: () {
+          _menuController.close();
+          _run(() => ref.read(repoLauncherProvider).openInEditor(
+                repo,
+                const EditorTarget(
+                    id: 'vscode',
+                    displayName: 'VS Code',
+                    executable: 'code'),
+              ));
+        },
+        child: const Text('Open in VS Code'),
+      ));
+    } else {
+      for (final editor in editors) {
+        items.add(MenuItemButton(
+          leadingIcon: const Icon(Icons.code, size: 14),
+          onPressed: () {
+            _menuController.close();
+            _run(() =>
+                ref.read(repoLauncherProvider).openInEditor(repo, editor));
+          },
+          child: Text('Open in ${editor.displayName}'),
+        ));
+      }
+    }
+    return items;
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    try {
+      await action();
+    } on LauncherException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    }
   }
 }
 
