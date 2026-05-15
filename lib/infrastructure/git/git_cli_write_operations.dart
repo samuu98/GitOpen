@@ -10,6 +10,7 @@ import '../../application/git/git_write_operations.dart';
 import '../../application/git/merge_outcome.dart';
 import '../../domain/commits/commit_sha.dart';
 import '../../domain/repositories/repo_location.dart';
+import '../logging/app_logger.dart';
 import 'credential_helper.dart';
 import 'git_process_runner.dart';
 import 'git_progress_parser.dart';
@@ -169,6 +170,46 @@ final class GitCliWriteOperations implements GitWriteOperations {
     }
   }
   @override
+  Future<GitResult<void>> addRemote(RepoLocation r, String name, String url) async {
+    try {
+      await _runner.run(r.path, ['remote', 'add', name, url]);
+      return const GitSuccess(null);
+    } on GitProcessException catch (e) {
+      return GitFailure(_classify(e), e.stderr, e.stderr);
+    }
+  }
+
+  @override
+  Future<GitResult<void>> removeRemote(RepoLocation r, String name) async {
+    try {
+      await _runner.run(r.path, ['remote', 'remove', name]);
+      return const GitSuccess(null);
+    } on GitProcessException catch (e) {
+      return GitFailure(_classify(e), e.stderr, e.stderr);
+    }
+  }
+
+  @override
+  Future<GitResult<void>> renameRemote(RepoLocation r, String oldName, String newName) async {
+    try {
+      await _runner.run(r.path, ['remote', 'rename', oldName, newName]);
+      return const GitSuccess(null);
+    } on GitProcessException catch (e) {
+      return GitFailure(_classify(e), e.stderr, e.stderr);
+    }
+  }
+
+  @override
+  Future<GitResult<void>> setRemoteUrl(RepoLocation r, String name, String url) async {
+    try {
+      await _runner.run(r.path, ['remote', 'set-url', name, url]);
+      return const GitSuccess(null);
+    } on GitProcessException catch (e) {
+      return GitFailure(_classify(e), e.stderr, e.stderr);
+    }
+  }
+
+  @override
   Future<GitResult<void>> createTag(RepoLocation r, String name, {CommitSha? at, String? message}) async {
     try {
       final args = <String>['tag'];
@@ -250,6 +291,17 @@ final class GitCliWriteOperations implements GitWriteOperations {
     final effectiveArgs = helper.extraArgs.isEmpty
         ? args
         : <String>[...helper.extraArgs, ...args];
+    // Log the effective argv with the Authorization secret redacted so we
+    // can see whether the helper actually injected the header (and which
+    // auth kind reached this layer) without leaking the token.
+    final redacted = effectiveArgs
+        .map((a) => a.startsWith('http.extraheader=Authorization:')
+            ? 'http.extraheader=Authorization: <redacted>'
+            : a)
+        .join(' ');
+    appLog.d('git[progress] auth=${auth?.runtimeType ?? 'none'} '
+        'env_keys=${helper.env.keys.toList()} '
+        'cmd: git $redacted');
     final stderrBuf = StringBuffer();
     try {
       final proc = await Process.start(
@@ -274,8 +326,11 @@ final class GitCliWriteOperations implements GitWriteOperations {
       }
       final exit = await proc.exitCode;
       if (exit != 0) {
-        throw GitProcessException(effectiveArgs, exit, stderrBuf.toString().trim());
+        final stderr = stderrBuf.toString().trim();
+        appLog.w('git[progress] exit=$exit stderr=$stderr');
+        throw GitProcessException(effectiveArgs, exit, stderr);
       }
+      appLog.d('git[progress] exit=0');
     } finally {
       helper.dispose();
     }

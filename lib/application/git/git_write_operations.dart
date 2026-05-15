@@ -25,6 +25,12 @@ abstract interface class GitWriteOperations {
       {bool force = false, bool remote = false});
   Future<GitResult<void>> renameBranch(RepoLocation r, String oldName, String newName);
   Future<GitResult<void>> setUpstream(RepoLocation r, String branch, String upstream);
+
+  Future<GitResult<void>> addRemote(RepoLocation r, String name, String url);
+  Future<GitResult<void>> removeRemote(RepoLocation r, String name);
+  Future<GitResult<void>> renameRemote(RepoLocation r, String oldName, String newName);
+  Future<GitResult<void>> setRemoteUrl(RepoLocation r, String name, String url);
+
   Future<GitResult<void>> createTag(RepoLocation r, String name,
       {CommitSha? at, String? message});
   Future<GitResult<void>> deleteTag(RepoLocation r, String name);

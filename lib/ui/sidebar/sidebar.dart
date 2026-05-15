@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../infrastructure/logging/app_logger.dart';
 import '../../application/active_workspace_provider.dart';
 import '../../application/branch_visibility_provider.dart';
 import '../../application/main_view_provider.dart';
@@ -13,8 +14,10 @@ import '../../domain/refs/tag.dart';
 import '../../application/git/git_result.dart';
 import '../../application/git/merge_outcome.dart';
 import '../../domain/repositories/repo_location.dart';
+import '../../application/operations/running_operation.dart';
 import '../checkout/safe_checkout.dart';
 import '../dialogs/confirm_dialog.dart';
+import '../dialogs/remote_dialog.dart';
 import '../theme/app_palette.dart';
 import 'branch_tree.dart';
 
@@ -38,10 +41,15 @@ class _SidebarData {
 final _sidebarDataProvider =
     FutureProvider.family<_SidebarData, RepoLocation>((ref, repo) async {
   final git = ref.watch(gitReadOperationsProvider);
-  final branches = await git.getBranches(repo);
+  appLog.i('sidebar: awaiting shared branches for ${repo.displayName}');
+  final branches = await ref.watch(branchesProvider(repo).future);
+  appLog.i('sidebar: ${branches.length} branches — loading tags');
   final tags = await git.getTags(repo);
+  appLog.i('sidebar: ${tags.length} tags — loading remotes');
   final remotes = await git.getRemotes(repo);
+  appLog.i('sidebar: ${remotes.length} remotes — loading stashes');
   final stashes = await git.getStashes(repo);
+  appLog.i('sidebar: ${stashes.length} stashes — done');
   return _SidebarData(branches, tags, remotes, stashes);
 });
 
@@ -119,23 +127,19 @@ class _SidebarContent extends ConsumerWidget {
         ),
         _Section(
           title: 'REMOTES',
+          trailing: _AddRemoteIconButton(
+              repo: repo, onChanged: () => _refreshSidebar(ref)),
           child: data.remotes.isEmpty
-              ? const _EmptyHint('No remotes')
+              ? _AddRemoteEmptyState(
+                  repo: repo, onChanged: () => _refreshSidebar(ref))
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final r in data.remotes) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            left: 14, top: 4, bottom: 2),
-                        child: Text(
-                          r.name.toUpperCase(),
-                          style: TextStyle(
-                            color: AppPalette.of(context).fg2,
-                            fontSize: 10.5,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
+                      _RemoteHeaderRow(
+                        remote: r,
+                        repo: repo,
+                        onChanged: () => _refreshSidebar(ref),
                       ),
                       BranchTreeView(
                           nodes: BranchTree.build(r.branches),
@@ -336,7 +340,8 @@ class _StashRow extends ConsumerWidget {
 class _Section extends StatefulWidget {
   final String title;
   final Widget child;
-  const _Section({required this.title, required this.child});
+  final Widget? trailing;
+  const _Section({required this.title, required this.child, this.trailing});
 
   @override
   State<_Section> createState() => _SectionState();
@@ -363,14 +368,17 @@ class _SectionState extends State<_Section> {
                 color: palette.fg3,
               ),
               const SizedBox(width: 4),
-              Text(
-                widget.title,
-                style: TextStyle(
-                  color: palette.fg2,
-                  fontSize: 10.5,
-                  letterSpacing: 0.5,
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: TextStyle(
+                    color: palette.fg2,
+                    fontSize: 10.5,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
+              if (widget.trailing != null) widget.trailing!,
             ]),
           ),
         ),
@@ -396,6 +404,177 @@ class _EmptyHint extends StatelessWidget {
                 fontSize: 11.5,
                 fontStyle: FontStyle.italic)),
       );
+}
+
+// ---------------------------------------------------------------------------
+// Remote management widgets
+// ---------------------------------------------------------------------------
+
+class _AddRemoteIconButton extends ConsumerWidget {
+  final RepoLocation repo;
+  final VoidCallback onChanged;
+  const _AddRemoteIconButton({required this.repo, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return InkWell(
+      onTap: () => _addRemote(context, ref, repo, onChanged),
+      borderRadius: BorderRadius.circular(2),
+      child: Padding(
+        padding: const EdgeInsets.all(2),
+        child: Icon(Icons.add, size: 14, color: AppPalette.of(context).fg2),
+      ),
+    );
+  }
+}
+
+class _AddRemoteEmptyState extends ConsumerWidget {
+  final RepoLocation repo;
+  final VoidCallback onChanged;
+  const _AddRemoteEmptyState({required this.repo, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: () => _addRemote(context, ref, repo, onChanged),
+          icon: const Icon(Icons.add, size: 14),
+          label: const Text('Add remote…'),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            foregroundColor: AppPalette.of(context).fg2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RemoteHeaderRow extends ConsumerWidget {
+  final Remote remote;
+  final RepoLocation repo;
+  final VoidCallback onChanged;
+  const _RemoteHeaderRow({
+    required this.remote,
+    required this.repo,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onSecondaryTapDown: (details) =>
+          _showMenu(context, ref, details.globalPosition),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 14, top: 4, bottom: 2, right: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                remote.name.toUpperCase(),
+                style: TextStyle(
+                  color: AppPalette.of(context).fg2,
+                  fontSize: 10.5,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showMenu(
+      BuildContext context, WidgetRef ref, Offset globalPos) async {
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+          globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy),
+      items: const [
+        PopupMenuItem(value: 'fetch', child: Text('Fetch')),
+        PopupMenuItem(value: 'edit_url', child: Text('Edit URL…')),
+        PopupMenuItem(value: 'rename', child: Text('Rename…')),
+        PopupMenuDivider(),
+        PopupMenuItem(value: 'remove', child: Text('Remove')),
+      ],
+    );
+    if (selected == null || !context.mounted) return;
+    final write = ref.read(gitWriteOperationsProvider);
+
+    switch (selected) {
+      case 'fetch':
+        await _fetchRemote(ref, repo, remote.name);
+        onChanged();
+
+      case 'edit_url':
+        final result =
+            await RemoteDialog.showEditUrl(context, remote.name, remote.url);
+        if (result == null) return;
+        await write.setRemoteUrl(repo, remote.name, result.url);
+        onChanged();
+
+      case 'rename':
+        final result = await RemoteDialog.showRename(context, remote.name);
+        if (result == null) return;
+        await write.renameRemote(repo, remote.name, result.name);
+        onChanged();
+
+      case 'remove':
+        if (!context.mounted) return;
+        final confirmed = await ConfirmDialog.show(
+          context,
+          title: 'Remove remote',
+          body:
+              'Remove remote "${remote.name}"? Tracking branches under this '
+              'remote will no longer update.',
+          confirmLabel: 'Remove',
+          dangerous: true,
+        );
+        if (!confirmed) return;
+        await write.removeRemote(repo, remote.name);
+        onChanged();
+    }
+  }
+}
+
+Future<void> _addRemote(
+  BuildContext context,
+  WidgetRef ref,
+  RepoLocation repo,
+  VoidCallback onChanged,
+) async {
+  final result = await RemoteDialog.showAdd(context);
+  if (result == null) return;
+  final write = ref.read(gitWriteOperationsProvider);
+  await write.addRemote(repo, result.name, result.url);
+  onChanged();
+}
+
+/// Fetches a single remote, tracking the operation in the operations notifier.
+/// Uses the resolved auth profile but does not implement the wrong-account
+/// retry flow — that lives in the toolbar's full fetch button.
+Future<void> _fetchRemote(
+    WidgetRef ref, RepoLocation repo, String remoteName) async {
+  final ops = ref.read(operationsProvider.notifier);
+  final id = ops.start(OpKind.fetch, 'Fetching $remoteName', repo: repo);
+  try {
+    final profile = await ref.read(authResolverProvider).resolveForRepo(repo);
+    final write = ref.read(gitWriteOperationsProvider);
+    await for (final ev
+        in write.fetch(repo, remote: remoteName, auth: profile?.spec)) {
+      ops.updateProgress(id, ev.fraction, ev.phase);
+    }
+    ops.finishSuccess(id);
+    ref.invalidate(gitReadOperationsProvider);
+  } catch (e) {
+    ops.finishFailure(id, e.toString());
+  }
 }
 
 class BranchTreeView extends ConsumerStatefulWidget {
