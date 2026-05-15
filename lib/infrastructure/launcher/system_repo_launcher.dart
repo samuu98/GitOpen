@@ -36,7 +36,36 @@ class SystemRepoLauncher implements RepoLauncher {
 
   @override
   Future<void> openInTerminal(RepoLocation repo) async {
-    throw UnimplementedError();
+    final chain = _terminalChain(repo.path);
+    for (final (exe, args) in chain) {
+      final ok = await _runner.startDetached(exe, args);
+      if (ok) return;
+    }
+    throw const LauncherException(
+      'No terminal application available. Install Windows Terminal, '
+      'gnome-terminal, konsole, or ensure your default terminal is on PATH.',
+    );
+  }
+
+  List<(String, List<String>)> _terminalChain(String path) {
+    switch (_platform) {
+      case 'windows':
+        return [
+          ('wt.exe', ['-d', path]),
+          ('powershell', ['-NoExit', '-WorkingDirectory', path]),
+          ('cmd', ['/K', 'cd', '/D', path]),
+        ];
+      case 'macos':
+        return [
+          ('open', ['-a', 'Terminal', path]),
+        ];
+      default:
+        return [
+          ('gnome-terminal', ['--working-directory=$path']),
+          ('konsole', ['--workdir', path]),
+          ('xterm', ['-e', 'cd "$path" && \$SHELL']),
+        ];
+    }
   }
 
   @override

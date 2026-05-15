@@ -97,4 +97,62 @@ void main() {
       expect(fake.calls.single.$1, 'xdg-open');
     });
   });
+
+  group('SystemRepoLauncher.openInTerminal', () {
+    test('windows prefers wt.exe', () async {
+      final fake = FakeProcessRunner();
+      final launcher =
+          SystemRepoLauncher(runner: fake, platformOverride: 'windows');
+      await launcher.openInTerminal(_repo(r'C:\repo'));
+      expect(fake.calls.single.$1, 'wt.exe');
+      expect(fake.calls.single.$2, ['-d', r'C:\repo']);
+    });
+
+    test('windows falls back to powershell when wt.exe fails', () async {
+      final fake = FakeProcessRunner(failingExecutables: {'wt.exe'});
+      final launcher =
+          SystemRepoLauncher(runner: fake, platformOverride: 'windows');
+      await launcher.openInTerminal(_repo(r'C:\repo'));
+      expect(
+          fake.calls.map((c) => c.$1).toList(), ['wt.exe', 'powershell']);
+    });
+
+    test('windows falls back to cmd when wt and powershell fail', () async {
+      final fake = FakeProcessRunner(
+          failingExecutables: {'wt.exe', 'powershell'});
+      final launcher =
+          SystemRepoLauncher(runner: fake, platformOverride: 'windows');
+      await launcher.openInTerminal(_repo(r'C:\repo'));
+      expect(fake.calls.last.$1, 'cmd');
+    });
+
+    test('throws when all fallbacks fail', () async {
+      final fake = FakeProcessRunner(
+        failingExecutables: {'wt.exe', 'powershell', 'cmd'},
+      );
+      final launcher =
+          SystemRepoLauncher(runner: fake, platformOverride: 'windows');
+      expect(
+        () => launcher.openInTerminal(_repo(r'C:\repo')),
+        throwsA(isA<LauncherException>()),
+      );
+    });
+
+    test('macos uses open -a Terminal', () async {
+      final fake = FakeProcessRunner();
+      final launcher =
+          SystemRepoLauncher(runner: fake, platformOverride: 'macos');
+      await launcher.openInTerminal(_repo('/repo'));
+      expect(fake.calls.single.$1, 'open');
+      expect(fake.calls.single.$2, ['-a', 'Terminal', '/repo']);
+    });
+
+    test('linux tries gnome-terminal first', () async {
+      final fake = FakeProcessRunner();
+      final launcher =
+          SystemRepoLauncher(runner: fake, platformOverride: 'linux');
+      await launcher.openInTerminal(_repo('/repo'));
+      expect(fake.calls.single.$1, 'gnome-terminal');
+    });
+  });
 }
