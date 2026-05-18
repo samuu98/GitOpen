@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/operations/running_operation.dart';
@@ -5,21 +7,51 @@ import '../../application/providers.dart';
 import '../theme/app_palette.dart';
 import 'activity_panel.dart';
 
-class ToastOverlay extends ConsumerWidget {
+// Both success and failure toasts auto-fade after this window.
+const _autoDismiss = Duration(seconds: 10);
+
+class ToastOverlay extends ConsumerStatefulWidget {
   const ToastOverlay({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ToastOverlay> createState() => _ToastOverlayState();
+}
+
+class _ToastOverlayState extends ConsumerState<ToastOverlay> {
+  // Operation ids the user explicitly dismissed via the X button.
+  final Set<String> _dismissed = {};
+
+  // Drives a periodic rebuild so finished toasts disappear when their
+  // 10-second window elapses (operationsProvider only fires on state changes,
+  // not on time passing).
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ops = ref.watch(operationsProvider);
-    // Take running ops + recently finished failures (last 5s) for display
     final now = DateTime.now();
     final visible = ops.where((o) {
-      if (o.status == OperationStatus.running || o.status == OperationStatus.pending) { return true; }
-      if (o.status == OperationStatus.failed && o.finishedAt != null
-          && now.difference(o.finishedAt!) < const Duration(seconds: 10)) { return true; }
-      if (o.status == OperationStatus.success && o.finishedAt != null
-          && now.difference(o.finishedAt!) < const Duration(seconds: 3)) { return true; }
-      return false;
+      if (_dismissed.contains(o.id)) return false;
+      if (o.status == OperationStatus.running ||
+          o.status == OperationStatus.pending) {
+        return true;
+      }
+      if (o.finishedAt == null) return false;
+      return now.difference(o.finishedAt!) < _autoDismiss;
     }).take(3).toList();
 
     if (visible.isEmpty) return const SizedBox.shrink();
@@ -31,7 +63,11 @@ class ToastOverlay extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          for (final op in visible) _ToastItem(op: op),
+          for (final op in visible)
+            _ToastItem(
+              op: op,
+              onDismiss: () => setState(() => _dismissed.add(op.id)),
+            ),
         ],
       ),
     );
@@ -40,7 +76,8 @@ class ToastOverlay extends ConsumerWidget {
 
 class _ToastItem extends ConsumerWidget {
   final RunningOperation op;
-  const _ToastItem({required this.op});
+  final VoidCallback onDismiss;
+  const _ToastItem({required this.op, required this.onDismiss});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,36 +89,61 @@ class _ToastItem extends ConsumerWidget {
       constraints: const BoxConstraints(maxWidth: 360, minWidth: 280),
       decoration: BoxDecoration(
         color: palette.bg2,
-        border: Border.all(color: isError ? palette.accentErr : palette.borderStrong),
+        border: Border.all(
+            color: isError ? palette.accentErr : palette.borderStrong),
         borderRadius: BorderRadius.circular(6),
-        boxShadow: const [BoxShadow(color: Color(0x80000000), blurRadius: 12, offset: Offset(0, 4))],
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x80000000),
+              blurRadius: 12,
+              offset: Offset(0, 4))
+        ],
       ),
       child: InkWell(
         onTap: () => _openActivityPanel(context),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
-                  if (isRunning) const SizedBox(
-                    width: 14, height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  if (!isRunning) Icon(isError ? Icons.error_outline : Icons.check_circle_outline,
-                      size: 16, color: isError ? palette.accentErr : palette.accentCurrent),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(op.label, style: TextStyle(color: palette.fg0, fontSize: 12.5))),
                   if (isRunning)
-                    IconButton(
-                      icon: Icon(Icons.close, size: 14, color: palette.fg2),
-                      onPressed: () => ref.read(operationsProvider.notifier).cancel(op.id),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                      tooltip: 'Cancel',
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
+                  if (!isRunning)
+                    Icon(
+                        isError
+                            ? Icons.error_outline
+                            : Icons.check_circle_outline,
+                        size: 16,
+                        color: isError
+                            ? palette.accentErr
+                            : palette.accentCurrent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: Text(op.label,
+                          style: TextStyle(
+                              color: palette.fg0, fontSize: 12.5))),
+                  if (isRunning)
+                    _TinyIconButton(
+                      icon: Icons.stop_circle_outlined,
+                      tooltip: 'Cancel',
+                      color: palette.fg2,
+                      onTap: () => ref
+                          .read(operationsProvider.notifier)
+                          .cancel(op.id),
+                    ),
+                  _TinyIconButton(
+                    icon: Icons.close,
+                    tooltip: 'Dismiss',
+                    color: palette.fg2,
+                    onTap: onDismiss,
+                  ),
                 ],
               ),
               if (isRunning) ...[
@@ -90,13 +152,17 @@ class _ToastItem extends ConsumerWidget {
                 if (op.phase.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text(op.phase, style: TextStyle(color: palette.fg2, fontSize: 11)),
+                    child: Text(op.phase,
+                        style: TextStyle(
+                            color: palette.fg2, fontSize: 11)),
                   ),
               ],
               if (isError && op.errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text(op.errorMessage!, style: TextStyle(color: palette.accentErr, fontSize: 11)),
+                  child: Text(op.errorMessage!,
+                      style: TextStyle(
+                          color: palette.accentErr, fontSize: 11)),
                 ),
             ],
           ),
@@ -107,5 +173,54 @@ class _ToastItem extends ConsumerWidget {
 
   void _openActivityPanel(BuildContext context) {
     showDialog(context: context, builder: (_) => const ActivityPanel());
+  }
+}
+
+class _TinyIconButton extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final Color color;
+  final VoidCallback onTap;
+  const _TinyIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_TinyIconButton> createState() => _TinyIconButtonState();
+}
+
+class _TinyIconButtonState extends State<_TinyIconButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Container(
+            width: 22,
+            height: 22,
+            margin: const EdgeInsets.only(left: 2),
+            decoration: BoxDecoration(
+              color: _hover ? palette.bg4 : Colors.transparent,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Icon(widget.icon,
+                size: 14,
+                color: _hover ? palette.fg0 : widget.color),
+          ),
+        ),
+      ),
+    );
   }
 }

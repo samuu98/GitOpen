@@ -11,7 +11,9 @@ import '../../application/providers.dart';
 import '../../application/settings/app_settings.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../../infrastructure/git/git_process_runner.dart';
+import '../common/app_context_menu.dart';
 import '../dialogs/account_switcher_dialog.dart';
+import '../dialogs/app_dialog.dart';
 import '../dialogs/auth_dialog.dart';
 import '../dialogs/branch_create_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
@@ -235,6 +237,7 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
   Widget build(BuildContext context) {
     return MenuAnchor(
       controller: _menuController,
+      style: appMenuStyle(context),
       menuChildren: widget.enabled && widget.repo != null
           ? _buildBranchMenuItems(widget.repo!)
           : const [],
@@ -251,44 +254,44 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
 
   List<Widget> _buildBranchMenuItems(RepoLocation repo) {
     return [
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.add, size: 14),
+      AppMenuButton(
+        icon: Icons.add,
+        label: 'New branch from HEAD',
         onPressed: () async {
           _menuController.close();
           if (!mounted) return;
-          // ignore: use_build_context_synchronously
           await BranchCreateDialog.show(context, repo);
           ref.invalidate(gitReadOperationsProvider);
         },
-        child: const Text('New branch from HEAD'),
       ),
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.swap_horiz, size: 14),
+      AppMenuButton(
+        icon: Icons.swap_horiz,
+        label: 'Switch branch…',
         onPressed: () async {
           _menuController.close();
           if (!mounted) return;
           await _switchBranch(repo);
         },
-        child: const Text('Switch branch…'),
       ),
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.drive_file_rename_outline, size: 14),
+      AppMenuButton(
+        icon: Icons.drive_file_rename_outline,
+        label: 'Rename current branch…',
         onPressed: () async {
           _menuController.close();
           if (!mounted) return;
           await _renameBranch(repo);
         },
-        child: const Text('Rename current branch…'),
       ),
-      const Divider(height: 1),
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.delete_outline, size: 14),
+      const AppMenuAnchorDivider(),
+      AppMenuButton(
+        icon: Icons.delete_outline,
+        label: 'Delete branch…',
+        danger: true,
         onPressed: () async {
           _menuController.close();
           if (!mounted) return;
           await _deleteBranch(repo);
         },
-        child: const Text('Delete branch…'),
       ),
     ];
   }
@@ -361,30 +364,8 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
   }
 
   Future<String?> _promptText(BuildContext context, String title,
-      {required String label, String? initial}) async {
-    final ctl = TextEditingController(text: initial);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: ctl,
-          autofocus: true,
-          decoration: InputDecoration(labelText: label),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, ctl.text),
-              child: const Text('OK')),
-        ],
-      ),
-    );
-    ctl.dispose();
-    return result;
-  }
+          {required String label, String? initial}) =>
+      _appPromptText(context, title, label: label, initial: initial);
 }
 
 // ---------------------------------------------------------------------------
@@ -408,6 +389,7 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
   Widget build(BuildContext context) {
     return MenuAnchor(
       controller: _menuController,
+      style: appMenuStyle(context),
       menuChildren: widget.enabled && widget.repo != null
           ? _buildStashMenuItems(widget.repo!)
           : const [],
@@ -424,49 +406,48 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
 
   List<Widget> _buildStashMenuItems(RepoLocation repo) {
     return [
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.save_outlined, size: 14),
+      AppMenuButton(
+        icon: Icons.save_outlined,
+        label: 'Stash changes…',
         onPressed: () async {
           _menuController.close();
           if (!context.mounted) return;
           await _stashSave(repo);
         },
-        child: const Text('Stash changes…'),
       ),
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.arrow_downward, size: 14),
+      AppMenuButton(
+        icon: Icons.arrow_downward,
+        label: 'Apply latest',
         onPressed: () async {
           _menuController.close();
           await ref.read(gitWriteOperationsProvider).stashApply(repo, 0);
           ref.invalidate(gitReadOperationsProvider);
         },
-        child: const Text('Apply latest'),
       ),
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.eject_outlined, size: 14),
+      AppMenuButton(
+        icon: Icons.eject_outlined,
+        label: 'Pop latest',
         onPressed: () async {
           _menuController.close();
           await ref.read(gitWriteOperationsProvider).stashPop(repo, 0);
           ref.invalidate(gitReadOperationsProvider);
         },
-        child: const Text('Pop latest'),
       ),
-      const Divider(height: 1),
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.list_outlined, size: 14),
+      const AppMenuAnchorDivider(),
+      AppMenuButton(
+        icon: Icons.list_outlined,
+        label: 'View stashes…',
         onPressed: () async {
           _menuController.close();
           if (!context.mounted) return;
           await _viewStashes(repo);
         },
-        child: const Text('View stashes…'),
       ),
     ];
   }
 
   Future<void> _stashSave(RepoLocation repo) async {
-    // ignore: use_build_context_synchronously
-    final msg = await _promptText(context, 'Stash changes',
+    final msg = await _appPromptText(context, 'Stash changes',
         label: 'Message (optional)');
     if (!mounted) return;
     await ref
@@ -478,62 +459,90 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
   Future<void> _viewStashes(RepoLocation repo) async {
     final stashes = await ref.read(gitReadOperationsProvider).getStashes(repo);
     if (!mounted) return;
-    // ignore: use_build_context_synchronously
     await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Stashes'),
-        content: stashes.isEmpty
-            ? const Text('No stashes.')
-            : SizedBox(
-                width: 400,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: stashes.length,
-                  itemBuilder: (_, i) {
-                    final s = stashes[i];
-                    return ListTile(
-                      dense: true,
-                      title: Text('stash@{${s.index}}'),
-                      subtitle: Text(s.message),
-                    );
-                  },
+      builder: (ctx) {
+        final palette = AppPalette.of(ctx);
+        return AppDialog(
+          title: 'Stashes',
+          width: 420,
+          content: stashes.isEmpty
+              ? Text('No stashes.',
+                  style: TextStyle(color: palette.fg2, fontSize: 12.5))
+              : SizedBox(
+                  height: 280,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: stashes.length,
+                    itemBuilder: (_, i) {
+                      final s = stashes[i];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 6),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'stash@{${s.index}}',
+                              style: TextStyle(
+                                color: palette.fg0,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                            Text(
+                              s.message,
+                              style: TextStyle(
+                                  color: palette.fg2, fontSize: 11.5),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-        actions: [
-          TextButton(
+          actions: [
+            AppButton.secondary(
+              label: 'Close',
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close')),
-        ],
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
+}
 
-  Future<String?> _promptText(BuildContext context, String title,
-      {required String label, String? initial}) async {
-    final ctl = TextEditingController(text: initial);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
+/// Single-line text prompt shared between the toolbar dropdowns.
+Future<String?> _appPromptText(BuildContext context, String title,
+    {required String label, String? initial}) async {
+  final ctl = TextEditingController(text: initial);
+  final result = await showDialog<String>(
+    context: context,
+    builder: (ctx) {
+      final palette = AppPalette.of(ctx);
+      return AppDialog(
+        title: title,
+        width: 420,
         content: TextField(
           controller: ctl,
           autofocus: true,
-          decoration: InputDecoration(labelText: label),
+          style: TextStyle(color: palette.fg0, fontSize: 13),
+          decoration: appInputDecoration(ctx, label: label),
+          onSubmitted: (_) => Navigator.pop(ctx, ctl.text),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, ctl.text),
-              child: const Text('OK')),
+          AppButton.secondary(
+              label: 'Cancel', onPressed: () => Navigator.pop(ctx)),
+          AppButton.primary(
+              label: 'OK', onPressed: () => Navigator.pop(ctx, ctl.text)),
         ],
-      ),
-    );
-    ctl.dispose();
-    return result;
-  }
+      );
+    },
+  );
+  ctl.dispose();
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -557,6 +566,7 @@ class _OpenDropdownState extends ConsumerState<_OpenDropdown> {
     final editorsAsync = ref.watch(availableEditorsProvider);
     return MenuAnchor(
       controller: _menuController,
+      style: appMenuStyle(context),
       menuChildren: widget.enabled && widget.repo != null
           ? _buildMenuItems(widget.repo!, editorsAsync.valueOrNull ?? const [])
           : const [],
@@ -573,28 +583,29 @@ class _OpenDropdownState extends ConsumerState<_OpenDropdown> {
 
   List<Widget> _buildMenuItems(RepoLocation repo, List<EditorTarget> editors) {
     final items = <Widget>[
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.folder_open, size: 14),
+      AppMenuButton(
+        icon: Icons.folder_open,
+        label: 'Show in file explorer',
         onPressed: () {
           _menuController.close();
           _run(() => ref.read(repoLauncherProvider).revealInFiles(repo));
         },
-        child: const Text('Show in file explorer'),
       ),
-      MenuItemButton(
-        leadingIcon: const Icon(Icons.terminal, size: 14),
+      AppMenuButton(
+        icon: Icons.terminal,
+        label: 'Open in terminal',
         onPressed: () {
           _menuController.close();
           _run(() => ref.read(repoLauncherProvider).openInTerminal(repo));
         },
-        child: const Text('Open in terminal'),
       ),
-      const Divider(height: 1),
+      const AppMenuAnchorDivider(),
     ];
 
     if (editors.isEmpty) {
-      items.add(MenuItemButton(
-        leadingIcon: const Icon(Icons.code, size: 14),
+      items.add(AppMenuButton(
+        icon: Icons.code,
+        label: 'Open in VS Code',
         onPressed: () {
           _menuController.close();
           _run(() => ref.read(repoLauncherProvider).openInEditor(
@@ -605,18 +616,17 @@ class _OpenDropdownState extends ConsumerState<_OpenDropdown> {
                     executable: 'code'),
               ));
         },
-        child: const Text('Open in VS Code'),
       ));
     } else {
       for (final editor in editors) {
-        items.add(MenuItemButton(
-          leadingIcon: const Icon(Icons.code, size: 14),
+        items.add(AppMenuButton(
+          icon: Icons.code,
+          label: 'Open in ${editor.displayName}',
           onPressed: () {
             _menuController.close();
             _run(() =>
                 ref.read(repoLauncherProvider).openInEditor(repo, editor));
           },
-          child: Text('Open in ${editor.displayName}'),
         ));
       }
     }
@@ -654,20 +664,25 @@ class _BranchPickerDialogState extends State<_BranchPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
     final filtered = widget.branches
         .where((b) => b.toLowerCase().contains(_filter.toLowerCase()))
         .toList();
-    return AlertDialog(
-      title: Text(widget.title),
+    return AppDialog(
+      title: widget.title,
+      width: 380,
       content: SizedBox(
-        width: 320,
         height: 320,
         child: Column(
           children: [
             TextField(
               autofocus: true,
-              decoration: const InputDecoration(
-                  hintText: 'Filter…', prefixIcon: Icon(Icons.search, size: 16)),
+              style: TextStyle(color: palette.fg0, fontSize: 13),
+              decoration: appInputDecoration(context, label: 'Filter…')
+                  .copyWith(
+                prefixIcon:
+                    Icon(Icons.search, size: 16, color: palette.fg2),
+              ),
               onChanged: (v) => setState(() => _filter = v),
             ),
             const SizedBox(height: 8),
@@ -676,11 +691,25 @@ class _BranchPickerDialogState extends State<_BranchPickerDialog> {
                 itemCount: filtered.length,
                 itemBuilder: (_, i) {
                   final b = filtered[i];
-                  return ListTile(
-                    dense: true,
-                    selected: _selected == b,
-                    title: Text(b, style: const TextStyle(fontSize: 13)),
+                  final selected = _selected == b;
+                  return InkWell(
                     onTap: () => setState(() => _selected = b),
+                    child: Container(
+                      color:
+                          selected ? palette.bgAccent : Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      child: Text(
+                        b,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: selected ? palette.fg0 : palette.fg1,
+                          fontWeight: selected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),
@@ -689,12 +718,15 @@ class _BranchPickerDialogState extends State<_BranchPickerDialog> {
         ),
       ),
       actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-        ElevatedButton(
-          onPressed: _selected != null ? () => Navigator.pop(context, _selected) : null,
-          child: const Text('OK'),
+        AppButton.secondary(
+          label: 'Cancel',
+          onPressed: () => Navigator.pop(context),
+        ),
+        AppButton.primary(
+          label: 'OK',
+          onPressed: _selected != null
+              ? () => Navigator.pop(context, _selected)
+              : null,
         ),
       ],
     );

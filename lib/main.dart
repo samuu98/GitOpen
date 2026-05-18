@@ -19,6 +19,7 @@ import 'infrastructure/logging/app_logger.dart';
 import 'ui/theme/app_palette.dart';
 import 'ui/bottom_panel/bottom_panel.dart';
 import 'ui/commit_graph/commit_graph_panel.dart';
+import 'ui/common/vertical_splitter.dart';
 import 'ui/conflicts/conflict_resolution_panel.dart';
 import 'ui/operations/toast_overlay.dart';
 import 'ui/settings/settings_page.dart';
@@ -284,17 +285,11 @@ class _ShellState extends ConsumerState<Shell> {
                                                       : view == MainView.changes
                                                           ? WorkingCopyPanel(
                                                               repo: active.location)
-                                                          : Column(
-                                                              children: [
-                                                                Expanded(
-                                                                    child: CommitGraphPanel(
-                                                                        repo: active.location)),
-                                                                SizedBox(
-                                                                  height: 320,
-                                                                  child: BottomPanel(
-                                                                      repo: active.location),
-                                                                ),
-                                                              ],
+                                                          : VerticalSplitter(
+                                                              top: CommitGraphPanel(
+                                                                  repo: active.location),
+                                                              bottom: BottomPanel(
+                                                                  repo: active.location),
                                                             ),
                                                 ),
                                                 const StatusBar(),

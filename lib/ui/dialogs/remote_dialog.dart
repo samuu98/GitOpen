@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/app_palette.dart';
+import 'app_dialog.dart';
 
 enum RemoteDialogMode { add, editUrl, rename }
 
@@ -104,35 +106,39 @@ class _RemoteDialogState extends State<RemoteDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
     final showName = widget.mode != RemoteDialogMode.editUrl;
     final showUrl = widget.mode != RemoteDialogMode.rename;
     final nameEnabled = widget.mode != RemoteDialogMode.editUrl;
 
-    return AlertDialog(
-      title: Text(_title),
+    return AppDialog(
+      title: _title,
+      width: 460,
       content: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (showName)
             TextField(
               controller: _nameCtl,
               autofocus: widget.mode != RemoteDialogMode.editUrl,
               enabled: nameEnabled,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                hintText: 'origin',
-              ),
+              style: TextStyle(color: palette.fg0, fontSize: 13),
+              decoration: appInputDecoration(context,
+                  label: 'Name', hint: 'origin'),
               onChanged: (_) => setState(() {}),
               onSubmitted: (_) => _submit(),
             ),
-          if (showName && showUrl) const SizedBox(height: 8),
+          if (showName && showUrl) const SizedBox(height: 12),
           if (showUrl)
             TextField(
               controller: _urlCtl,
               autofocus: widget.mode == RemoteDialogMode.editUrl,
-              decoration: const InputDecoration(
-                labelText: 'URL',
-                hintText: 'https://github.com/user/repo.git',
+              style: TextStyle(color: palette.fg0, fontSize: 13),
+              decoration: appInputDecoration(
+                context,
+                label: 'URL',
+                hint: 'https://github.com/user/repo.git',
               ),
               onChanged: (_) => setState(() {}),
               onSubmitted: (_) => _submit(),
@@ -140,13 +146,13 @@ class _RemoteDialogState extends State<RemoteDialog> {
         ],
       ),
       actions: [
-        TextButton(
+        AppButton.secondary(
+          label: 'Cancel',
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
         ),
-        ElevatedButton(
+        AppButton.primary(
+          label: _confirmLabel,
           onPressed: _valid ? _submit : null,
-          child: Text(_confirmLabel),
         ),
       ],
     );

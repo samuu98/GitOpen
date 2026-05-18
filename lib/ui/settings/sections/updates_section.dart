@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../application/providers.dart';
+import '../../dialogs/app_dialog.dart';
 import '../../theme/app_palette.dart';
+import '../settings_widgets.dart';
 
 class UpdatesSection extends ConsumerStatefulWidget {
   const UpdatesSection({super.key});
@@ -17,74 +19,69 @@ class _UpdatesSectionState extends ConsumerState<UpdatesSection> {
 
   @override
   Widget build(BuildContext context) {
-    final p = AppPalette.of(context);
+    final palette = AppPalette.of(context);
     final s = ref.watch(appSettingsProvider);
-
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Updates',
-            style: TextStyle(
-              color: p.fg0,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+          const SettingsPageHeader(
+            title: 'Updates',
+            description: 'Stay current with the latest release.',
+          ),
+          const SettingsSectionTitle('Automatic checks'),
+          SettingsCard(
+            child: SettingsRow(
+              label: 'Check on startup',
+              description:
+                  'Quietly look for a newer release each time the app opens.',
+              divider: false,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Switch(
+                  value: s.autoUpdateCheck,
+                  onChanged: ref
+                      .read(appSettingsProvider.notifier)
+                      .setAutoUpdateCheck,
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Switch(
-                value: s.autoUpdateCheck,
-                onChanged: ref.read(appSettingsProvider.notifier).setAutoUpdateCheck,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Check for updates on startup',
-                style: TextStyle(color: p.fg0, fontSize: 13),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              ElevatedButton.icon(
-                icon: _checking
-                    ? SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: p.fg0,
-                        ),
-                      )
-                    : const Icon(Icons.refresh, size: 14),
-                label: const Text('Check now'),
-                onPressed: _checking ? null : _check,
-              ),
-              const SizedBox(width: 16),
-              if (_status != null)
-                Flexible(
-                  child: Text(
-                    _status!,
-                    style: TextStyle(
-                      color: _updateVersion != null ? p.accentCurrent : p.fg1,
-                      fontSize: 13,
+          const SettingsGap(),
+          const SettingsSectionTitle('Manual check'),
+          SettingsCard(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AppButton.primary(
+                  icon: Icons.refresh,
+                  label: _checking ? 'Checking…' : 'Check now',
+                  onPressed: _checking ? null : _check,
+                ),
+                const SizedBox(width: 14),
+                if (_status != null)
+                  Expanded(
+                    child: Text(
+                      _status!,
+                      style: TextStyle(
+                        color: _updateVersion != null
+                            ? palette.accentCurrent
+                            : palette.fg1,
+                        fontSize: 12.5,
+                      ),
                     ),
                   ),
-                ),
-            ],
-          ),
-          if (_updateVersion != null) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.open_in_new, size: 14),
-              label: const Text('Open release page'),
-              onPressed: _openReleasePage,
+                if (_updateVersion != null)
+                  AppButton.secondary(
+                    icon: Icons.open_in_new,
+                    label: 'Release page',
+                    onPressed: _openReleasePage,
+                  ),
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );

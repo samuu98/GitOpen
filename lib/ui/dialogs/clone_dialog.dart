@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/active_workspace_provider.dart';
 import '../../application/operations/running_operation.dart';
 import '../../application/providers.dart';
+import '../theme/app_palette.dart';
+import 'app_dialog.dart';
 
 class CloneDialog extends ConsumerStatefulWidget {
   const CloneDialog({super.key});
@@ -29,49 +31,62 @@ class _State extends ConsumerState<CloneDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Clone repository'),
-      content: SizedBox(
-        width: 480,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+    final palette = AppPalette.of(context);
+    return AppDialog(
+      title: 'Clone repository',
+      busy: _busy,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           TextField(
             controller: _urlCtl,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'Repository URL'),
+            style: TextStyle(color: palette.fg0, fontSize: 13),
+            decoration: appInputDecoration(
+              context,
+              label: 'Repository URL',
+              hint: 'https://github.com/user/repo.git',
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Row(children: [
             Expanded(
               child: TextField(
                 controller: _destCtl,
-                decoration: const InputDecoration(labelText: 'Destination'),
+                style: TextStyle(color: palette.fg0, fontSize: 13),
+                decoration: appInputDecoration(context, label: 'Destination'),
               ),
             ),
-            IconButton(icon: const Icon(Icons.folder_open), onPressed: _pickDest),
+            const SizedBox(width: 6),
+            IconButton(
+              icon: Icon(Icons.folder_open, color: palette.fg1, size: 18),
+              tooltip: 'Browse…',
+              onPressed: _pickDest,
+            ),
           ]),
+          const SizedBox(height: 6),
           Row(children: [
             Checkbox(
               value: _openAfter,
               onChanged: (v) => setState(() => _openAfter = v ?? true),
+              visualDensity: VisualDensity.compact,
             ),
-            const Text('Open after clone'),
+            Text(
+              'Open after clone',
+              style: TextStyle(color: palette.fg1, fontSize: 12.5),
+            ),
           ]),
-        ]),
+        ],
       ),
       actions: [
-        TextButton(
+        AppButton.secondary(
+          label: 'Cancel',
           onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
         ),
-        ElevatedButton(
+        AppButton.primary(
+          label: 'Clone',
           onPressed: _busy ? null : _clone,
-          child: _busy
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Clone'),
         ),
       ],
     );

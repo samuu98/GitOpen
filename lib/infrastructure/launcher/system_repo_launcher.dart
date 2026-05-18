@@ -36,25 +36,45 @@ class SystemRepoLauncher implements RepoLauncher {
 
   @override
   Future<void> openInTerminal(RepoLocation repo) async {
+    if (_platform == 'windows') {
+      // Detached Process.start gives the child no console window — console
+      // apps (cmd/powershell) silently die. Route launches through
+      // `cmd /c start "" /D <path> <exe>` so Explorer's shell opens a real
+      // console for them. Also skips PowerShell 5.1's `-WorkingDirectory`
+      // (not supported on Windows PowerShell).
+      final candidates = <(String, List<String>)>[
+        ('wt.exe', ['-d', repo.path]),
+        ('pwsh.exe', ['-NoExit', '-WorkingDirectory', repo.path]),
+        ('powershell.exe', ['-NoExit']),
+        ('cmd.exe', ['/K']),
+      ];
+      for (final (exe, exeArgs) in candidates) {
+        final probed = await _runner.probe(exe);
+        if (!probed.found) continue;
+        final ok = await _runner.startDetached(
+          'cmd.exe',
+          ['/c', 'start', '', '/D', repo.path, exe, ...exeArgs],
+        );
+        if (ok) return;
+      }
+      throw const LauncherException(
+        'No terminal application available. Install Windows Terminal or '
+        'ensure powershell/cmd is on PATH.',
+      );
+    }
     final chain = _terminalChain(repo.path);
     for (final (exe, args) in chain) {
       final ok = await _runner.startDetached(exe, args);
       if (ok) return;
     }
     throw const LauncherException(
-      'No terminal application available. Install Windows Terminal, '
-      'gnome-terminal, konsole, or ensure your default terminal is on PATH.',
+      'No terminal application available. Install gnome-terminal, konsole, '
+      'or ensure your default terminal is on PATH.',
     );
   }
 
   List<(String, List<String>)> _terminalChain(String path) {
     switch (_platform) {
-      case 'windows':
-        return [
-          ('wt.exe', ['-d', path]),
-          ('powershell', ['-NoExit', '-WorkingDirectory', path]),
-          ('cmd', ['/K', 'cd', '/D', path]),
-        ];
       case 'macos':
         return [
           ('open', ['-a', 'Terminal', path]),

@@ -19,6 +19,8 @@ import '../../domain/commits/commit_info.dart';
 import '../../domain/commits/commit_sha.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../checkout/safe_checkout.dart';
+import '../common/app_context_menu.dart';
+import '../dialogs/app_dialog.dart';
 import '../dialogs/branch_create_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
 import '../theme/app_palette.dart';
@@ -335,46 +337,28 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     CommitSha sha,
     Offset globalPos,
   ) async {
-    final rect = RelativeRect.fromLTRB(
-        globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy);
-
-    final selected = await showMenu<String>(
-      context: context,
-      position: rect,
-      items: [
-        const PopupMenuItem(
-            value: 'cherry_pick', child: Text('Cherry-pick into current')),
-        const PopupMenuItem(
-            value: 'revert', child: Text('Revert this commit')),
-        const PopupMenuItem(
-            value: 'branch_here', child: Text('Create branch here…')),
-        const PopupMenuItem(value: 'tag_here', child: Text('Tag here…')),
-        const PopupMenuDivider(),
-        const PopupMenuItem(value: 'copy_sha', child: Text('Copy SHA')),
-        const PopupMenuItem(
-            value: 'copy_short_sha', child: Text('Copy short SHA')),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'reset_submenu',
-          child: _ResetSubmenuTile(
-            sha: sha,
-            repo: widget.repo,
-            onAction: (mode) async {
-              Navigator.pop(context, '__reset_handled__');
-              if (!context.mounted) return;
-              await _doReset(context, ref, sha, mode);
-            },
-          ),
-        ),
+    final selected = await AppContextMenu.show<String>(
+      context,
+      globalPosition: globalPos,
+      entries: const [
+        AppMenuItem(value: 'cherry_pick', label: 'Cherry-pick into current', icon: Icons.add_card_outlined),
+        AppMenuItem(value: 'revert', label: 'Revert this commit', icon: Icons.undo),
+        AppMenuDivider(),
+        AppMenuItem(value: 'branch_here', label: 'Create branch here…', icon: Icons.alt_route),
+        AppMenuItem(value: 'tag_here', label: 'Tag here…', icon: Icons.local_offer_outlined),
+        AppMenuDivider(),
+        AppMenuItem(value: 'copy_sha', label: 'Copy SHA', icon: Icons.copy),
+        AppMenuItem(value: 'copy_short_sha', label: 'Copy short SHA', icon: Icons.copy_outlined),
+        AppMenuDivider(),
+        AppMenuItem(value: 'reset_soft', label: 'Reset (soft)', icon: Icons.restore),
+        AppMenuItem(value: 'reset_mixed', label: 'Reset (mixed)', icon: Icons.restore),
+        AppMenuItem(value: 'reset_hard', label: 'Reset (hard)…', icon: Icons.restore, danger: true),
       ],
     );
 
-    if (selected == null || selected == '__reset_handled__' || !context.mounted) {
-      return;
-    }
+    if (selected == null || !context.mounted) return;
 
     final write = ref.read(gitWriteOperationsProvider);
-
     final repo = widget.repo;
     switch (selected) {
       case 'cherry_pick':
@@ -396,7 +380,8 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
       case 'tag_here':
         if (!context.mounted) return;
-        final tagName = await _promptText(context, 'Tag here', label: 'Tag name');
+        final tagName =
+            await _promptText(context, 'Tag here', label: 'Tag name');
         if (tagName == null || tagName.trim().isEmpty) return;
         await write.createTag(repo, tagName.trim(), at: sha);
         ref.invalidate(gitReadOperationsProvider);
@@ -406,6 +391,15 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
       case 'copy_short_sha':
         await Clipboard.setData(ClipboardData(text: sha.short()));
+
+      case 'reset_soft':
+        await _doReset(context, ref, sha, ResetMode.soft);
+
+      case 'reset_mixed':
+        await _doReset(context, ref, sha, ResetMode.mixed);
+
+      case 'reset_hard':
+        await _doReset(context, ref, sha, ResetMode.hard);
     }
   }
 
@@ -435,70 +429,33 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     final ctl = TextEditingController(text: initial);
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: ctl,
-          autofocus: true,
-          decoration: InputDecoration(labelText: label),
-        ),
-        actions: [
-          TextButton(
+      builder: (ctx) {
+        final palette = AppPalette.of(ctx);
+        return AppDialog(
+          title: title,
+          width: 420,
+          content: TextField(
+            controller: ctl,
+            autofocus: true,
+            style: TextStyle(color: palette.fg0, fontSize: 13),
+            decoration: appInputDecoration(ctx, label: label),
+            onSubmitted: (_) => Navigator.pop(ctx, ctl.text),
+          ),
+          actions: [
+            AppButton.secondary(
+              label: 'Cancel',
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          ElevatedButton(
+            ),
+            AppButton.primary(
+              label: 'OK',
               onPressed: () => Navigator.pop(ctx, ctl.text),
-              child: const Text('OK')),
-        ],
-      ),
+            ),
+          ],
+        );
+      },
     );
     ctl.dispose();
     return result;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Reset submenu tile — inline submenu within the context menu
-// ---------------------------------------------------------------------------
-
-class _ResetSubmenuTile extends StatelessWidget {
-  final CommitSha sha;
-  final RepoLocation repo;
-  final void Function(ResetMode mode) onAction;
-
-  const _ResetSubmenuTile({
-    required this.sha,
-    required this.repo,
-    required this.onAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MenuAnchor(
-      menuChildren: [
-        MenuItemButton(
-          onPressed: () => onAction(ResetMode.soft),
-          child: const Text('Soft'),
-        ),
-        MenuItemButton(
-          onPressed: () => onAction(ResetMode.mixed),
-          child: const Text('Mixed'),
-        ),
-        MenuItemButton(
-          onPressed: () => onAction(ResetMode.hard),
-          child: const Text('Hard…'),
-        ),
-      ],
-      builder: (context, controller, child) => InkWell(
-        onTap: () =>
-            controller.isOpen ? controller.close() : controller.open(),
-        child: Row(
-          children: const [
-            Expanded(child: Text('Reset to here')),
-            Icon(Icons.chevron_right, size: 16),
-          ],
-        ),
-      ),
-    );
-  }
-}

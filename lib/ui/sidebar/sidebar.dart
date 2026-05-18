@@ -16,6 +16,8 @@ import '../../application/git/merge_outcome.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../../application/operations/running_operation.dart';
 import '../checkout/safe_checkout.dart';
+import '../common/app_context_menu.dart';
+import '../dialogs/app_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
 import '../dialogs/remote_dialog.dart';
 import '../theme/app_palette.dart';
@@ -135,16 +137,12 @@ class _SidebarContent extends ConsumerWidget {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final r in data.remotes) ...[
-                      _RemoteHeaderRow(
+                    for (final r in data.remotes)
+                      _RemoteGroup(
                         remote: r,
                         repo: repo,
                         onChanged: () => _refreshSidebar(ref),
                       ),
-                      BranchTreeView(
-                          nodes: BranchTree.build(r.branches),
-                          repo: repo),
-                    ],
                   ],
                 ),
         ),
@@ -218,17 +216,14 @@ class _TagRow extends ConsumerWidget {
 
   Future<void> _showContextMenu(
       BuildContext context, WidgetRef ref, Offset globalPos) async {
-    final rect = RelativeRect.fromLTRB(
-        globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy);
-
-    final selected = await showMenu<String>(
-      context: context,
-      position: rect,
-      items: const [
-        PopupMenuItem(value: 'checkout', child: Text('Checkout')),
-        PopupMenuItem(value: 'push_tag', child: Text('Push tag')),
-        PopupMenuDivider(),
-        PopupMenuItem(value: 'delete_tag', child: Text('Delete tag')),
+    final selected = await AppContextMenu.show<String>(
+      context,
+      globalPosition: globalPos,
+      entries: const [
+        AppMenuItem(value: 'checkout', label: 'Checkout', icon: Icons.swap_horiz),
+        AppMenuItem(value: 'push_tag', label: 'Push tag', icon: Icons.upload),
+        AppMenuDivider(),
+        AppMenuItem(value: 'delete_tag', label: 'Delete tag', icon: Icons.delete_outline, danger: true),
       ],
     );
 
@@ -280,7 +275,7 @@ class _StashRow extends ConsumerWidget {
       onSecondaryTapDown: (details) =>
           _showContextMenu(context, ref, details.globalPosition),
       child: InkWell(
-        onTap: () {},
+        onTap: () => _revealCommit(ref, stash.sha),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
           child: Text(
@@ -295,17 +290,14 @@ class _StashRow extends ConsumerWidget {
 
   Future<void> _showContextMenu(
       BuildContext context, WidgetRef ref, Offset globalPos) async {
-    final rect = RelativeRect.fromLTRB(
-        globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy);
-
-    final selected = await showMenu<String>(
-      context: context,
-      position: rect,
-      items: const [
-        PopupMenuItem(value: 'apply', child: Text('Apply')),
-        PopupMenuItem(value: 'pop', child: Text('Pop')),
-        PopupMenuDivider(),
-        PopupMenuItem(value: 'drop', child: Text('Drop')),
+    final selected = await AppContextMenu.show<String>(
+      context,
+      globalPosition: globalPos,
+      entries: const [
+        AppMenuItem(value: 'apply', label: 'Apply', icon: Icons.file_download_outlined),
+        AppMenuItem(value: 'pop', label: 'Pop', icon: Icons.upload_outlined),
+        AppMenuDivider(),
+        AppMenuItem(value: 'drop', label: 'Drop', icon: Icons.delete_outline, danger: true),
       ],
     );
 
@@ -455,57 +447,108 @@ class _AddRemoteEmptyState extends ConsumerWidget {
   }
 }
 
-class _RemoteHeaderRow extends ConsumerWidget {
+class _RemoteGroup extends ConsumerStatefulWidget {
   final Remote remote;
   final RepoLocation repo;
   final VoidCallback onChanged;
-  const _RemoteHeaderRow({
+  const _RemoteGroup({
     required this.remote,
     required this.repo,
     required this.onChanged,
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
-      onSecondaryTapDown: (details) =>
-          _showMenu(context, ref, details.globalPosition),
-      child: Padding(
-        padding: const EdgeInsets.only(left: 14, top: 4, bottom: 2, right: 6),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                remote.name.toUpperCase(),
-                style: TextStyle(
-                  color: AppPalette.of(context).fg2,
-                  fontSize: 10.5,
-                  letterSpacing: 0.4,
+  ConsumerState<_RemoteGroup> createState() => _RemoteGroupState();
+}
+
+class _RemoteGroupState extends ConsumerState<_RemoteGroup> {
+  bool _open = true;
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    final branchCount = widget.remote.branches.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Tooltip(
+          message: widget.remote.url,
+          waitDuration: const Duration(milliseconds: 500),
+          child: MouseRegion(
+            onEnter: (_) => setState(() => _hover = true),
+            onExit: (_) => setState(() => _hover = false),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _open = !_open),
+              onSecondaryTapDown: (details) =>
+                  _showMenu(context, ref, details.globalPosition),
+              child: Container(
+                color: _hover ? palette.bg3 : Colors.transparent,
+                padding: const EdgeInsets.only(left: 6, right: 6, top: 3, bottom: 3),
+                child: Row(
+                  children: [
+                    Icon(
+                      _open ? Icons.expand_more : Icons.chevron_right,
+                      size: 14,
+                      color: palette.fg3,
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.cloud_outlined, size: 13, color: palette.fg2),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        widget.remote.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.fg1,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (branchCount > 0)
+                      Text(
+                        '$branchCount',
+                        style: TextStyle(
+                          color: palette.fg3,
+                          fontSize: 11,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+        if (_open)
+          BranchTreeView(
+            nodes: BranchTree.build(widget.remote.branches),
+            depth: 1,
+            repo: widget.repo,
+          ),
+      ],
     );
   }
 
   Future<void> _showMenu(
       BuildContext context, WidgetRef ref, Offset globalPos) async {
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-          globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy),
-      items: const [
-        PopupMenuItem(value: 'fetch', child: Text('Fetch')),
-        PopupMenuItem(value: 'edit_url', child: Text('Edit URL…')),
-        PopupMenuItem(value: 'rename', child: Text('Rename…')),
-        PopupMenuDivider(),
-        PopupMenuItem(value: 'remove', child: Text('Remove')),
+    final selected = await AppContextMenu.show<String>(
+      context,
+      globalPosition: globalPos,
+      entries: const [
+        AppMenuItem(value: 'fetch', label: 'Fetch', icon: Icons.cloud_download_outlined),
+        AppMenuItem(value: 'edit_url', label: 'Edit URL…', icon: Icons.link),
+        AppMenuItem(value: 'rename', label: 'Rename…', icon: Icons.drive_file_rename_outline),
+        AppMenuDivider(),
+        AppMenuItem(value: 'remove', label: 'Remove', icon: Icons.delete_outline, danger: true),
       ],
     );
     if (selected == null || !context.mounted) return;
     final write = ref.read(gitWriteOperationsProvider);
+    final remote = widget.remote;
+    final repo = widget.repo;
+    final onChanged = widget.onChanged;
 
     switch (selected) {
       case 'fetch':
@@ -614,16 +657,17 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     if (branch == null) return;
     final branchName = branch.name;
 
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-          globalPos.dx, globalPos.dy, globalPos.dx, globalPos.dy),
-      items: const [
-        PopupMenuItem(value: 'checkout', child: Text('Checkout')),
-        PopupMenuItem(value: 'merge', child: Text('Merge into current')),
-        PopupMenuItem(value: 'rename', child: Text('Rename…')),
-        PopupMenuItem(value: 'delete', child: Text('Delete')),
-        PopupMenuItem(value: 'upstream', child: Text('Set upstream…')),
+    final selected = await AppContextMenu.show<String>(
+      context,
+      globalPosition: globalPos,
+      entries: const [
+        AppMenuItem(value: 'checkout', label: 'Checkout', icon: Icons.swap_horiz),
+        AppMenuItem(value: 'merge', label: 'Merge into current', icon: Icons.call_merge),
+        AppMenuDivider(),
+        AppMenuItem(value: 'rename', label: 'Rename…', icon: Icons.drive_file_rename_outline),
+        AppMenuItem(value: 'upstream', label: 'Set upstream…', icon: Icons.link),
+        AppMenuDivider(),
+        AppMenuItem(value: 'delete', label: 'Delete', icon: Icons.delete_outline, danger: true),
       ],
     );
 
@@ -678,29 +722,37 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     }
   }
 
-  /// Shows a simple single-TextField AlertDialog and returns the entered text,
+  /// Shows a simple single-TextField dialog and returns the entered text,
   /// or null if the user cancelled.
   Future<String?> _promptText(BuildContext context, String title,
       {required String label, String? initial}) async {
     final ctl = TextEditingController(text: initial);
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: ctl,
-          autofocus: true,
-          decoration: InputDecoration(labelText: label),
-        ),
-        actions: [
-          TextButton(
+      builder: (ctx) {
+        final palette = AppPalette.of(ctx);
+        return AppDialog(
+          title: title,
+          width: 420,
+          content: TextField(
+            controller: ctl,
+            autofocus: true,
+            style: TextStyle(color: palette.fg0, fontSize: 13),
+            decoration: appInputDecoration(ctx, label: label),
+            onSubmitted: (_) => Navigator.pop(ctx, ctl.text),
+          ),
+          actions: [
+            AppButton.secondary(
+              label: 'Cancel',
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          ElevatedButton(
+            ),
+            AppButton.primary(
+              label: 'OK',
               onPressed: () => Navigator.pop(ctx, ctl.text),
-              child: const Text('OK')),
-        ],
-      ),
+            ),
+          ],
+        );
+      },
     );
     ctl.dispose();
     return result;

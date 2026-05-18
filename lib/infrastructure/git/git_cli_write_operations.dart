@@ -270,7 +270,19 @@ final class GitCliWriteOperations implements GitWriteOperations {
       bool forceWithLease = false,
       bool pushTags = false,
       AuthSpec? auth}) async* {
-    final args = <String>['push', '--progress'];
+    // `push.autoSetupRemote=true` makes a bare `git push` on a branch with
+    // no upstream behave like `git push --set-upstream origin <branch>` —
+    // it picks the default push remote, pushes to the same-name branch,
+    // and records the upstream. Without it, the first push on a freshly
+    // created branch fails with "no upstream branch" even when auth and
+    // remote are configured correctly. The `-c` override must come before
+    // the subcommand, like the credential helper's own overrides.
+    final args = <String>[
+      '-c',
+      'push.autoSetupRemote=true',
+      'push',
+      '--progress',
+    ];
     if (forceWithLease) args.add('--force-with-lease');
     if (pushTags) args.add('--tags');
     if (remote != null) {

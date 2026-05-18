@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_palette.dart';
+import 'app_dialog.dart';
 
 enum CheckoutAction { discard, stash, keep }
 
@@ -21,29 +22,29 @@ class CheckoutChangesDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    return AlertDialog(
-      title: Text('Switch to "$targetRef"'),
+    return AppDialog(
+      title: 'Switch to "$targetRef"',
+      width: 460,
       content: Text(
         'You have uncommitted changes. What would you like to do with them?',
-        style: TextStyle(color: palette.fg1),
+        style: TextStyle(color: palette.fg1, fontSize: 12.5, height: 1.4),
       ),
       actions: [
-        TextButton(
+        AppButton.secondary(
+          label: 'Cancel',
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
         ),
-        TextButton(
-          style: TextButton.styleFrom(foregroundColor: palette.accentErr),
+        AppButton.danger(
+          label: 'Discard',
           onPressed: () => Navigator.pop(context, CheckoutAction.discard),
-          child: const Text('Discard'),
         ),
-        TextButton(
+        AppButton.secondary(
+          label: 'Stash',
           onPressed: () => Navigator.pop(context, CheckoutAction.stash),
-          child: const Text('Stash'),
         ),
-        ElevatedButton(
+        AppButton.primary(
+          label: 'Keep & switch',
           onPressed: () => Navigator.pop(context, CheckoutAction.keep),
-          child: const Text('Keep & switch'),
         ),
       ],
     );

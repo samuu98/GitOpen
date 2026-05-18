@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../application/auth/auth_profile.dart';
 import '../../../application/git/auth_spec.dart';
 import '../../../application/providers.dart';
+import '../../dialogs/app_dialog.dart';
 import '../../dialogs/auth_dialog.dart';
 import '../../dialogs/confirm_dialog.dart';
 import '../../theme/app_palette.dart';
+import '../settings_widgets.dart';
 
 final _profilesProvider =
     FutureProvider.autoDispose<List<AuthProfile>>((ref) async {
@@ -22,119 +24,222 @@ class AuthenticationSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final p = AppPalette.of(context);
+    final palette = AppPalette.of(context);
     final profiles = ref.watch(_profilesProvider);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Text('Saved accounts',
-              style: TextStyle(
-                  color: p.fg0, fontSize: 14, fontWeight: FontWeight.w600)),
-          const Spacer(),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.add, size: 14),
-            label: const Text('Add account'),
-            onPressed: () async {
-              final host = await _promptHost(context);
-              if (host == null || host.isEmpty) return;
-              if (context.mounted) await AuthDialog.show(context, host);
-              ref.invalidate(_profilesProvider);
-            },
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SettingsPageHeader(
+            title: 'Authentication',
+            description:
+                'Saved credentials for git hosts. Used automatically when fetching or pushing.',
           ),
-        ]),
-        const SizedBox(height: 16),
-        profiles.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) =>
-              Text('Error: $e', style: TextStyle(color: p.accentErr)),
-          data: (list) => list.isEmpty
-              ? Text('No saved accounts.', style: TextStyle(color: p.fg2))
-              : Column(
-                  children: [
-                    for (final profile in list)
-                      _ProfileRow(profile: profile, refreshKey: ref),
-                  ],
-                ),
-        ),
-      ]),
+          Row(
+            children: [
+              const SettingsSectionTitle('Saved accounts'),
+              const Spacer(),
+              AppButton.primary(
+                icon: Icons.person_add_alt_1,
+                label: 'Add account',
+                onPressed: () async {
+                  final host = await _promptHost(context);
+                  if (host == null || host.isEmpty) return;
+                  if (context.mounted) {
+                    await AuthDialog.show(context, host);
+                  }
+                  ref.invalidate(_profilesProvider);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          profiles.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Error: $e',
+                  style: TextStyle(color: palette.accentErr)),
+            ),
+            data: (list) => list.isEmpty
+                ? _EmptyState()
+                : SettingsCard(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < list.length; i++)
+                          _ProfileRow(
+                            profile: list[i],
+                            isLast: i == list.length - 1,
+                            refreshKey: ref,
+                          ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
   Future<String?> _promptHost(BuildContext context) async {
     final ctl = TextEditingController();
     return showDialog<String>(
-        context: context,
-        builder: (_) => AlertDialog(
-              title: const Text('Add account for host'),
-              content: TextField(
-                  controller: ctl,
-                  decoration: const InputDecoration(hintText: 'github.com')),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel')),
-                ElevatedButton(
-                    onPressed: () =>
-                        Navigator.pop(context, ctl.text.trim()),
-                    child: const Text('Next')),
-              ],
-            ));
+      context: context,
+      builder: (ctx) {
+        final palette = AppPalette.of(ctx);
+        return AppDialog(
+          title: 'Add account for host',
+          width: 420,
+          content: TextField(
+            controller: ctl,
+            autofocus: true,
+            style: TextStyle(color: palette.fg0, fontSize: 13),
+            decoration: appInputDecoration(
+              ctx,
+              label: 'Host',
+              hint: 'github.com',
+            ),
+            onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+          ),
+          actions: [
+            AppButton.secondary(
+              label: 'Cancel',
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            AppButton.primary(
+              label: 'Next',
+              onPressed: () => Navigator.pop(ctx, ctl.text.trim()),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    return SettingsCard(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Icon(Icons.lock_open_outlined, size: 18, color: palette.fg3),
+          const SizedBox(width: 10),
+          Text('No saved accounts yet.',
+              style: TextStyle(color: palette.fg2, fontSize: 12.5)),
+        ],
+      ),
+    );
   }
 }
 
 class _ProfileRow extends StatelessWidget {
   final AuthProfile profile;
+  final bool isLast;
   final WidgetRef refreshKey;
 
-  const _ProfileRow({required this.profile, required this.refreshKey});
+  const _ProfileRow({
+    required this.profile,
+    required this.isLast,
+    required this.refreshKey,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final p = AppPalette.of(context);
+    final palette = AppPalette.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: p.border)),
-      ),
-      child: Row(children: [
-        Icon(Icons.account_circle_outlined, size: 18, color: p.fg2),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                profile.username,
-                style: TextStyle(color: p.fg0, fontSize: 13),
-              ),
-              Text(
-                '${profile.host} · ${_kindLabel(profile.spec)}',
-                style: TextStyle(color: p.fg2, fontSize: 11),
-              ),
-            ],
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: isLast
+          ? null
+          : BoxDecoration(
+              border: Border(bottom: BorderSide(color: palette.border)),
+            ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: palette.bg3,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: palette.border),
+            ),
+            child: Icon(Icons.account_circle_outlined,
+                size: 18, color: palette.fg1),
           ),
-        ),
-        TextButton(
-          onPressed: () async {
-            await AuthDialog.show(context, profile.host, editing: profile);
-            refreshKey.invalidate(_profilesProvider);
-          },
-          child: const Text('Edit'),
-        ),
-        TextButton(
-          onPressed: () async {
-            final ok = await ConfirmDialog.show(context,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  profile.username,
+                  style: TextStyle(
+                      color: palette.fg0,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${profile.host} · ${_kindLabel(profile.spec)}',
+                  style: TextStyle(color: palette.fg2, fontSize: 11.5),
+                ),
+              ],
+            ),
+          ),
+          AppButton.secondary(
+            label: 'Test',
+            onPressed: () async {
+              final result = await Process.run(
+                  'git', ['ls-remote', 'https://${profile.host}'],
+                  runInShell: true);
+              final ok = result.exitCode == 0;
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(ok
+                      ? 'OK: ${profile.host} reachable'
+                      : 'Failed: ${result.stderr}'),
+                ));
+              }
+            },
+          ),
+          const SizedBox(width: 6),
+          AppButton.secondary(
+            label: 'Edit',
+            onPressed: () async {
+              await AuthDialog.show(context, profile.host,
+                  editing: profile);
+              refreshKey.invalidate(_profilesProvider);
+            },
+          ),
+          const SizedBox(width: 6),
+          AppButton.danger(
+            label: 'Delete',
+            onPressed: () async {
+              final ok = await ConfirmDialog.show(
+                context,
                 title: 'Delete account',
                 body: 'Remove saved account ${profile.username} '
                     '(${profile.host})?',
                 confirmLabel: 'Delete',
-                dangerous: true);
-            if (ok) {
-              await refreshKey.read(authProfileStoreProvider).delete(profile.id);
-              // Drop any per-repo bindings that pointed at this profile so
-              // subsequent operations don't try to resolve a deleted id.
-              final notifier = refreshKey.read(appSettingsProvider.notifier);
+                dangerous: true,
+              );
+              if (!ok) return;
+              await refreshKey
+                  .read(authProfileStoreProvider)
+                  .delete(profile.id);
+              final notifier = refreshKey
+                  .read(appSettingsProvider.notifier);
               final current = refreshKey
                   .read(appSettingsProvider)
                   .authRepoBindings
@@ -146,27 +251,10 @@ class _ProfileRow extends StatelessWidget {
                 await notifier.setAuthBinding(repoId, null);
               }
               refreshKey.invalidate(_profilesProvider);
-            }
-          },
-          child: const Text('Delete'),
-        ),
-        TextButton(
-          onPressed: () async {
-            final result = await Process.run(
-                'git', ['ls-remote', 'https://${profile.host}'],
-                runInShell: true);
-            final ok = result.exitCode == 0;
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text(ok
-                    ? 'OK: ${profile.host} reachable'
-                    : 'Failed: ${result.stderr}'),
-              ));
-            }
-          },
-          child: const Text('Test'),
-        ),
-      ]),
+            },
+          ),
+        ],
+      ),
     );
   }
 

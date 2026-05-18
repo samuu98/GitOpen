@@ -5,7 +5,10 @@ import '../../../application/active_workspace_provider.dart';
 import '../../../application/git_identity/git_identity.dart';
 import '../../../application/providers.dart';
 import '../../../domain/repositories/repo_location.dart';
+import '../../common/author_avatar.dart';
+import '../../dialogs/app_dialog.dart';
 import '../../theme/app_palette.dart';
+import '../settings_widgets.dart';
 
 final _activeRepoIdentityProvider = FutureProvider.autoDispose
     .family<({String? name, String? email}), RepoLocation>((ref, repo) async {
@@ -22,37 +25,45 @@ class GitIdentitySection extends ConsumerWidget {
     final workspaces = ref.watch(workspaceManagerProvider);
     final activeRepo = activeId == null
         ? null
-        : workspaces.firstWhereOrNull((w) => w.location.id == activeId)?.location;
-    final p = AppPalette.of(context);
+        : workspaces
+            .firstWhereOrNull((w) => w.location.id == activeId)
+            ?.location;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Header('Current repository'),
+          const SettingsPageHeader(
+            title: 'Git Identity',
+            description:
+                'Author name and email used for new commits. Each repository can override the global default.',
+          ),
+          const SettingsSectionTitle('Current repository'),
           if (activeRepo == null)
-            _NoRepoHint()
+            const _NoRepoHint()
           else
             _CurrentIdentityCard(repo: activeRepo),
-          const SizedBox(height: 24),
-          _Header('Saved profiles'),
+          const SettingsGap(),
+          const SettingsSectionTitle('Saved profiles'),
           if (settings.gitIdentities.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                'No profiles yet. Add one below to switch identities quickly.',
-                style: TextStyle(color: p.fg2, fontStyle: FontStyle.italic),
-              ),
-            )
+            _EmptyProfiles()
           else
-            for (var i = 0; i < settings.gitIdentities.length; i++)
-              _ProfileTile(
-                index: i,
-                identity: settings.gitIdentities[i],
-                activeRepo: activeRepo,
+            SettingsCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  for (var i = 0; i < settings.gitIdentities.length; i++)
+                    _ProfileTile(
+                      index: i,
+                      identity: settings.gitIdentities[i],
+                      activeRepo: activeRepo,
+                      isLast: i == settings.gitIdentities.length - 1,
+                    ),
+                ],
               ),
-          const SizedBox(height: 24),
-          _Header('Add a new profile'),
+            ),
+          const SettingsGap(),
+          const SettingsSectionTitle('Add a new profile'),
           const _AddProfileForm(),
         ],
       ),
@@ -60,36 +71,42 @@ class GitIdentitySection extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  final String text;
-  const _Header(this.text);
+class _EmptyProfiles extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final p = AppPalette.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text.toUpperCase(),
-        style: TextStyle(
-          color: p.fg2,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-        ),
+    final palette = AppPalette.of(context);
+    return SettingsCard(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Icon(Icons.fingerprint, size: 18, color: palette.fg3),
+          const SizedBox(width: 10),
+          Text(
+            'No profiles yet — add one below to switch identities quickly.',
+            style: TextStyle(color: palette.fg2, fontSize: 12.5),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _NoRepoHint extends StatelessWidget {
+  const _NoRepoHint();
   @override
   Widget build(BuildContext context) {
-    final p = AppPalette.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(
-        'Open a repository to view or change its committer identity.',
-        style: TextStyle(color: p.fg2, fontStyle: FontStyle.italic),
+    final palette = AppPalette.of(context);
+    return SettingsCard(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Icon(Icons.folder_off_outlined, size: 18, color: palette.fg3),
+          const SizedBox(width: 10),
+          Text(
+            'Open a repository to view or change its committer identity.',
+            style: TextStyle(color: palette.fg2, fontSize: 12.5),
+          ),
+        ],
       ),
     );
   }
@@ -101,50 +118,53 @@ class _CurrentIdentityCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final p = AppPalette.of(context);
+    final palette = AppPalette.of(context);
     final async = ref.watch(_activeRepoIdentityProvider(repo));
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: p.bg2,
-        border: Border.all(color: p.border),
-        borderRadius: BorderRadius.circular(6),
-      ),
+    return SettingsCard(
+      padding: const EdgeInsets.all(16),
       child: async.when(
         loading: () => const SizedBox(
-            height: 36,
-            child: Center(
-                child: SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 1.5)))),
+          height: 36,
+          child: Center(
+              child: SizedBox(
+                  height: 16,
+                  width: 16,
+                  child:
+                      CircularProgressIndicator(strokeWidth: 1.5))),
+        ),
         error: (e, _) => Text('Error reading config: $e',
-            style: TextStyle(color: p.accentErr)),
+            style: TextStyle(color: palette.accentErr)),
         data: (id) {
           final name = id.name ?? '(not set)';
           final email = id.email ?? '(not set)';
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(children: [
-                SizedBox(
-                    width: 60,
-                    child: Text('Name',
-                        style: TextStyle(color: p.fg2, fontSize: 12))),
-                Text(name, style: TextStyle(color: p.fg0, fontSize: 13)),
-              ]),
-              const SizedBox(height: 6),
-              Row(children: [
-                SizedBox(
-                    width: 60,
-                    child: Text('Email',
-                        style: TextStyle(color: p.fg2, fontSize: 12))),
-                Text(email, style: TextStyle(color: p.fg0, fontSize: 13)),
-              ]),
-              const SizedBox(height: 4),
-              Text(
-                'Effective values for this repo (local config overrides global).',
-                style: TextStyle(color: p.fg3, fontSize: 11),
+              AuthorAvatar(name: name, email: email, size: 36),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                          color: palette.fg0,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(email,
+                        style: TextStyle(
+                            color: palette.fg2, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Effective values — local config overrides global.',
+                      style: TextStyle(
+                          color: palette.fg3, fontSize: 11),
+                    ),
+                  ],
+                ),
               ),
             ],
           );
@@ -158,54 +178,59 @@ class _ProfileTile extends ConsumerWidget {
   final int index;
   final GitIdentity identity;
   final RepoLocation? activeRepo;
+  final bool isLast;
   const _ProfileTile({
     required this.index,
     required this.identity,
     required this.activeRepo,
+    required this.isLast,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final p = AppPalette.of(context);
+    final palette = AppPalette.of(context);
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: p.bg2,
-        border: Border.all(color: p.border),
-        borderRadius: BorderRadius.circular(6),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: isLast
+          ? null
+          : BoxDecoration(
+              border: Border(bottom: BorderSide(color: palette.border))),
       child: Row(
         children: [
+          AuthorAvatar(
+              name: identity.name, email: identity.email, size: 30),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(identity.label,
                     style: TextStyle(
-                        color: p.fg0,
+                        color: palette.fg0,
                         fontSize: 13,
                         fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text('${identity.name} <${identity.email}>',
                     style: TextStyle(
-                        color: p.fg2,
-                        fontSize: 12,
+                        color: palette.fg2,
+                        fontSize: 11.5,
                         fontFamily: 'monospace')),
               ],
             ),
           ),
-          if (activeRepo != null)
-            TextButton.icon(
-              icon: const Icon(Icons.check, size: 14),
-              label: const Text('Apply to repo'),
+          if (activeRepo != null) ...[
+            AppButton.secondary(
+              label: 'Apply to repo',
+              icon: Icons.check,
               onPressed: () => _apply(context, ref, activeRepo!),
             ),
-          IconButton(
-            icon: Icon(Icons.delete_outline, size: 16, color: p.fg2),
-            tooltip: 'Remove profile',
-            onPressed: () =>
-                ref.read(appSettingsProvider.notifier).removeGitIdentity(index),
+            const SizedBox(width: 6),
+          ],
+          AppButton.danger(
+            label: 'Remove',
+            onPressed: () => ref
+                .read(appSettingsProvider.notifier)
+                .removeGitIdentity(index),
           ),
         ],
       ),
@@ -256,38 +281,35 @@ class _AddProfileFormState extends ConsumerState<_AddProfileForm> {
 
   @override
   Widget build(BuildContext context) {
-    final p = AppPalette.of(context);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: p.bg2,
-        border: Border.all(color: p.border),
-        borderRadius: BorderRadius.circular(6),
-      ),
+    return SettingsCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _Field(
-              label: 'Label',
-              controller: _label,
-              hint: 'e.g. Work',
-              onChanged: () => setState(() {})),
+            label: 'Label',
+            controller: _label,
+            hint: 'e.g. Work',
+            onChanged: () => setState(() {}),
+          ),
           _Field(
-              label: 'Name',
-              controller: _name,
-              hint: 'Full Name',
-              onChanged: () => setState(() {})),
+            label: 'Name',
+            controller: _name,
+            hint: 'Full Name',
+            onChanged: () => setState(() {}),
+          ),
           _Field(
-              label: 'Email',
-              controller: _email,
-              hint: 'name@example.com',
-              onChanged: () => setState(() {})),
+            label: 'Email',
+            controller: _email,
+            hint: 'name@example.com',
+            onChanged: () => setState(() {}),
+          ),
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Save profile'),
+            child: AppButton.primary(
+              icon: Icons.add,
+              label: 'Save profile',
               onPressed: _canSave() ? _save : null,
             ),
           ),
@@ -332,7 +354,7 @@ class _Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = AppPalette.of(context);
+    final palette = AppPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -340,15 +362,15 @@ class _Field extends StatelessWidget {
         children: [
           SizedBox(
             width: 80,
-            child: Text(label, style: TextStyle(color: p.fg1, fontSize: 12.5)),
+            child:
+                Text(label, style: TextStyle(color: palette.fg1, fontSize: 12.5)),
           ),
           Expanded(
             child: TextField(
               controller: controller,
-              decoration: InputDecoration(
-                hintText: hint,
-                isDense: true,
-              ),
+              style: TextStyle(color: palette.fg0, fontSize: 13),
+              decoration:
+                  appInputDecoration(context, label: '', hint: hint),
               onChanged: (_) => onChanged(),
             ),
           ),

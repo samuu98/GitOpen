@@ -11,6 +11,7 @@ import '../../application/git/auth_spec.dart';
 import '../../application/providers.dart';
 import '../../infrastructure/auth/github_device_flow.dart';
 import '../theme/app_palette.dart';
+import 'app_dialog.dart';
 
 /// Dialog that lets the user sign in with one of three methods:
 ///  - HTTPS personal-access-token (username + token)
@@ -82,130 +83,114 @@ class _AuthDialogState extends ConsumerState<AuthDialog>
   Widget build(BuildContext context) {
     final isGitHub = widget.host == 'github.com';
     final palette = AppPalette.of(context);
-    return Dialog(
-      backgroundColor: palette.bg1,
-      child: SizedBox(
-        width: 460,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                widget.editing != null
-                    ? 'Edit credential for ${widget.host}'
-                    : 'Add credential for ${widget.host}',
-                style: TextStyle(
-                  color: palette.fg0,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            TabBar(
+    return AppDialog(
+      title: widget.editing != null
+          ? 'Edit credential for ${widget.host}'
+          : 'Add credential for ${widget.host}',
+      width: 480,
+      contentPadding: EdgeInsets.zero,
+      busy: _busy,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TabBar(
+            controller: _tabs,
+            labelStyle: const TextStyle(fontSize: 12.5),
+            tabs: [
+              const Tab(text: 'HTTPS Token'),
+              const Tab(text: 'SSH Key'),
+              if (isGitHub) const Tab(text: 'GitHub Login'),
+            ],
+          ),
+          SizedBox(
+            height: 240,
+            child: TabBarView(
               controller: _tabs,
-              tabs: [
-                const Tab(text: 'HTTPS Token'),
-                const Tab(text: 'SSH Key'),
-                if (isGitHub) const Tab(text: 'GitHub Login'),
+              children: [
+                _httpsTab(context),
+                _sshTab(context),
+                if (isGitHub)
+                  _GitHubOAuthTab(
+                    clientId:
+                        ref.read(appSettingsProvider).githubClientId ?? '',
+                    onToken: _onGitHubToken,
+                  ),
               ],
             ),
-            SizedBox(
-              height: 260,
-              child: TabBarView(
-                controller: _tabs,
-                children: [
-                  _httpsTab(),
-                  _sshTab(),
-                  if (isGitHub)
-                    _GitHubOAuthTab(
-                      clientId:
-                          ref.read(appSettingsProvider).githubClientId ?? '',
-                      onToken: _onGitHubToken,
-                    ),
-                ],
-              ),
-            ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: palette.accentErr, fontSize: 11),
-                ),
-              ),
+          ),
+          if (_error != null)
             Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  if (_busy) ...const [
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    SizedBox(width: 8),
-                  ],
-                  const Spacer(),
-                  TextButton(
-                    onPressed:
-                        _busy ? null : () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _busy ? null : _onSubmit,
-                    child: const Text('Save'),
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Text(
+                _error!,
+                style: TextStyle(color: palette.accentErr, fontSize: 11),
               ),
             ),
-          ],
+        ],
+      ),
+      actions: [
+        AppButton.secondary(
+          label: 'Cancel',
+          onPressed: _busy ? null : () => Navigator.pop(context),
         ),
+        AppButton.primary(
+          label: 'Save',
+          onPressed: _busy ? null : _onSubmit,
+        ),
+      ],
+    );
+  }
+
+  Widget _httpsTab(BuildContext context) {
+    final palette = AppPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          TextField(
+            controller: _userCtl,
+            style: TextStyle(color: palette.fg0, fontSize: 13),
+            decoration: appInputDecoration(context, label: 'Username'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _tokenCtl,
+            obscureText: true,
+            style: TextStyle(color: palette.fg0, fontSize: 13),
+            decoration: appInputDecoration(context,
+                label: 'Personal Access Token'),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _httpsTab() => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _userCtl,
-              decoration: const InputDecoration(labelText: 'Username'),
+  Widget _sshTab(BuildContext context) {
+    final palette = AppPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          TextField(
+            controller: _sshLabelCtl,
+            style: TextStyle(color: palette.fg0, fontSize: 13),
+            decoration: appInputDecoration(context,
+                label: 'Account label (e.g. github username)'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _sshPathCtl,
+            style: TextStyle(color: palette.fg0, fontSize: 13),
+            decoration: appInputDecoration(
+              context,
+              label: 'Path to private key',
+              hint: '~/.ssh/id_ed25519',
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _tokenCtl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Personal Access Token',
-              ),
-            ),
-          ],
-        ),
-      );
-
-  Widget _sshTab() => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _sshLabelCtl,
-              decoration: const InputDecoration(
-                labelText: 'Account label (e.g. github username)',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _sshPathCtl,
-              decoration: const InputDecoration(
-                labelText: 'Path to private key (e.g. ~/.ssh/id_ed25519)',
-              ),
-            ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _onGitHubToken(String token) async {
     setState(() {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../application/commit_graph/commit_node.dart';
+import '../common/author_avatar.dart';
 import '../theme/app_palette.dart';
 import 'lane_painter.dart';
 import 'ref_decoration.dart';
@@ -115,10 +116,23 @@ class CommitRow extends StatelessWidget {
                   const SizedBox(width: 12),
                   SizedBox(
                     width: 180,
-                    child: Text(
-                      node.commit.author.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: mutedColor, fontSize: 12),
+                    child: Row(
+                      children: [
+                        AuthorAvatar(
+                          name: node.commit.author.name,
+                          email: node.commit.author.email,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            node.commit.author.name,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                TextStyle(color: mutedColor, fontSize: 12),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 12),
