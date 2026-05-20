@@ -50,9 +50,13 @@ abstract interface class GitWriteOperations {
   Future<GitResult<void>> stashDrop(RepoLocation r, int index);
 
   Future<GitResult<MergeOutcome>> merge(RepoLocation r, String ref,
-      {bool ffOnly = false, bool noCommit = false});
+      {MergeStrategy strategy = MergeStrategy.defaultStrategy});
   Future<GitResult<void>> mergeAbort(RepoLocation r);
   Future<GitResult<CommitSha>> mergeContinue(RepoLocation r);
+
+  /// Dry-run check: does merging [ref] into HEAD produce conflicts?
+  /// Implemented with `git merge-tree` so the working tree is not touched.
+  Future<GitResult<MergePreview>> previewMerge(RepoLocation r, String ref);
 
   Future<GitResult<CherryPickOutcome>> cherryPick(RepoLocation r, CommitSha sha);
   Future<GitResult<void>> cherryPickAbort(RepoLocation r);

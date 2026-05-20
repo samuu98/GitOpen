@@ -24,6 +24,7 @@ import '../common/app_context_menu.dart';
 import '../dialogs/app_dialog.dart';
 import '../dialogs/branch_create_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
+import '../dialogs/merge_dialog.dart';
 import '../theme/app_palette.dart';
 import 'commit_row.dart';
 import 'local_changes_row.dart';
@@ -367,7 +368,17 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     final palette = AppPalette.of(context);
     switch (selected) {
       case 'merge':
-        final result = await write.merge(repo, sha.value);
+        final current = await currentBranchName(ref, repo);
+        if (!context.mounted) return;
+        final strategy = await MergeDialog.show(
+          context,
+          repo: repo,
+          sourceRef: sha.short(),
+          targetRef: current ?? 'HEAD',
+        );
+        if (strategy == null) return;
+        final result =
+            await write.merge(repo, sha.value, strategy: strategy);
         ref.invalidate(gitReadOperationsProvider);
         ref.invalidate(repoStateProvider(repo));
         if (!context.mounted) return;

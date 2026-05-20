@@ -390,10 +390,21 @@ final class GitCliWriteOperations implements GitWriteOperations {
   }
 
   @override
-  Future<GitResult<MergeOutcome>> merge(RepoLocation r, String ref, {bool ffOnly = false, bool noCommit = false}) async {
+  Future<GitResult<MergeOutcome>> merge(RepoLocation r, String ref,
+      {MergeStrategy strategy = MergeStrategy.defaultStrategy}) async {
     final args = <String>['merge'];
-    if (ffOnly) args.add('--ff-only');
-    if (noCommit) args.add('--no-commit');
+    switch (strategy) {
+      case MergeStrategy.defaultStrategy:
+        break;
+      case MergeStrategy.noFF:
+        args.add('--no-ff');
+      case MergeStrategy.squash:
+        // `--squash` implies `--no-commit`; pair with `--ff` so git never
+        // creates a merge commit, only updates the index.
+        args.addAll(['--squash', '--ff']);
+      case MergeStrategy.noCommit:
+        args.addAll(['--no-ff', '--no-commit']);
+    }
     args.add(ref);
     // Use Process.run directly so we can inspect both stdout and stderr on failure
     final result = await Process.run(
@@ -405,6 +416,14 @@ final class GitCliWriteOperations implements GitWriteOperations {
     final out = result.stdout.toString();
     final err = result.stderr.toString();
     if (result.exitCode == 0) {
+      if (out.contains('Already up to date')) {
+        return const GitSuccess(MergeUpToDate());
+      }
+      // Squash and no-commit leave changes staged without creating a commit.
+      if (strategy == MergeStrategy.squash ||
+          strategy == MergeStrategy.noCommit) {
+        return const GitSuccess(MergeStaged());
+      }
       final ff = out.contains('Fast-forward');
       final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
       if (ff) return GitSuccess(MergeFastForward(CommitSha(head)));
@@ -442,6 +461,43 @@ final class GitCliWriteOperations implements GitWriteOperations {
       return GitSuccess(CommitSha(head));
     } on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
   }
+  @override
+  Future<GitResult<MergePreview>> previewMerge(RepoLocation r, String ref) async {
+    // `git merge-tree --write-tree` is the modern (git 2.38+) dry-run form:
+    // exits 0 on a clean merge, 1 on conflict, >1 on usage/error. With
+    // `--name-only`, conflicted paths are printed after the tree OID and a
+    // blank line.
+    final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
+    final result = await Process.run(
+      _runner.executable,
+      [
+        'merge-tree',
+        '--write-tree',
+        '--name-only',
+        '--no-messages',
+        head,
+        ref,
+      ],
+      workingDirectory: r.path,
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
+    if (result.exitCode == 0) return const GitSuccess(MergePreviewClean());
+    if (result.exitCode == 1) {
+      final lines = (result.stdout as String)
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+      // First line is the conflicted tree OID; the rest are paths.
+      final paths = lines.length > 1 ? lines.sublist(1) : const <String>[];
+      return GitSuccess(MergePreviewConflicts(paths));
+    }
+    final err = result.stderr.toString();
+    final exc = GitProcessException(['merge-tree'], result.exitCode, err);
+    return GitFailure(_classify(exc), err, err);
+  }
+
   @override
   Future<GitResult<RebaseOutcome>> rebase(RepoLocation r, String upstream) async {
     final args = ['rebase', upstream];

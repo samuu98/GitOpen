@@ -18,7 +18,7 @@ void main() {
       await Process.run('git', ['commit', '-m', 'fea'], workingDirectory: f.path);
       await Process.run('git', ['checkout', 'master'], workingDirectory: f.path);
       final sut = GitCliWriteOperations();
-      final res = await sut.merge(RepoLocation(RepoId.newId(), f.path, 't'), 'feature', ffOnly: true);
+      final res = await sut.merge(RepoLocation(RepoId.newId(), f.path, 't'), 'feature');
       expect(res, isA<GitSuccess>());
       expect((res as GitSuccess).value, isA<MergeFastForward>());
     } finally { await f.dispose(); }

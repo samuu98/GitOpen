@@ -19,6 +19,7 @@ import '../checkout/safe_checkout.dart';
 import '../common/app_context_menu.dart';
 import '../dialogs/app_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
+import '../dialogs/merge_dialog.dart';
 import '../dialogs/remote_dialog.dart';
 import '../theme/app_palette.dart';
 import 'branch_tree.dart';
@@ -693,7 +694,16 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         _refresh();
 
       case 'merge':
-        final result = await write.merge(widget.repo, branchName);
+        final current = await currentBranchName(ref, widget.repo);
+        if (!context.mounted) return;
+        final strategy = await MergeDialog.show(
+          context,
+          repo: widget.repo,
+          sourceRef: branchName,
+          targetRef: current ?? 'HEAD',
+        );
+        if (strategy == null) return;
+        final result = await write.merge(widget.repo, branchName, strategy: strategy);
         _refresh();
         if (!context.mounted) return;
         if (result case GitSuccess(value: final MergeConflict outcome)) {
@@ -704,6 +714,11 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
               backgroundColor: palette.accentErr,
             ),
           );
+        } else if (result case GitFailure(:final message)) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Merge failed: $message'),
+            backgroundColor: palette.accentErr,
+          ));
         }
 
       case 'rebase':
