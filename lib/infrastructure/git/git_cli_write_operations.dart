@@ -86,6 +86,18 @@ final class GitCliWriteOperations implements GitWriteOperations {
   }
 
   @override
+  Future<GitResult<void>> cleanUntracked(RepoLocation r, List<String> paths) async {
+    if (paths.isEmpty) return const GitSuccess(null);
+    try {
+      // `--` separates paths so leading dashes can't be mistaken for flags.
+      await _runner.run(r.path, ['clean', '-f', '--', ...paths]);
+      return const GitSuccess(null);
+    } on GitProcessException catch (e) {
+      return GitFailure(_classify(e), e.stderr, e.stderr);
+    }
+  }
+
+  @override
   Future<GitResult<CommitSha>> commit(RepoLocation r, CommitRequest req) async {
     final args = <String>['commit', '-m', req.message];
     if (req.amend) args.add('--amend');

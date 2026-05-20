@@ -15,6 +15,10 @@ abstract interface class GitWriteOperations {
   Future<GitResult<void>> stagePatch(RepoLocation r, String unifiedDiff);
   Future<GitResult<void>> unstagePatch(RepoLocation r, String unifiedDiff);
   Future<GitResult<void>> discardChanges(RepoLocation r, List<String> paths);
+  /// Deletes untracked paths from the working tree. Untracked files cannot
+  /// be restored via `checkout`, so the only way to "discard" them is to
+  /// remove them. Mirrors `git clean -f -- <paths>` (no `-d`).
+  Future<GitResult<void>> cleanUntracked(RepoLocation r, List<String> paths);
 
   Future<GitResult<CommitSha>> commit(RepoLocation r, CommitRequest req);
 

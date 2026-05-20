@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../application/git/git_result.dart';
 import '../../application/providers.dart';
 import '../../domain/diff/diff_hunk.dart';
 import '../../domain/diff/diff_line.dart';
@@ -7,8 +8,36 @@ import '../../domain/diff/diff_spec.dart';
 import '../../domain/diff/file_diff.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../../domain/status/working_file_entry.dart';
+import '../common/app_context_menu.dart';
+import '../dialogs/confirm_dialog.dart';
 import '../theme/app_palette.dart';
 import 'commit_compose.dart';
+
+/// Discards working-tree changes for the supplied entries.
+///
+/// Untracked files cannot be checkout-restored, so they go through
+/// `git clean`; tracked files use `git checkout -- <paths>`. Returns true
+/// when the operation completed without errors.
+Future<bool> _discardEntries(
+  WidgetRef ref,
+  RepoLocation repo,
+  List<WorkingFileEntry> entries,
+) async {
+  final untracked = <String>[];
+  final tracked = <String>[];
+  for (final e in entries) {
+    if (e.workingTreeState == WorkingFileState.untracked) {
+      untracked.add(e.path);
+    } else {
+      tracked.add(e.path);
+    }
+  }
+  final write = ref.read(gitWriteOperationsProvider);
+  final r1 = await write.discardChanges(repo, tracked);
+  final r2 = await write.cleanUntracked(repo, untracked);
+  ref.invalidate(_workingCopyStatusProvider(repo));
+  return r1 is GitSuccess && r2 is GitSuccess;
+}
 
 final _workingCopyStatusProvider =
     FutureProvider.family.autoDispose<List<WorkingFileEntry>, RepoLocation>((ref, repo) async {
@@ -134,33 +163,92 @@ class _FileList extends ConsumerWidget {
     return ListView(children: [
       _Header(
         title: 'Unstaged (${unstaged.length})',
-        action: 'Stage all',
-        onAction: unstaged.isEmpty ? null : () async {
-          await ref.read(gitWriteOperationsProvider).stageFiles(repo, unstaged.map((e) => e.path).toList());
-          ref.invalidate(_workingCopyStatusProvider(repo));
-        },
+        actions: [
+          _HeaderAction(
+            'Discard all',
+            unstaged.isEmpty
+                ? null
+                : () => _confirmAndDiscardAll(context, ref, repo, unstaged),
+            danger: true,
+          ),
+          _HeaderAction(
+            'Stage all',
+            unstaged.isEmpty
+                ? null
+                : () async {
+                    await ref
+                        .read(gitWriteOperationsProvider)
+                        .stageFiles(repo, unstaged.map((e) => e.path).toList());
+                    ref.invalidate(_workingCopyStatusProvider(repo));
+                  },
+          ),
+        ],
       ),
       for (final e in unstaged) _FileRow(repo: repo, entry: e, isStaged: false),
       _Header(
         title: 'Staged (${staged.length})',
-        action: 'Unstage all',
-        onAction: staged.isEmpty ? null : () async {
-          await ref.read(gitWriteOperationsProvider).unstageFiles(repo, staged.map((e) => e.path).toList());
-          ref.invalidate(_workingCopyStatusProvider(repo));
-        },
+        actions: [
+          _HeaderAction(
+            'Unstage all',
+            staged.isEmpty
+                ? null
+                : () async {
+                    await ref
+                        .read(gitWriteOperationsProvider)
+                        .unstageFiles(repo, staged.map((e) => e.path).toList());
+                    ref.invalidate(_workingCopyStatusProvider(repo));
+                  },
+          ),
+        ],
       ),
       for (final e in staged) _FileRow(repo: repo, entry: e, isStaged: true),
     ]);
   }
 }
 
+Future<void> _confirmAndDiscardAll(
+  BuildContext context,
+  WidgetRef ref,
+  RepoLocation repo,
+  List<WorkingFileEntry> entries,
+) async {
+  final untrackedCount = entries
+      .where((e) => e.workingTreeState == WorkingFileState.untracked)
+      .length;
+  final trackedCount = entries.length - untrackedCount;
+  final parts = <String>[];
+  if (trackedCount > 0) {
+    parts.add('discard local changes to $trackedCount tracked file'
+        '${trackedCount == 1 ? '' : 's'}');
+  }
+  if (untrackedCount > 0) {
+    parts.add('delete $untrackedCount untracked file'
+        '${untrackedCount == 1 ? '' : 's'}');
+  }
+  final confirmed = await ConfirmDialog.show(
+    context,
+    title: 'Discard all unstaged changes',
+    body: 'This will ${parts.join(' and ')}. This cannot be undone.',
+    confirmLabel: 'Discard all',
+    dangerous: true,
+  );
+  if (!confirmed) return;
+  await _discardEntries(ref, repo, entries);
+}
+
 // ---------------------------------------------------------------------------
+
+class _HeaderAction {
+  final String label;
+  final VoidCallback? onPressed;
+  final bool danger;
+  const _HeaderAction(this.label, this.onPressed, {this.danger = false});
+}
 
 class _Header extends StatelessWidget {
   final String title;
-  final String? action;
-  final VoidCallback? onAction;
-  const _Header({required this.title, this.action, this.onAction});
+  final List<_HeaderAction> actions;
+  const _Header({required this.title, this.actions = const []});
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
@@ -170,8 +258,14 @@ class _Header extends StatelessWidget {
       child: Row(children: [
         Text(title, style: TextStyle(color: palette.fg1, fontSize: 11.5, fontWeight: FontWeight.w600)),
         const Spacer(),
-        if (action != null && onAction != null)
-          TextButton(onPressed: onAction, child: Text(action!)),
+        for (final a in actions)
+          TextButton(
+            onPressed: a.onPressed,
+            style: a.danger
+                ? TextButton.styleFrom(foregroundColor: palette.accentErr)
+                : null,
+            child: Text(a.label),
+          ),
       ]),
     );
   }
@@ -194,6 +288,7 @@ class _FileRow extends ConsumerStatefulWidget {
 
 class _FileRowState extends ConsumerState<_FileRow> {
   bool _expanded = false;
+  bool _hover = false;
   final Set<int> _checkedHunks = {};
 
   void _toggleExpanded() {
@@ -201,6 +296,57 @@ class _FileRowState extends ConsumerState<_FileRow> {
       _expanded = !_expanded;
       if (!_expanded) _checkedHunks.clear();
     });
+  }
+
+  Future<void> _discard() async {
+    final entry = widget.entry;
+    final isUntracked = entry.workingTreeState == WorkingFileState.untracked;
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: isUntracked ? 'Delete untracked file' : 'Discard changes',
+      body: isUntracked
+          ? 'Delete "${entry.path}"? The file is untracked and will be '
+              'removed from disk. This cannot be undone.'
+          : 'Discard all changes to "${entry.path}"? Local edits will be '
+              'lost and the file will be restored to its committed state.',
+      confirmLabel: isUntracked ? 'Delete' : 'Discard',
+      dangerous: true,
+    );
+    if (!confirmed) return;
+    await _discardEntries(ref, widget.repo, [entry]);
+  }
+
+  Future<void> _showContextMenu(Offset globalPos) async {
+    final entry = widget.entry;
+    final isStaged = widget.isStaged;
+    final isUntracked = entry.workingTreeState == WorkingFileState.untracked;
+    final selected = await AppContextMenu.show<String>(
+      context,
+      globalPosition: globalPos,
+      entries: [
+        AppMenuItem(
+          value: 'toggle',
+          label: isStaged ? 'Unstage' : 'Stage',
+          icon: isStaged ? Icons.remove_circle_outline : Icons.add_circle_outline,
+        ),
+        if (!isStaged) ...[
+          const AppMenuDivider<String>(),
+          AppMenuItem(
+            value: 'discard',
+            label: isUntracked ? 'Delete file' : 'Discard changes',
+            icon: Icons.delete_outline,
+            danger: true,
+          ),
+        ],
+      ],
+    );
+    if (selected == null || !mounted) return;
+    switch (selected) {
+      case 'toggle':
+        await _toggleStage();
+      case 'discard':
+        await _discard();
+    }
   }
 
   void _toggleHunk(int index) {
@@ -253,9 +399,14 @@ class _FileRowState extends ConsumerState<_FileRow> {
     final isSelected = sel != null &&
         sel.path == widget.entry.path &&
         sel.staged == widget.isStaged;
-    return Material(
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Material(
       color: isSelected ? palette.bgAccent : Colors.transparent,
-      child: InkWell(
+      child: GestureDetector(
+        onSecondaryTapDown: (d) => _showContextMenu(d.globalPosition),
+        child: InkWell(
         onTap: () {
           ref.read(_selectedFileProvider.notifier).state =
               (path: widget.entry.path, staged: widget.isStaged);
@@ -300,9 +451,16 @@ class _FileRowState extends ConsumerState<_FileRow> {
                     fontSize: 12.5))),
             if (_checkedHunks.isNotEmpty)
               _buildStageSelectedButton(),
+            if (!widget.isStaged && _hover && _checkedHunks.isEmpty)
+              _DiscardIconButton(
+                isSelected: isSelected,
+                onPressed: _discard,
+              ),
           ]),
         ),
       ),
+    ),
+    ),
     );
   }
 
@@ -358,6 +516,38 @@ class _FileRowState extends ConsumerState<_FileRow> {
           ],
         );
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _DiscardIconButton extends StatelessWidget {
+  final bool isSelected;
+  final VoidCallback onPressed;
+  const _DiscardIconButton({required this.isSelected, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Tooltip(
+        message: 'Discard changes',
+        waitDuration: const Duration(milliseconds: 400),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(3),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(
+              Icons.delete_outline,
+              size: 14,
+              color: isSelected ? Colors.white : palette.accentErr,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
