@@ -540,19 +540,24 @@ final class GitCliReadOperations implements GitReadOperations {
     final remoteVOutput = await _runner.run(repo.path, ['remote', '-v']);
     if (remoteVOutput.trim().isEmpty) return [];
 
-    // Map from remote name to url (deduped; fetch entry preferred)
+    // Map from remote name to url (deduped; fetch entry preferred).
+    //
+    // git formats each line as `name<TAB>url<SP>(fetch|push)` — one tab
+    // between the name and the rest, then a space before the qualifier.
+    // An earlier version of this parser expected two tabs and silently
+    // dropped every remote.
     final remoteUrls = <String, String>{};
-    for (final line in remoteVOutput.split('\n')) {
+    for (var line in remoteVOutput.split('\n')) {
+      if (line.endsWith('\r')) line = line.substring(0, line.length - 1);
       if (line.isEmpty) continue;
-      // Format: "name\turl\t(fetch)" or "name\turl\t(push)"
       final tab = line.indexOf('\t');
       if (tab < 0) continue;
       final name = line.substring(0, tab);
       final rest = line.substring(tab + 1);
-      final tab2 = rest.lastIndexOf('\t');
-      if (tab2 < 0) continue;
-      final url = rest.substring(0, tab2);
-      final qualifier = rest.substring(tab2 + 1);
+      final spaceBeforeQualifier = rest.lastIndexOf(' (');
+      if (spaceBeforeQualifier < 0) continue;
+      final url = rest.substring(0, spaceBeforeQualifier);
+      final qualifier = rest.substring(spaceBeforeQualifier + 1);
       if (qualifier == '(fetch)' || !remoteUrls.containsKey(name)) {
         remoteUrls[name] = url;
       }

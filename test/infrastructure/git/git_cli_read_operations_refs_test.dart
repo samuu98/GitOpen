@@ -42,6 +42,32 @@ void main() {
       } finally { await f.dispose(); }
     });
 
+    test('getRemotes parses `git remote -v` (name TAB url SP qualifier)',
+        () async {
+      // Regression: an earlier parser expected two tabs per line and so
+      // dropped every entry — the REMOTES section in the sidebar always
+      // looked empty even when origin existed.
+      final origin = await RepoFixture.withLinearHistory(1);
+      final f = await RepoFixture.withLinearHistory(1);
+      try {
+        await Process.run('git', ['remote', 'add', 'origin', origin.path],
+            workingDirectory: f.path);
+        await Process.run('git', ['remote', 'add', 'mirror', origin.path],
+            workingDirectory: f.path);
+        await Process.run('git', ['fetch', 'origin'], workingDirectory: f.path);
+        final sut = GitCliReadOperations();
+        final remotes = await sut.getRemotes(loc(f));
+        expect(remotes.map((r) => r.name), unorderedEquals(['origin', 'mirror']));
+        final originRemote = remotes.firstWhere((r) => r.name == 'origin');
+        expect(originRemote.url, origin.path);
+        expect(originRemote.branches, isNotEmpty,
+            reason: 'fetched origin should expose its branches');
+      } finally {
+        await f.dispose();
+        await origin.dispose();
+      }
+    });
+
     test('getStashes returns empty when none', () async {
       final f = await RepoFixture.withLinearHistory(1);
       try {
