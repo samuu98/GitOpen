@@ -22,17 +22,14 @@ class AboutSection extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: palette.bgAccent.withValues(alpha: 0.30),
-                    border: Border.all(color: palette.bgAccent),
-                    borderRadius: BorderRadius.circular(10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 56,
+                    height: 56,
+                    filterQuality: FilterQuality.none,
                   ),
-                  alignment: Alignment.center,
-                  child: Icon(Icons.account_tree,
-                      size: 28, color: palette.accentCurrent),
                 ),
                 const SizedBox(width: 18),
                 Expanded(

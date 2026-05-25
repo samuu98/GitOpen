@@ -15,7 +15,12 @@ class WelcomeScreen extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.folder_special, size: 48, color: palette.accentCurrent),
+          Image.asset(
+            'assets/icon/app_icon.png',
+            width: 80,
+            height: 80,
+            filterQuality: FilterQuality.none, // preserve pixel-art edges
+          ),
           const SizedBox(height: 16),
           Text(
             'Welcome to GitOpen',
