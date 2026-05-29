@@ -56,6 +56,38 @@ void main() {
     await db.close();
   });
 
+  test('togglePinnedBranch adds/removes per repo and round-trips', () async {
+    final db = newInMemoryDb();
+    final notifier = AppSettingsNotifier(SettingsRepository(db));
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    await notifier.togglePinnedBranch('repo1', 'refs/heads/main');
+    await notifier.togglePinnedBranch('repo1', 'refs/heads/dev');
+    expect(notifier.state.pinnedBranches['repo1'],
+        containsAll(['refs/heads/main', 'refs/heads/dev']));
+
+    await notifier.togglePinnedBranch('repo1', 'refs/heads/main'); // unpin
+    expect(notifier.state.pinnedBranches['repo1'], ['refs/heads/dev']);
+
+    // Round-trips through the DB.
+    final fresh = AppSettingsNotifier(SettingsRepository(db));
+    await Future.delayed(const Duration(milliseconds: 50));
+    expect(fresh.state.pinnedBranches['repo1'], ['refs/heads/dev']);
+    await db.close();
+  });
+
+  test('toggleSectionCollapsed persists collapsed sections', () async {
+    final db = newInMemoryDb();
+    final notifier = AppSettingsNotifier(SettingsRepository(db));
+    await Future.delayed(const Duration(milliseconds: 50));
+    await notifier.toggleSectionCollapsed('TAGS');
+    expect(notifier.state.collapsedSections, contains('TAGS'));
+    final fresh = AppSettingsNotifier(SettingsRepository(db));
+    await Future.delayed(const Duration(milliseconds: 50));
+    expect(fresh.state.collapsedSections, contains('TAGS'));
+    await db.close();
+  });
+
   test('setKeybinding stores key combo and round-trips', () async {
     final db = newInMemoryDb();
     final notifier = AppSettingsNotifier(SettingsRepository(db));

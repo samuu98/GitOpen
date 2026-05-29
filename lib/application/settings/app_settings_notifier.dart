@@ -42,6 +42,8 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
       autoUpdateCheck: (all['auto_update_check'] as bool?) ?? true,
       sidebarWidth: _asDouble(all['sidebar_width'], 260),
       bottomPanelHeight: _asDouble(all['bottom_panel_height'], 320),
+      pinnedBranches: _decodePinned(all['pinned_branches']),
+      collapsedSections: _decodeStringSet(all['collapsed_sections']),
       keybindings: _decodeBindings(all['keybindings']) ?? state.keybindings,
       gitIdentities: _decodeIdentities(all['git_identities']),
       authRepoBindings: _decodeStringMap(all['auth_repo_bindings']),
@@ -122,6 +124,45 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
 
   double _asDouble(dynamic v, double fallback) =>
       v is num ? v.toDouble() : fallback;
+
+  /// Toggles a branch's pinned (favourite) state for [repoId].
+  Future<void> togglePinnedBranch(String repoId, String fullName) async {
+    final map = <String, List<String>>{
+      for (final e in state.pinnedBranches.entries)
+        e.key: List<String>.from(e.value),
+    };
+    final list = map[repoId] ?? <String>[];
+    if (!list.remove(fullName)) list.add(fullName);
+    if (list.isEmpty) {
+      map.remove(repoId);
+    } else {
+      map[repoId] = list;
+    }
+    state = state.copyWith(pinnedBranches: map);
+    await _repo.put('pinned_branches', map);
+  }
+
+  /// Toggles whether a sidebar section is collapsed.
+  Future<void> toggleSectionCollapsed(String title) async {
+    final set = Set<String>.from(state.collapsedSections);
+    if (!set.remove(title)) set.add(title);
+    state = state.copyWith(collapsedSections: set);
+    await _repo.put('collapsed_sections', set.toList());
+  }
+
+  Map<String, List<String>> _decodePinned(dynamic v) {
+    if (v is! Map) return const {};
+    final r = <String, List<String>>{};
+    v.forEach((k, val) {
+      if (k is String && val is List) {
+        r[k] = val.whereType<String>().toList();
+      }
+    });
+    return r;
+  }
+
+  Set<String> _decodeStringSet(dynamic v) =>
+      v is List ? v.whereType<String>().toSet() : <String>{};
 
   Future<void> setKeybinding(String action, LogicalKeySet keys) async {
     final next = Map<String, LogicalKeySet>.from(state.keybindings);

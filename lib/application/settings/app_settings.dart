@@ -16,6 +16,13 @@ final class AppSettingsState extends Equatable {
   final bool autoUpdateCheck;
   final double sidebarWidth;
   final double bottomPanelHeight;
+
+  /// Pinned (favourite) branch `fullName`s per repository id.
+  final Map<String, List<String>> pinnedBranches;
+
+  /// Sidebar section titles the user has collapsed (persisted across sessions).
+  final Set<String> collapsedSections;
+
   final Map<String, LogicalKeySet> keybindings;
   final List<GitIdentity> gitIdentities;
 
@@ -36,6 +43,8 @@ final class AppSettingsState extends Equatable {
     this.autoUpdateCheck = true,
     this.sidebarWidth = 260,
     this.bottomPanelHeight = 320,
+    this.pinnedBranches = const {},
+    this.collapsedSections = const {},
     this.keybindings = const {},
     this.gitIdentities = const [],
     this.authRepoBindings = const {},
@@ -58,6 +67,8 @@ final class AppSettingsState extends Equatable {
     bool? autoUpdateCheck,
     double? sidebarWidth,
     double? bottomPanelHeight,
+    Map<String, List<String>>? pinnedBranches,
+    Set<String>? collapsedSections,
     Map<String, LogicalKeySet>? keybindings,
     List<GitIdentity>? gitIdentities,
     Map<String, String>? authRepoBindings,
@@ -79,6 +90,8 @@ final class AppSettingsState extends Equatable {
       autoUpdateCheck: autoUpdateCheck ?? this.autoUpdateCheck,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       bottomPanelHeight: bottomPanelHeight ?? this.bottomPanelHeight,
+      pinnedBranches: pinnedBranches ?? this.pinnedBranches,
+      collapsedSections: collapsedSections ?? this.collapsedSections,
       keybindings: keybindings ?? this.keybindings,
       gitIdentities: gitIdentities ?? this.gitIdentities,
       authRepoBindings: authRepoBindings ?? this.authRepoBindings,
@@ -89,6 +102,7 @@ final class AppSettingsState extends Equatable {
   List<Object?> get props => [
     theme, externalEditorPath, defaultPullStrategy, commitSignoffDefault,
     fontSize, fontFamily, githubClientId, autoUpdateCheck, sidebarWidth,
-    bottomPanelHeight, keybindings, gitIdentities, authRepoBindings,
+    bottomPanelHeight, pinnedBranches, collapsedSections, keybindings,
+    gitIdentities, authRepoBindings,
   ];
 }

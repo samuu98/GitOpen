@@ -184,6 +184,17 @@ class _SidebarContentState extends ConsumerState<_SidebarContent> {
     final locals = allLocals.where((b) => _matches(b.name)).toList();
     final localTree = BranchTree.build(locals);
 
+    // Pinned (favourite) local branches, shown flat in their own section.
+    final pinnedSet = ref.watch(appSettingsProvider
+        .select((s) => s.pinnedBranches[repo.id.value] ?? const <String>[]));
+    final pinned = allLocals
+        .where((b) => pinnedSet.contains(b.fullName) && _matches(b.name))
+        .toList();
+    final pinnedNodes = [
+      for (final b in pinned)
+        BranchTreeNode(name: b.name, fullPath: b.name, branch: b),
+    ];
+
     final tags = data.tags.where((t) => _matches(t.name)).toList();
     // Remotes whose name OR any branch matches the query.
     final remotes = data.remotes.where((r) {
@@ -203,6 +214,16 @@ class _SidebarContentState extends ConsumerState<_SidebarContent> {
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
+              if (pinnedNodes.isNotEmpty)
+                _Section(
+                  title: 'PINNED',
+                  count: pinned.length,
+                  child: BranchTreeView(
+                    nodes: pinnedNodes,
+                    repo: repo,
+                    forceExpanded: true,
+                  ),
+                ),
               _Section(
                 title: 'LOCAL BRANCHES',
                 count: allLocals.length,
@@ -496,7 +517,7 @@ class _StashRow extends ConsumerWidget {
   }
 }
 
-class _Section extends StatefulWidget {
+class _Section extends ConsumerWidget {
   final String title;
   final Widget child;
   final Widget? trailing;
@@ -505,15 +526,10 @@ class _Section extends StatefulWidget {
       {required this.title, required this.child, this.trailing, this.count});
 
   @override
-  State<_Section> createState() => _SectionState();
-}
-
-class _SectionState extends State<_Section> {
-  bool _open = true;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
+    final open = !ref.watch(appSettingsProvider
+        .select((s) => s.collapsedSections.contains(title)));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -521,29 +537,31 @@ class _SectionState extends State<_Section> {
           type: MaterialType.transparency,
           child: InkWell(
           hoverColor: palette.bg3,
-          onTap: () => setState(() => _open = !_open),
+          onTap: () => ref
+              .read(appSettingsProvider.notifier)
+              .toggleSectionCollapsed(title),
           child: Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             child: Row(children: [
               Icon(
-                _open ? Icons.expand_more : Icons.chevron_right,
+                open ? Icons.expand_more : Icons.chevron_right,
                 size: 14,
                 color: palette.fg3,
               ),
               const SizedBox(width: 4),
               Text(
-                widget.title,
+                title,
                 style: TextStyle(
                   color: palette.fg2,
                   fontSize: 10.5,
                   letterSpacing: 0.5,
                 ),
               ),
-              if (widget.count != null && widget.count! > 0) ...[
+              if (count != null && count! > 0) ...[
                 const SizedBox(width: 6),
                 Text(
-                  '${widget.count}',
+                  '$count',
                   style: TextStyle(
                     color: palette.fg3,
                     fontSize: 10.5,
@@ -551,15 +569,15 @@ class _SectionState extends State<_Section> {
                 ),
               ],
               const Spacer(),
-              if (widget.trailing != null) widget.trailing!,
+              ?trailing,
             ]),
           ),
           ),
         ),
-        if (_open)
+        if (open)
           Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: widget.child),
+              child: child),
       ],
     );
   }
@@ -870,8 +888,13 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     final isLocal = !branch.isRemote;
 
     final entries = <AppContextMenuEntry<String>>[
-      if (!isCurrent)
+      if (!isCurrent && isLocal)
         const AppMenuItem(value: 'checkout', label: 'Checkout', icon: Icons.swap_horiz),
+      if (!isLocal)
+        const AppMenuItem(
+            value: 'checkout_local',
+            label: 'Checkout as local branch',
+            icon: Icons.swap_horiz),
       if (!isCurrent) ...const [
         AppMenuItem(value: 'merge', label: 'Merge into current', icon: Icons.call_merge),
         AppMenuItem(value: 'rebase', label: 'Rebase current onto this', icon: Icons.compare_arrows),
@@ -899,6 +922,21 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
       case 'checkout':
         await write.checkout(widget.repo, branchName);
         _refresh();
+
+      case 'checkout_local':
+        // `git checkout <local>` with a matching remote ref DWIM-creates a
+        // local tracking branch. Strip the remote prefix (origin/foo → foo).
+        final localName = branchName.contains('/')
+            ? branchName.substring(branchName.indexOf('/') + 1)
+            : branchName;
+        final r = await write.checkout(widget.repo, localName);
+        _refresh();
+        if (r is GitFailure && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Checkout failed: ${r.message}'),
+            backgroundColor: palette.accentErr,
+          ));
+        }
 
       case 'merge':
         final current = await currentBranchName(ref, widget.repo);
@@ -1121,18 +1159,34 @@ class _BranchLeafRowState extends ConsumerState<_BranchLeafRow> {
     final isSelected =
         fullName != null && ref.watch(selectedSidebarRefProvider) == fullName;
 
-    // Ahead/behind is only cheaply available for the current branch (from
-    // `git status`), so only the current row shows the divergence badge.
+    // Ahead/behind (and uncommitted changes) are only cheaply available for
+    // the current branch (from `git status`), so only the current row shows
+    // those badges.
     final status =
         current ? ref.watch(repoStatusProvider(widget.repo)).valueOrNull : null;
     final ahead = status?.ahead ?? 0;
     final behind = status?.behind ?? 0;
+    final hasUncommitted = current && (status?.entries.isNotEmpty ?? false);
+
+    final repoId = widget.repo.id.value;
+    final isPinned = fullName != null &&
+        ref.watch(appSettingsProvider.select(
+            (s) => (s.pinnedBranches[repoId] ?? const []).contains(fullName)));
 
     final fg = current
         ? palette.accentCurrent
         : (isSelected ? Colors.white : palette.fg1);
 
-    return Opacity(
+    final tooltip = branch == null
+        ? null
+        : [
+            branch.name,
+            if (branch.tipSha != null) '@ ${branch.tipSha!.short()}',
+            if (branch.upstreamFullName != null)
+              '→ ${branch.upstreamFullName}',
+          ].join('  ');
+
+    final row = Opacity(
       opacity: isHidden ? 0.5 : 1.0,
       child: MouseRegion(
         onEnter: (_) => setState(() => _hover = true),
@@ -1189,6 +1243,16 @@ class _BranchLeafRowState extends ConsumerState<_BranchLeafRow> {
                       ),
                     ),
                   ),
+                  // Uncommitted-changes dot on the current branch.
+                  if (hasUncommitted)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 3),
+                      child: Tooltip(
+                        message: 'Uncommitted changes',
+                        child: Icon(Icons.circle,
+                            size: 7, color: palette.accentWarn),
+                      ),
+                    ),
                   // Ahead/behind divergence badge for the current branch.
                   if (current && (ahead > 0 || behind > 0)) ...[
                     if (ahead > 0)
@@ -1202,6 +1266,19 @@ class _BranchLeafRowState extends ConsumerState<_BranchLeafRow> {
                           count: behind,
                           color: palette.accentRemote),
                   ],
+                  // Pin (favourite) star — filled when pinned, shown on hover
+                  // otherwise. Local branches only.
+                  if (fullName != null && !branch!.isRemote && (_hover || isPinned))
+                    _RowIconButton(
+                      icon: isPinned ? Icons.star : Icons.star_border,
+                      tooltip: isPinned ? 'Unpin' : 'Pin',
+                      color: isPinned
+                          ? palette.accentTag
+                          : (isSelected ? Colors.white70 : palette.fg2),
+                      onTapAt: (_) => ref
+                          .read(appSettingsProvider.notifier)
+                          .togglePinnedBranch(repoId, fullName),
+                    ),
                   // On hover: a "⋯" button that opens the same actions menu,
                   // so users don't have to discover right-click.
                   if (_hover && branch != null)
@@ -1232,6 +1309,13 @@ class _BranchLeafRowState extends ConsumerState<_BranchLeafRow> {
           ),
         ),
       ),
+    );
+
+    if (tooltip == null) return row;
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 600),
+      child: row,
     );
   }
 }
