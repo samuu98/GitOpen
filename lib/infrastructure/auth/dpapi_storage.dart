@@ -18,13 +18,15 @@ import 'package:ffi/ffi.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:win32/win32.dart';
 
+import 'secret_storage.dart';
+
 /// A simple key-value credential store backed by Windows DPAPI.
 ///
 /// Each entry is stored as an individual binary file:
 ///   `<roamingAppData>/gitopen/credentials/<key>.bin`
 ///
 /// The blob is DPAPI-protected at rest (per-user, optionally per-machine).
-class DpapiStorage {
+class DpapiStorage implements SecretStorage {
   DpapiStorage._();
 
   static DpapiStorage? _instance;
@@ -53,6 +55,7 @@ class DpapiStorage {
   // ---------------------------------------------------------------------------
 
   /// Returns the stored value for [key], or `null` if absent / unreadable.
+  @override
   Future<String?> read(String key) async {
     final dir = await _getCredDir();
     final file = _fileFor(dir, key);
@@ -68,6 +71,7 @@ class DpapiStorage {
   }
 
   /// Encrypts [value] and stores it under [key].
+  @override
   Future<void> write(String key, String value) async {
     final dir = await _getCredDir();
     final file = _fileFor(dir, key);
@@ -77,6 +81,7 @@ class DpapiStorage {
   }
 
   /// Deletes the entry for [key]. No-op if absent.
+  @override
   Future<void> delete(String key) async {
     final dir = await _getCredDir();
     final file = _fileFor(dir, key);

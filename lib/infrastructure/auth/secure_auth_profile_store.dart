@@ -5,9 +5,9 @@ import '../../application/auth/auth_profile.dart';
 import '../../application/auth/auth_profile_store.dart';
 import '../../application/git/auth_spec.dart';
 import '../logging/app_logger.dart';
-import 'dpapi_storage.dart';
+import 'secret_storage.dart';
 
-/// DPAPI-backed implementation of [AuthProfileStore].
+/// Secret-store-backed implementation of [AuthProfileStore].
 ///
 /// Storage layout:
 ///   `gitopen:auth:profile:<id>`       — JSON `{host, username, spec}`
@@ -28,11 +28,11 @@ class SecureAuthProfileStore implements AuthProfileStore {
   static const _legacyPrefix = 'gitopen:auth:';
   static const _legacyIndexKey = '${_legacyPrefix}__index__';
 
-  final DpapiStorage _storage;
+  final SecretStorage _storage;
   bool _migrated = false;
 
-  SecureAuthProfileStore({DpapiStorage? storage})
-      : _storage = storage ?? DpapiStorage.instance;
+  SecureAuthProfileStore({SecretStorage? storage})
+      : _storage = storage ?? SecretStorage.forPlatform();
 
   // ---------------------------------------------------------------------------
   // AuthProfileStore interface
