@@ -18,6 +18,7 @@ import 'application/settings/settings_open_provider.dart';
 import 'application/workspaces/workspace.dart';
 import 'infrastructure/logging/app_logger.dart';
 import 'ui/theme/app_palette.dart';
+import 'ui/command_palette/command_palette.dart';
 import 'ui/bottom_panel/bottom_panel.dart';
 import 'ui/commit_graph/commit_graph_panel.dart';
 import 'ui/common/vertical_splitter.dart';
@@ -166,6 +167,7 @@ class GitOpenApp extends ConsumerWidget {
 class _CommitIntent extends Intent { const _CommitIntent(); }
 class _FetchIntent extends Intent { const _FetchIntent(); }
 class _OpenSettingsIntent extends Intent { const _OpenSettingsIntent(); }
+class _CommandPaletteIntent extends Intent { const _CommandPaletteIntent(); }
 
 class Shell extends ConsumerStatefulWidget {
   const Shell({super.key});
@@ -213,11 +215,15 @@ class _ShellState extends ConsumerState<Shell> {
     final settingsOpen = ref.watch(settingsOpenProvider);
     final bindings = ref.watch(appSettingsProvider.select((s) => s.keybindings));
 
+    // F5 from the command palette / other non-key sources.
+    ref.listen<int>(triggerFetchProvider, (_, _) => _fetchActive());
+
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
         if (bindings['commit'] != null) bindings['commit']!: const _CommitIntent(),
         if (bindings['fetch'] != null) bindings['fetch']!: const _FetchIntent(),
         if (bindings['openSettings'] != null) bindings['openSettings']!: const _OpenSettingsIntent(),
+        if (bindings['commandPalette'] != null) bindings['commandPalette']!: const _CommandPaletteIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -234,6 +240,12 @@ class _ShellState extends ConsumerState<Shell> {
             onInvoke: (_) {
               final notifier = ref.read(settingsOpenProvider.notifier);
               notifier.state = !notifier.state;
+              return null;
+            },
+          ),
+          _CommandPaletteIntent: CallbackAction<_CommandPaletteIntent>(
+            onInvoke: (_) {
+              CommandPalette.show(context);
               return null;
             },
           ),

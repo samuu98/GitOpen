@@ -8,3 +8,7 @@ final selectedCommitShaProvider = StateProvider<CommitSha?>((_) => null);
 /// Incrementing counter — CommitCompose watches this and triggers a commit
 /// whenever the value changes (i.e. on each Ctrl+Enter key event).
 final triggerCommitProvider = StateProvider<int>((_) => 0);
+
+/// Incrementing counter — the Shell watches this and fetches the active repo
+/// whenever it changes (F5, or the command palette's "Fetch" command).
+final triggerFetchProvider = StateProvider<int>((_) => 0);

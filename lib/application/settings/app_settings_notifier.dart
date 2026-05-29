@@ -12,6 +12,7 @@ const _defaultBindings = <String, List<LogicalKeyboardKey>>{
   'refresh': [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.keyR],
   'openRepoSelector': [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.keyT],
   'openSettings': [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.comma],
+  'commandPalette': [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.keyP],
 };
 
 class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
