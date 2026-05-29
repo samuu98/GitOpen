@@ -9,6 +9,7 @@ import '../domain/refs/branch.dart';
 import '../domain/status/repo_status.dart';
 import '../infrastructure/logging/app_logger.dart';
 import 'commit_graph/commit_graph_layout.dart';
+import 'repo_revision.dart';
 import 'git/git_read_operations.dart';
 import 'git/git_write_operations.dart';
 import 'operations/operations_notifier.dart';
@@ -108,6 +109,7 @@ final authResolverProvider = Provider<AuthResolver>((ref) {
 /// `git status` of their own.
 final repoStatusProvider =
     FutureProvider.autoDispose.family<RepoStatus, RepoLocation>((ref, repo) {
+  ref.watch(repoRevisionProvider(repo));
   return ref.watch(gitReadOperationsProvider).getStatus(repo);
 });
 
@@ -115,6 +117,7 @@ final repoStatusProvider =
 /// initial repo load so the graph and sidebar render immediately.
 final localBranchesProvider =
     FutureProvider.autoDispose.family<List<Branch>, RepoLocation>((ref, repo) {
+  ref.watch(repoRevisionProvider(repo));
   appLog.i('branches: loading locals for ${repo.displayName}');
   return ref.watch(gitReadOperationsProvider).getLocalBranches(repo);
 });
@@ -124,6 +127,7 @@ final localBranchesProvider =
 /// UI that wants to render incrementally.
 final remoteBranchesProvider =
     FutureProvider.autoDispose.family<List<Branch>, RepoLocation>((ref, repo) {
+  ref.watch(repoRevisionProvider(repo));
   appLog.i('branches: loading remotes for ${repo.displayName}');
   return ref.watch(gitReadOperationsProvider).getRemoteBranches(repo);
 });

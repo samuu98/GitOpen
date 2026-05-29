@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/active_workspace_provider.dart';
 import '../../application/auth/auth_profile.dart';
 import '../../application/git/auth_spec.dart';
+import '../../application/git/git_progress.dart';
 import '../../application/git/git_write_operations.dart';
 import '../../application/launcher/repo_launcher.dart';
 import '../../application/operations/running_operation.dart';
 import '../../application/providers.dart';
+import '../../application/repo_revision.dart';
 import '../../application/settings/app_settings.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../../infrastructure/git/git_process_runner.dart';
@@ -113,7 +115,7 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
     OpKind kind,
     String label,
     RepoLocation repo,
-    Stream<dynamic> Function(AuthSpec? auth) streamFactory, {
+    Stream<GitProgress> Function(AuthSpec? auth) streamFactory, {
     AuthProfile? profile,
   }) async {
     final ops = ref.read(operationsProvider.notifier);
@@ -121,14 +123,10 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
     profile ??= await ref.read(authResolverProvider).resolveForRepo(repo);
     try {
       await for (final ev in streamFactory(profile?.spec)) {
-        ops.updateProgress(
-          id,
-          (ev as dynamic).fraction as double?,
-          (ev as dynamic).phase as String,
-        );
+        ops.updateProgress(id, ev.fraction, ev.phase);
       }
       ops.finishSuccess(id);
-      ref.invalidate(gitReadOperationsProvider);
+      refreshRepo(ref, repo);
     } catch (e) {
       // Inspect ONLY the git stderr — never `e.toString()`, which embeds the
       // git argv. With the credential helper active those args contain the
@@ -194,7 +192,7 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
     OpKind kind,
     String label,
     RepoLocation repo,
-    Stream<dynamic> Function(AuthSpec? auth) streamFactory, {
+    Stream<GitProgress> Function(AuthSpec? auth) streamFactory, {
     required AuthProfile? currentProfile,
     required String contextMessage,
   }) async {
@@ -261,7 +259,7 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
           _menuController.close();
           if (!mounted) return;
           await BranchCreateDialog.show(context, repo);
-          ref.invalidate(gitReadOperationsProvider);
+          refreshRepo(ref, repo);
         },
       ),
       AppMenuButton(
@@ -308,7 +306,7 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
     );
     if (selected == null || !mounted) return;
     await ref.read(gitWriteOperationsProvider).checkout(repo, selected);
-    ref.invalidate(gitReadOperationsProvider);
+    refreshRepo(ref, repo);
   }
 
   Future<void> _renameBranch(RepoLocation repo) async {
@@ -322,7 +320,7 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
     await ref
         .read(gitWriteOperationsProvider)
         .renameBranch(repo, current.name, newName.trim());
-    ref.invalidate(gitReadOperationsProvider);
+    refreshRepo(ref, repo);
   }
 
   Future<void> _deleteBranch(RepoLocation repo) async {
@@ -348,7 +346,7 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
     await ref
         .read(gitWriteOperationsProvider)
         .deleteBranch(repo, selected, force: true);
-    ref.invalidate(gitReadOperationsProvider);
+    refreshRepo(ref, repo);
   }
 
   Future<String?> _showBranchPickerDialog(
@@ -421,7 +419,7 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
         onPressed: () async {
           _menuController.close();
           await ref.read(gitWriteOperationsProvider).stashApply(repo, 0);
-          ref.invalidate(gitReadOperationsProvider);
+          refreshRepo(ref, repo);
         },
       ),
       AppMenuButton(
@@ -430,7 +428,7 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
         onPressed: () async {
           _menuController.close();
           await ref.read(gitWriteOperationsProvider).stashPop(repo, 0);
-          ref.invalidate(gitReadOperationsProvider);
+          refreshRepo(ref, repo);
         },
       ),
       const AppMenuAnchorDivider(),
@@ -453,7 +451,7 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
     await ref
         .read(gitWriteOperationsProvider)
         .stashSave(repo, msg?.trim() ?? '');
-    ref.invalidate(gitReadOperationsProvider);
+    refreshRepo(ref, repo);
   }
 
   Future<void> _viewStashes(RepoLocation repo) async {

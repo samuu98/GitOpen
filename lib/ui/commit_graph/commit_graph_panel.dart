@@ -15,6 +15,7 @@ import '../../application/git/git_write_operations.dart';
 import '../../application/git/merge_outcome.dart';
 import '../../application/git/repo_state_provider.dart';
 import '../../application/providers.dart';
+import '../../application/repo_revision.dart';
 import '../../application/scroll_request_provider.dart';
 import '../../domain/commits/commit_info.dart';
 import '../../domain/commits/commit_sha.dart';
@@ -53,6 +54,7 @@ class _GraphData {
 
 final commitGraphDataProvider =
     FutureProvider.family<_GraphData, RepoLocation>((ref, repo) async {
+  ref.watch(repoRevisionProvider(repo));
   final git = ref.watch(gitReadOperationsProvider);
 
   // Watch hidden refs so the provider re-runs when visibility changes.
@@ -379,7 +381,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (strategy == null) return;
         final result =
             await write.merge(repo, sha.value, strategy: strategy);
-        ref.invalidate(gitReadOperationsProvider);
+        refreshRepo(ref, repo);
         ref.invalidate(repoStateProvider(repo));
         if (!context.mounted) return;
         if (result case GitSuccess(value: final MergeConflict outcome)) {
@@ -406,7 +408,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         );
         if (!confirmed) return;
         final result = await write.rebase(repo, sha.value);
-        ref.invalidate(gitReadOperationsProvider);
+        refreshRepo(ref, repo);
         ref.invalidate(repoStateProvider(repo));
         if (!context.mounted) return;
         if (result case GitSuccess(value: final RebaseConflict outcome)) {
@@ -424,7 +426,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
       case 'cherry_pick':
         await write.cherryPick(repo, sha);
-        ref.invalidate(gitReadOperationsProvider);
+        refreshRepo(ref, repo);
 
       case 'revert':
         final res = await write.revert(repo, sha);
@@ -437,7 +439,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
       case 'branch_here':
         await BranchCreateDialog.show(context, repo, at: sha);
-        ref.invalidate(gitReadOperationsProvider);
+        refreshRepo(ref, repo);
 
       case 'tag_here':
         if (!context.mounted) return;
@@ -445,7 +447,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
             await _promptText(context, 'Tag here', label: 'Tag name');
         if (tagName == null || tagName.trim().isEmpty) return;
         await write.createTag(repo, tagName.trim(), at: sha);
-        ref.invalidate(gitReadOperationsProvider);
+        refreshRepo(ref, repo);
 
       case 'copy_sha':
         await Clipboard.setData(ClipboardData(text: sha.value));
@@ -482,7 +484,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
       if (!confirmed) return;
     }
     await ref.read(gitWriteOperationsProvider).reset(widget.repo, sha, mode);
-    ref.invalidate(gitReadOperationsProvider);
+    refreshRepo(ref, widget.repo);
   }
 
   Future<String?> _promptText(BuildContext context, String title,

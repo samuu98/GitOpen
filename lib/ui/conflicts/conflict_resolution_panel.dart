@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import '../../application/git/repo_state_provider.dart';
 import '../../application/providers.dart';
+import '../../application/repo_revision.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../../domain/status/working_file_entry.dart';
 import '../theme/app_palette.dart';
@@ -13,6 +14,7 @@ import '../theme/app_palette.dart';
 final _conflictsProvider =
     FutureProvider.family.autoDispose<List<String>, RepoLocation>(
         (ref, repo) async {
+  ref.watch(repoRevisionProvider(repo));
   final git = ref.watch(gitReadOperationsProvider);
   final status = await git.getStatus(repo);
   return status.entries

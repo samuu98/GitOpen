@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/git/git_result.dart';
 import '../../application/providers.dart';
+import '../../application/repo_revision.dart';
 import '../../domain/diff/diff_hunk.dart';
 import '../../domain/diff/diff_line.dart';
 import '../../domain/diff/diff_spec.dart';
@@ -42,6 +43,7 @@ Future<bool> _discardEntries(
 
 final _workingCopyStatusProvider =
     FutureProvider.family.autoDispose<List<WorkingFileEntry>, RepoLocation>((ref, repo) async {
+  ref.watch(repoRevisionProvider(repo));
   final git = ref.watch(gitReadOperationsProvider);
   final status = await git.getStatus(repo);
   return status.entries;
@@ -60,6 +62,7 @@ final _selectedFileProvider =
 /// just pick their file out of the shared result.
 final _unstagedDiffProvider = FutureProvider.family
     .autoDispose<List<FileDiff>, RepoLocation>((ref, repo) async {
+  ref.watch(repoRevisionProvider(repo));
   final result = await ref
       .watch(gitReadOperationsProvider)
       .getDiff(repo, const DiffSpecWorkingTreeVsIndex());
@@ -69,6 +72,7 @@ final _unstagedDiffProvider = FutureProvider.family
 /// Whole-repo index-vs-HEAD diff, computed once and shared.
 final _stagedDiffProvider = FutureProvider.family
     .autoDispose<List<FileDiff>, RepoLocation>((ref, repo) async {
+  ref.watch(repoRevisionProvider(repo));
   final result = await ref
       .watch(gitReadOperationsProvider)
       .getDiff(repo, const DiffSpecIndexVsHead());

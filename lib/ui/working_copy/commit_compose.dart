@@ -5,6 +5,7 @@ import '../../application/active_workspace_provider.dart';
 import '../../application/git/commit_request.dart';
 import '../../application/git/git_result.dart';
 import '../../application/providers.dart';
+import '../../application/repo_revision.dart';
 import '../../domain/commits/commit_sha.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../common/author_avatar.dart';
@@ -136,7 +137,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
         _amend = false;
         _signOff = false;
       });
-      ref.invalidate(gitReadOperationsProvider);
+      refreshRepo(ref, widget.repo);
     } else if (res is GitFailure<CommitSha>) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Commit failed: ${res.message}')),

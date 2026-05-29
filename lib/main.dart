@@ -12,6 +12,7 @@ import 'application/git/repo_state_provider.dart';
 import 'application/main_view_provider.dart';
 import 'application/operations/running_operation.dart';
 import 'application/providers.dart';
+import 'application/repo_revision.dart';
 import 'application/settings/app_settings.dart';
 import 'application/settings/settings_open_provider.dart';
 import 'application/workspaces/workspace.dart';
@@ -196,7 +197,7 @@ class _ShellState extends ConsumerState<Shell> {
         ops.updateProgress(id, ev.fraction, ev.phase);
       }
       ops.finishSuccess(id);
-      if (mounted) ref.invalidate(gitReadOperationsProvider);
+      if (mounted) refreshRepo(ref, repo);
     } catch (e) {
       ops.finishFailure(id, e.toString());
     }

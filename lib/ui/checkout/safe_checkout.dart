@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/git/git_result.dart';
 import '../../application/providers.dart';
+import '../../application/repo_revision.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../../domain/status/working_file_entry.dart';
 import '../dialogs/checkout_changes_dialog.dart';
@@ -63,7 +64,7 @@ Future<bool> safeCheckout({
     }
     return false;
   }
-  ref.invalidate(gitReadOperationsProvider);
+  refreshRepo(ref, repo);
   return true;
 }
 

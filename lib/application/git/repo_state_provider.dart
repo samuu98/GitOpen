@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import '../../domain/repositories/repo_location.dart';
 import '../providers.dart';
+import '../repo_revision.dart';
 
 enum InProgressOp { none, merge, cherryPick, rebase, revert }
 
 final repoStateProvider =
     FutureProvider.family.autoDispose<InProgressOp, RepoLocation>(
         (ref, repo) async {
+  ref.watch(repoRevisionProvider(repo));
   // Resolve the real git directory rather than assuming `<path>/.git`.
   // In a linked worktree or submodule `.git` is a file pointing elsewhere,
   // and MERGE_HEAD / rebase-merge live in that resolved dir — assuming

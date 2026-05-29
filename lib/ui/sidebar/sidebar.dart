@@ -5,6 +5,7 @@ import '../../application/active_workspace_provider.dart';
 import '../../application/branch_visibility_provider.dart';
 import '../../application/main_view_provider.dart';
 import '../../application/providers.dart';
+import '../../application/repo_revision.dart';
 import '../../application/scroll_request_provider.dart';
 import '../../domain/commits/commit_sha.dart';
 import '../../domain/refs/branch.dart';
@@ -43,6 +44,7 @@ class _SidebarData {
 
 final _sidebarDataProvider =
     FutureProvider.family<_SidebarData, RepoLocation>((ref, repo) async {
+  ref.watch(repoRevisionProvider(repo));
   final git = ref.watch(gitReadOperationsProvider);
   appLog.i('sidebar: awaiting shared branches for ${repo.displayName}');
   final branches = await ref.watch(branchesProvider(repo).future);
@@ -113,8 +115,7 @@ class _SidebarContent extends ConsumerWidget {
   const _SidebarContent({required this.data, required this.repo});
 
   void _refreshSidebar(WidgetRef ref) {
-    ref.invalidate(_sidebarDataProvider(repo));
-    ref.invalidate(gitReadOperationsProvider);
+    refreshRepo(ref, repo);
   }
 
   @override
@@ -615,7 +616,7 @@ Future<void> _fetchRemote(
       ops.updateProgress(id, ev.fraction, ev.phase);
     }
     ops.finishSuccess(id);
-    ref.invalidate(gitReadOperationsProvider);
+    refreshRepo(ref, repo);
   } catch (e) {
     ops.finishFailure(id, e.toString());
   }

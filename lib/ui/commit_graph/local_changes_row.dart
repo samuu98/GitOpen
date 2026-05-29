@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/active_workspace_provider.dart';
 import '../../application/main_view_provider.dart';
 import '../../application/providers.dart';
+import '../../application/repo_revision.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../theme/app_palette.dart';
 
 final repoStatusProvider = FutureProvider.family.autoDispose((ref, RepoLocation r) async {
+  ref.watch(repoRevisionProvider(r));
   final git = ref.watch(gitReadOperationsProvider);
   return git.getStatus(r);
 });
