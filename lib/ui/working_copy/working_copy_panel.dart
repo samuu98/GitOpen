@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/git/git_result.dart';
@@ -51,30 +52,45 @@ final _workingCopyStatusProvider =
 final _selectedFileProvider =
     StateProvider.autoDispose<({String path, bool staged})?>((_) => null);
 
-/// Working-tree-vs-index diff, keyed by (repo, filePath).
+/// Whole-repo working-tree-vs-index diff, computed once and shared.
+///
+/// Selecting N files used to run a full `git diff` N times (each per-file
+/// provider re-diffed the entire repo, then filtered to one path).  These
+/// repo-keyed providers compute the diff once; the per-file providers below
+/// just pick their file out of the shared result.
+final _unstagedDiffProvider = FutureProvider.family
+    .autoDispose<List<FileDiff>, RepoLocation>((ref, repo) async {
+  final result = await ref
+      .watch(gitReadOperationsProvider)
+      .getDiff(repo, const DiffSpecWorkingTreeVsIndex());
+  return result.files;
+});
+
+/// Whole-repo index-vs-HEAD diff, computed once and shared.
+final _stagedDiffProvider = FutureProvider.family
+    .autoDispose<List<FileDiff>, RepoLocation>((ref, repo) async {
+  final result = await ref
+      .watch(gitReadOperationsProvider)
+      .getDiff(repo, const DiffSpecIndexVsHead());
+  return result.files;
+});
+
+/// Working-tree-vs-index diff for a single file, selected from the shared
+/// repo-wide diff. Keyed by (repo, filePath).
 final _unstagedFileDiffProvider = FutureProvider.family
     .autoDispose<FileDiff?, (RepoLocation, String)>((ref, args) async {
   final (repo, filePath) = args;
-  final git = ref.read(gitReadOperationsProvider);
-  final result = await git.getDiff(repo, const DiffSpecWorkingTreeVsIndex());
-  try {
-    return result.files.firstWhere((f) => f.path == filePath);
-  } catch (_) {
-    return null;
-  }
+  final files = await ref.watch(_unstagedDiffProvider(repo).future);
+  return files.firstWhereOrNull((f) => f.path == filePath);
 });
 
-/// Index-vs-HEAD diff, keyed by (repo, filePath).
+/// Index-vs-HEAD diff for a single file, selected from the shared repo-wide
+/// diff. Keyed by (repo, filePath).
 final _stagedFileDiffProvider = FutureProvider.family
     .autoDispose<FileDiff?, (RepoLocation, String)>((ref, args) async {
   final (repo, filePath) = args;
-  final git = ref.read(gitReadOperationsProvider);
-  final result = await git.getDiff(repo, const DiffSpecIndexVsHead());
-  try {
-    return result.files.firstWhere((f) => f.path == filePath);
-  } catch (_) {
-    return null;
-  }
+  final files = await ref.watch(_stagedDiffProvider(repo).future);
+  return files.firstWhereOrNull((f) => f.path == filePath);
 });
 
 bool _canExpandHunks(WorkingFileEntry entry) {

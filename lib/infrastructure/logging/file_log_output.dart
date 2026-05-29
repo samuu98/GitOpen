@@ -42,15 +42,33 @@ class FileLogOutput extends LogOutput {
     }
   }
 
+  /// Rotate the log once it crosses this size, keeping a single `.1` backup.
+  static const int _maxBytes = 5 * 1024 * 1024; // 5 MiB
+
   @override
   Future<void> init() async {
     final path = await resolvePath();
     if (path == null) return;
+    _rotateIfNeeded(path);
     File(path).writeAsStringSync(
       '--- session start ${DateTime.now().toIso8601String()} ---\n',
       mode: FileMode.append,
       flush: true,
     );
+  }
+
+  /// Renames the current log to `<name>.1` (overwriting any previous backup)
+  /// when it exceeds [_maxBytes], so the active file never grows unbounded.
+  void _rotateIfNeeded(String path) {
+    try {
+      final f = File(path);
+      if (!f.existsSync() || f.lengthSync() < _maxBytes) return;
+      final backup = File('$path.1');
+      if (backup.existsSync()) backup.deleteSync();
+      f.renameSync(backup.path);
+    } catch (_) {
+      // Rotation is best-effort; never let it break logging startup.
+    }
   }
 
   @override
