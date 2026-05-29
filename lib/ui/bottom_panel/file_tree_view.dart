@@ -4,6 +4,7 @@ import '../../application/providers.dart';
 import '../../domain/commits/commit_sha.dart';
 import '../../domain/files/file_tree_entry.dart';
 import '../../domain/repositories/repo_location.dart';
+import '../common/skeleton.dart';
 import '../theme/app_palette.dart';
 
 final _fileTreeProvider = FutureProvider.family
@@ -35,7 +36,7 @@ class FileTreeViewWidget extends ConsumerWidget {
     final palette = AppPalette.of(context);
     final async = ref.watch(_fileTreeProvider((repo: repo, sha: sha)));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const SkeletonList(rows: 12, rowHeight: 12),
       error: (e, _) => Center(child: Text('Error: $e',
           style: TextStyle(color: palette.accentErr))),
       data: (entries) {

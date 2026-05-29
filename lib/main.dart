@@ -280,18 +280,34 @@ class _ShellState extends ConsumerState<Shell> {
                                               children: [
                                                 const ViewSelector(),
                                                 Expanded(
-                                                  child: hasConflict
+                                                  child: AnimatedSwitcher(
+                                                    duration: const Duration(
+                                                        milliseconds: 180),
+                                                    child: KeyedSubtree(
+                                                      key: ValueKey(hasConflict
+                                                          ? 'conflict'
+                                                          : view.name),
+                                                      child: hasConflict
                                                       ? ConflictResolutionPanel(
                                                           repo: active.location)
                                                       : view == MainView.changes
                                                           ? WorkingCopyPanel(
                                                               repo: active.location)
                                                           : VerticalSplitter(
+                                                              initialBottom: ref
+                                                                  .read(appSettingsProvider)
+                                                                  .bottomPanelHeight,
+                                                              onResized: (h) => ref
+                                                                  .read(appSettingsProvider
+                                                                      .notifier)
+                                                                  .setBottomPanelHeight(h),
                                                               top: CommitGraphPanel(
                                                                   repo: active.location),
                                                               bottom: BottomPanel(
                                                                   repo: active.location),
                                                             ),
+                                                    ),
+                                                  ),
                                                 ),
                                                 const StatusBar(),
                                               ],

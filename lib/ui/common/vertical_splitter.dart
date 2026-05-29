@@ -15,6 +15,14 @@ class VerticalSplitter extends StatefulWidget {
   final double minTop;
   final double handleHeight;
 
+  /// Starting bottom-pane height (e.g. restored from settings).  Falls back
+  /// to [defaultBottom] when null.
+  final double? initialBottom;
+
+  /// Called when the user finishes a drag or double-clicks to reset, so the
+  /// caller can persist the new height.  Not called on every pointer move.
+  final ValueChanged<double>? onResized;
+
   const VerticalSplitter({
     super.key,
     required this.top,
@@ -23,6 +31,8 @@ class VerticalSplitter extends StatefulWidget {
     this.minBottom = 140,
     this.minTop = 200,
     this.handleHeight = 5,
+    this.initialBottom,
+    this.onResized,
   });
 
   @override
@@ -30,7 +40,7 @@ class VerticalSplitter extends StatefulWidget {
 }
 
 class _VerticalSplitterState extends State<VerticalSplitter> {
-  late double _bottom = widget.defaultBottom;
+  late double _bottom = widget.initialBottom ?? widget.defaultBottom;
   bool _hover = false;
   bool _dragging = false;
 
@@ -63,10 +73,14 @@ class _VerticalSplitterState extends State<VerticalSplitter> {
                         .clamp(widget.minBottom, maxBottom);
                   });
                 },
-                onVerticalDragEnd: (_) =>
-                    setState(() => _dragging = false),
-                onDoubleTap: () =>
-                    setState(() => _bottom = widget.defaultBottom),
+                onVerticalDragEnd: (_) {
+                  setState(() => _dragging = false);
+                  widget.onResized?.call(_bottom);
+                },
+                onDoubleTap: () {
+                  setState(() => _bottom = widget.defaultBottom);
+                  widget.onResized?.call(_bottom);
+                },
                 child: Container(
                   height: widget.handleHeight,
                   color: _dragging

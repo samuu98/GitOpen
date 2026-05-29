@@ -14,6 +14,8 @@ final class AppSettingsState extends Equatable {
   final String? fontFamily;
   final String? githubClientId;
   final bool autoUpdateCheck;
+  final double sidebarWidth;
+  final double bottomPanelHeight;
   final Map<String, LogicalKeySet> keybindings;
   final List<GitIdentity> gitIdentities;
 
@@ -32,6 +34,8 @@ final class AppSettingsState extends Equatable {
     this.fontFamily,
     this.githubClientId,
     this.autoUpdateCheck = true,
+    this.sidebarWidth = 260,
+    this.bottomPanelHeight = 320,
     this.keybindings = const {},
     this.gitIdentities = const [],
     this.authRepoBindings = const {},
@@ -52,6 +56,8 @@ final class AppSettingsState extends Equatable {
     Object? fontFamily = _unset,
     Object? githubClientId = _unset,
     bool? autoUpdateCheck,
+    double? sidebarWidth,
+    double? bottomPanelHeight,
     Map<String, LogicalKeySet>? keybindings,
     List<GitIdentity>? gitIdentities,
     Map<String, String>? authRepoBindings,
@@ -71,6 +77,8 @@ final class AppSettingsState extends Equatable {
           ? this.githubClientId
           : githubClientId as String?,
       autoUpdateCheck: autoUpdateCheck ?? this.autoUpdateCheck,
+      sidebarWidth: sidebarWidth ?? this.sidebarWidth,
+      bottomPanelHeight: bottomPanelHeight ?? this.bottomPanelHeight,
       keybindings: keybindings ?? this.keybindings,
       gitIdentities: gitIdentities ?? this.gitIdentities,
       authRepoBindings: authRepoBindings ?? this.authRepoBindings,
@@ -80,7 +88,7 @@ final class AppSettingsState extends Equatable {
   @override
   List<Object?> get props => [
     theme, externalEditorPath, defaultPullStrategy, commitSignoffDefault,
-    fontSize, fontFamily, githubClientId, autoUpdateCheck, keybindings,
-    gitIdentities, authRepoBindings,
+    fontSize, fontFamily, githubClientId, autoUpdateCheck, sidebarWidth,
+    bottomPanelHeight, keybindings, gitIdentities, authRepoBindings,
   ];
 }

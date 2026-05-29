@@ -8,6 +8,7 @@ import '../../domain/diff/diff_result.dart';
 import '../../domain/diff/diff_spec.dart';
 import '../../domain/diff/file_diff.dart';
 import '../../domain/repositories/repo_location.dart';
+import '../common/skeleton.dart';
 import '../theme/app_palette.dart';
 
 final _diffProvider = FutureProvider.family
@@ -26,7 +27,7 @@ class DiffView extends ConsumerWidget {
     final palette = AppPalette.of(context);
     final async = ref.watch(_diffProvider((repo: repo, sha: sha)));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const SkeletonList(rows: 14, rowHeight: 10, gap: 10),
       error: (e, _) => Center(child: Text('Error: $e',
           style: TextStyle(color: palette.accentErr))),
       data: (d) => ListView.builder(

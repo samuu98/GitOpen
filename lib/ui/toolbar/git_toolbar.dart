@@ -51,18 +51,21 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
           icon: Icons.cloud_download_outlined,
           label: 'Fetch',
           enabled: enabled,
+          tooltip: _withShortcut('Fetch from origin', 'fetch'),
           onTap: () => _fetch(repo!),
         ),
         _ToolbarButton(
           icon: Icons.south,
           label: 'Pull',
           enabled: enabled,
+          tooltip: 'Pull from the upstream branch',
           onTap: () => _pull(repo!),
         ),
         _ToolbarButton(
           icon: Icons.north,
           label: 'Push',
           enabled: enabled,
+          tooltip: 'Push the current branch',
           onTap: () => _push(repo!),
         ),
         const SizedBox(width: 4),
@@ -73,6 +76,17 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
         _OpenDropdown(enabled: enabled, repo: repo),
       ],
     );
+  }
+
+  /// Appends the configured keyboard shortcut for [action] to [base],
+  /// e.g. "Fetch from origin (F5)". Returns [base] unchanged if unbound.
+  String _withShortcut(String base, String action) {
+    final keys = ref.read(appSettingsProvider).keybindings[action];
+    if (keys == null) return base;
+    final combo = keys.keys
+        .map((k) => k.keyLabel.isNotEmpty ? k.keyLabel : (k.debugName ?? '?'))
+        .join('+');
+    return combo.isEmpty ? base : '$base ($combo)';
   }
 
   Future<void> _fetch(RepoLocation repo) => _runStream(
@@ -740,18 +754,20 @@ class _ToolbarButton extends StatelessWidget {
   final String label;
   final bool enabled;
   final VoidCallback onTap;
+  final String? tooltip;
 
   const _ToolbarButton({
     required this.icon,
     required this.label,
     required this.enabled,
     required this.onTap,
+    this.tooltip,
   });
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    return Opacity(
+    final button = Opacity(
       opacity: enabled ? 1.0 : 0.4,
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -775,6 +791,8 @@ class _ToolbarButton extends StatelessWidget {
         ),
       ),
     );
+    if (tooltip == null || tooltip!.isEmpty) return button;
+    return Tooltip(message: tooltip!, child: button);
   }
 }
 

@@ -18,6 +18,7 @@ import '../../domain/repositories/repo_location.dart';
 import '../../application/operations/running_operation.dart';
 import '../checkout/safe_checkout.dart';
 import '../common/app_context_menu.dart';
+import '../common/skeleton.dart';
 import '../dialogs/app_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
 import '../dialogs/merge_dialog.dart';
@@ -58,11 +59,23 @@ final _sidebarDataProvider =
   return _SidebarData(branches, tags, remotes, stashes);
 });
 
-class Sidebar extends ConsumerWidget {
+class Sidebar extends ConsumerStatefulWidget {
   const Sidebar({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends ConsumerState<Sidebar> {
+  static const double _min = 180;
+  static const double _max = 480;
+  double? _width;
+  bool _handleHover = false;
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    _width ??= ref.read(appSettingsProvider).sidebarWidth.clamp(_min, _max);
     final active = ref.watch(activeWorkspaceIdProvider);
     final workspaces = ref.watch(workspaceManagerProvider);
     final activeWs = active == null
@@ -73,8 +86,8 @@ class Sidebar extends ConsumerWidget {
             .firstOrNull;
 
     final palette = AppPalette.of(context);
-    return Container(
-      width: 260,
+    final panel = Container(
+      width: _width,
       decoration: BoxDecoration(
         color: palette.bg2,
         border: Border(right: BorderSide(color: palette.border)),
@@ -93,8 +106,7 @@ class Sidebar extends ConsumerWidget {
                   ref.watch(_sidebarDataProvider(repo));
               return async.when(
                 data: (data) => _SidebarContent(data: data, repo: repo),
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+                loading: () => const SkeletonList(rows: 10, rowHeight: 12),
                 error: (e, _) => Center(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -106,6 +118,34 @@ class Sidebar extends ConsumerWidget {
               );
             }),
     );
+
+    return Row(children: [
+      panel,
+      MouseRegion(
+        cursor: SystemMouseCursors.resizeColumn,
+        onEnter: (_) => setState(() => _handleHover = true),
+        onExit: (_) => setState(() => _handleHover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: (_) => setState(() => _dragging = true),
+          onHorizontalDragUpdate: (d) {
+            setState(() {
+              _width = (_width! + d.delta.dx).clamp(_min, _max);
+            });
+          },
+          onHorizontalDragEnd: (_) {
+            setState(() => _dragging = false);
+            ref.read(appSettingsProvider.notifier).setSidebarWidth(_width!);
+          },
+          child: Container(
+            width: 5,
+            color: _dragging
+                ? palette.accentCurrent
+                : (_handleHover ? palette.borderStrong : Colors.transparent),
+          ),
+        ),
+      ),
+    ]);
   }
 }
 

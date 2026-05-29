@@ -22,6 +22,7 @@ import '../../domain/commits/commit_sha.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../checkout/safe_checkout.dart';
 import '../common/app_context_menu.dart';
+import '../common/skeleton.dart';
 import '../dialogs/app_dialog.dart';
 import '../dialogs/branch_create_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
@@ -392,7 +393,8 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
           ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () =>
+            const SkeletonList(rows: 18, rowHeight: 11, gap: 15),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
