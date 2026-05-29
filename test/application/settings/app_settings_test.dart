@@ -30,6 +30,32 @@ void main() {
     await db.close();
   });
 
+  test('copyWith can clear nullable fields explicitly', () {
+    const s = AppSettingsState(
+      externalEditorPath: '/usr/bin/code',
+      fontFamily: 'Fira Code',
+      githubClientId: 'abc123',
+    );
+    // Omitting a field preserves it…
+    expect(s.copyWith(theme: AppTheme.light).externalEditorPath,
+        '/usr/bin/code');
+    // …but passing null clears it (regression: previously kept the old value).
+    expect(s.copyWith(externalEditorPath: null).externalEditorPath, isNull);
+    expect(s.copyWith(fontFamily: null).fontFamily, isNull);
+    expect(s.copyWith(githubClientId: null).githubClientId, isNull);
+  });
+
+  test('setExternalEditorPath(null) actually clears the path', () async {
+    final db = newInMemoryDb();
+    final notifier = AppSettingsNotifier(SettingsRepository(db));
+    await Future.delayed(const Duration(milliseconds: 50));
+    await notifier.setExternalEditorPath('/usr/bin/code');
+    expect(notifier.state.externalEditorPath, '/usr/bin/code');
+    await notifier.setExternalEditorPath(null);
+    expect(notifier.state.externalEditorPath, isNull);
+    await db.close();
+  });
+
   test('setKeybinding stores key combo and round-trips', () async {
     final db = newInMemoryDb();
     final notifier = AppSettingsNotifier(SettingsRepository(db));

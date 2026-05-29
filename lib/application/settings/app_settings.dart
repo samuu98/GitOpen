@@ -37,14 +37,20 @@ final class AppSettingsState extends Equatable {
     this.authRepoBindings = const {},
   });
 
+  /// Sentinel distinguishing "argument omitted" from "explicitly set to null"
+  /// for the nullable fields below.  Without it, `copyWith(field: null)` is
+  /// indistinguishable from not passing the field, so clearing (e.g. removing
+  /// the configured external editor) would silently keep the old value.
+  static const Object _unset = Object();
+
   AppSettingsState copyWith({
     AppTheme? theme,
-    String? externalEditorPath,
+    Object? externalEditorPath = _unset,
     DefaultPullStrategy? defaultPullStrategy,
     bool? commitSignoffDefault,
     int? fontSize,
-    String? fontFamily,
-    String? githubClientId,
+    Object? fontFamily = _unset,
+    Object? githubClientId = _unset,
     bool? autoUpdateCheck,
     Map<String, LogicalKeySet>? keybindings,
     List<GitIdentity>? gitIdentities,
@@ -52,12 +58,18 @@ final class AppSettingsState extends Equatable {
   }) {
     return AppSettingsState(
       theme: theme ?? this.theme,
-      externalEditorPath: externalEditorPath ?? this.externalEditorPath,
+      externalEditorPath: identical(externalEditorPath, _unset)
+          ? this.externalEditorPath
+          : externalEditorPath as String?,
       defaultPullStrategy: defaultPullStrategy ?? this.defaultPullStrategy,
       commitSignoffDefault: commitSignoffDefault ?? this.commitSignoffDefault,
       fontSize: fontSize ?? this.fontSize,
-      fontFamily: fontFamily ?? this.fontFamily,
-      githubClientId: githubClientId ?? this.githubClientId,
+      fontFamily: identical(fontFamily, _unset)
+          ? this.fontFamily
+          : fontFamily as String?,
+      githubClientId: identical(githubClientId, _unset)
+          ? this.githubClientId
+          : githubClientId as String?,
       autoUpdateCheck: autoUpdateCheck ?? this.autoUpdateCheck,
       keybindings: keybindings ?? this.keybindings,
       gitIdentities: gitIdentities ?? this.gitIdentities,

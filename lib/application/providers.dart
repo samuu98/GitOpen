@@ -107,14 +107,14 @@ final authResolverProvider = Provider<AuthResolver>((ref) {
 /// changes panel.  Centralised so multiple consumers don't each spawn a
 /// `git status` of their own.
 final repoStatusProvider =
-    FutureProvider.family<RepoStatus, RepoLocation>((ref, repo) {
+    FutureProvider.autoDispose.family<RepoStatus, RepoLocation>((ref, repo) {
   return ref.watch(gitReadOperationsProvider).getStatus(repo);
 });
 
 /// Local branches only — always fast.  This is what the UI awaits on
 /// initial repo load so the graph and sidebar render immediately.
 final localBranchesProvider =
-    FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) {
+    FutureProvider.autoDispose.family<List<Branch>, RepoLocation>((ref, repo) {
   appLog.i('branches: loading locals for ${repo.displayName}');
   return ref.watch(gitReadOperationsProvider).getLocalBranches(repo);
 });
@@ -123,7 +123,7 @@ final localBranchesProvider =
 /// huge monorepos).  Loaded in parallel and consumed without `await` by
 /// UI that wants to render incrementally.
 final remoteBranchesProvider =
-    FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) {
+    FutureProvider.autoDispose.family<List<Branch>, RepoLocation>((ref, repo) {
   appLog.i('branches: loading remotes for ${repo.displayName}');
   return ref.watch(gitReadOperationsProvider).getRemoteBranches(repo);
 });
@@ -137,7 +137,8 @@ final remoteBranchesProvider =
 /// (graph, sidebar) to RE-RUN from scratch, doubling the `git log` cost
 /// and blocking the UI on big repos.  Always await both `.future`s here.
 final branchesProvider =
-    FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) async {
+    FutureProvider.autoDispose.family<List<Branch>, RepoLocation>(
+        (ref, repo) async {
   final locals = await ref.watch(localBranchesProvider(repo).future);
   final remotes = await ref.watch(remoteBranchesProvider(repo).future);
   return [...locals, ...remotes];
