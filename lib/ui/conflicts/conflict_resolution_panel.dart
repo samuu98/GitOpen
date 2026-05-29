@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import '../../application/git/repo_state_provider.dart';
 import '../../application/providers.dart';
@@ -38,9 +39,15 @@ class ConflictResolutionPanel extends ConsumerWidget {
           loading: () => const SizedBox.shrink(),
           error: (e, _) => Center(child: Text('$e')),
           data: (files) {
-            if (op == InProgressOp.none || files.isEmpty) {
+            // The parent only mounts this panel while an operation is in
+            // progress; an empty conflict list does NOT mean "done" — it
+            // means every conflict has been resolved and we are now ready to
+            // run `--continue`.  Only collapse when there is genuinely no
+            // operation in flight.
+            if (op == InProgressOp.none) {
               return const SizedBox.shrink();
             }
+            final allResolved = files.isEmpty;
             final opLabel = switch (op) {
               InProgressOp.merge => 'Merge',
               InProgressOp.cherryPick => 'Cherry-pick',
@@ -52,15 +59,26 @@ class ConflictResolutionPanel extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Container(
-                  color: palette.accentWarn.withValues(alpha: 0.15),
+                  color: (allResolved
+                          ? palette.accentCurrent
+                          : palette.accentWarn)
+                      .withValues(alpha: 0.15),
                   padding: const EdgeInsets.all(12),
                   child: Row(children: [
-                    Icon(Icons.warning_amber,
-                        color: palette.accentTag, size: 16),
+                    Icon(
+                        allResolved
+                            ? Icons.check_circle_outline
+                            : Icons.warning_amber,
+                        color: allResolved
+                            ? palette.accentCurrent
+                            : palette.accentTag,
+                        size: 16),
                     const SizedBox(width: 8),
                     Text(
-                      '$opLabel in progress — '
-                      '${files.length} conflict${files.length == 1 ? "" : "s"}',
+                      allResolved
+                          ? '$opLabel — all conflicts resolved, ready to continue'
+                          : '$opLabel in progress — '
+                              '${files.length} conflict${files.length == 1 ? "" : "s"}',
                       style: TextStyle(
                           color: palette.fg0,
                           fontWeight: FontWeight.w600),
@@ -68,34 +86,44 @@ class ConflictResolutionPanel extends ConsumerWidget {
                   ]),
                 ),
                 Expanded(
-                  child: ListView(
-                    children: [
-                      for (final path in files)
-                        ListTile(
-                          leading: Icon(Icons.error_outline,
-                              color: palette.accentErr, size: 18),
-                          title: Text(path,
-                              style: TextStyle(
-                                  color: palette.fg0, fontSize: 12.5)),
-                          trailing:
-                              Row(mainAxisSize: MainAxisSize.min, children: [
-                            TextButton(
-                              onPressed: () => _openInEditor(ref, repo.path, path),
-                              child: const Text('Open'),
-                            ),
-                            TextButton(
-                              onPressed: () async {
-                                await ref
-                                    .read(gitWriteOperationsProvider)
-                                    .stageFiles(repo, [path]);
-                                ref.invalidate(_conflictsProvider(repo));
-                              },
-                              child: const Text('Mark resolved'),
-                            ),
-                          ]),
+                  child: allResolved
+                      ? Center(
+                          child: Text(
+                            'No remaining conflicts.',
+                            style: TextStyle(color: palette.fg2),
+                          ),
+                        )
+                      : ListView(
+                          children: [
+                            for (final path in files)
+                              ListTile(
+                                leading: Icon(Icons.error_outline,
+                                    color: palette.accentErr, size: 18),
+                                title: Text(path,
+                                    style: TextStyle(
+                                        color: palette.fg0, fontSize: 12.5)),
+                                trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      TextButton(
+                                        onPressed: () => _openInEditor(
+                                            ref, repo.path, path),
+                                        child: const Text('Open'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () async {
+                                          await ref
+                                              .read(gitWriteOperationsProvider)
+                                              .stageFiles(repo, [path]);
+                                          ref.invalidate(
+                                              _conflictsProvider(repo));
+                                        },
+                                        child: const Text('Mark resolved'),
+                                      ),
+                                    ]),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(8),
@@ -107,7 +135,7 @@ class ConflictResolutionPanel extends ConsumerWidget {
                     const Spacer(),
                     ElevatedButton(
                       onPressed:
-                          files.isEmpty ? () => _continue(ref, op) : null,
+                          allResolved ? () => _continue(ref, op) : null,
                       child: const Text('Continue'),
                     ),
                   ]),
@@ -122,12 +150,11 @@ class ConflictResolutionPanel extends ConsumerWidget {
 
   Future<void> _openInEditor(WidgetRef ref, String repoPath, String filePath) async {
     final settingsPath = ref.read(appSettingsProvider).externalEditorPath;
+    final fullPath = p.join(repoPath, filePath);
     if (settingsPath != null && settingsPath.isNotEmpty) {
-      final fullPath = '$repoPath/$filePath';
       await Process.run(settingsPath, [fullPath]);
     } else {
-      final url = Uri.file('$repoPath/$filePath');
-      await launchUrl(url);
+      await launchUrl(Uri.file(fullPath));
     }
   }
 

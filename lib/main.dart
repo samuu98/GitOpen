@@ -186,18 +186,17 @@ class _ShellState extends ConsumerState<Shell> {
     final ops = ref.read(operationsProvider.notifier);
     final id = ops.start(OpKind.fetch, 'Fetching origin', repo: repo);
     final profile = await ref.read(authResolverProvider).resolveForRepo(repo);
+    if (!mounted) return;
     try {
       await for (final ev in ref
           .read(gitWriteOperationsProvider)
           .fetch(repo, auth: profile?.spec)) {
-        ops.updateProgress(
-          id,
-          (ev as dynamic).fraction as double?,
-          (ev as dynamic).phase as String,
-        );
+        // `ev` is a typed GitProgress — read its fields directly rather than
+        // via `as dynamic`, which would crash at runtime if the shape changed.
+        ops.updateProgress(id, ev.fraction, ev.phase);
       }
       ops.finishSuccess(id);
-      ref.invalidate(gitReadOperationsProvider);
+      if (mounted) ref.invalidate(gitReadOperationsProvider);
     } catch (e) {
       ops.finishFailure(id, e.toString());
     }
@@ -274,6 +273,7 @@ class _ShellState extends ConsumerState<Shell> {
                                             final hasConflict =
                                                 inProgressOp == InProgressOp.merge ||
                                                 inProgressOp == InProgressOp.cherryPick ||
+                                                inProgressOp == InProgressOp.rebase ||
                                                 inProgressOp == InProgressOp.revert;
                                             return Column(
                                               children: [
