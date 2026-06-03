@@ -177,8 +177,42 @@ class Shell extends ConsumerStatefulWidget {
 }
 
 class _ShellState extends ConsumerState<Shell> {
-  /// F5 — fetch the active repo.
-  Future<void> _fetchActive() async {
+  /// Background auto-fetch timer (see [_reconcileAutoFetchTimer]).
+  Timer? _autoFetchTimer;
+  /// Encodes the current timer config so reconciliation is idempotent:
+  /// the interval in minutes when enabled, or -1 when disabled.
+  int? _autoFetchSig;
+  /// Guards against overlapping fetches — a periodic tick is skipped while
+  /// any fetch (manual or automatic) is still running.
+  bool _fetchInFlight = false;
+
+  @override
+  void dispose() {
+    _autoFetchTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Starts, stops, or reschedules the background fetch timer to match the
+  /// current settings. Idempotent: a no-op when the config is unchanged, so
+  /// it is safe to call on every build.
+  void _reconcileAutoFetchTimer(bool enabled, int minutes) {
+    final sig = enabled ? minutes : -1;
+    if (sig == _autoFetchSig) return;
+    _autoFetchSig = sig;
+    _autoFetchTimer?.cancel();
+    _autoFetchTimer = null;
+    if (!enabled) return;
+    final interval = Duration(minutes: minutes.clamp(1, 1440));
+    _autoFetchTimer = Timer.periodic(interval, (_) {
+      if (_fetchInFlight) return;
+      unawaited(_fetchActive(silent: true));
+    });
+  }
+
+  /// Fetches the active repo. F5 / command-palette use the default (visible)
+  /// mode, which drives the operations toast; the background timer uses
+  /// [silent] mode, which fetches quietly and only logs failures.
+  Future<void> _fetchActive({bool silent = false}) async {
     final activeId = ref.read(activeWorkspaceIdProvider);
     if (activeId == null) return;
     final workspaces = ref.read(workspaceManagerProvider);
@@ -186,22 +220,29 @@ class _ShellState extends ConsumerState<Shell> {
         workspaces.firstWhereOrNull((w) => w.location.id == activeId);
     if (active == null) return;
     final repo = active.location;
+    _fetchInFlight = true;
     final ops = ref.read(operationsProvider.notifier);
-    final id = ops.start(OpKind.fetch, 'Fetching origin', repo: repo);
-    final profile = await ref.read(authResolverProvider).resolveForRepo(repo);
-    if (!mounted) return;
+    final id = silent ? null : ops.start(OpKind.fetch, 'Fetching origin', repo: repo);
     try {
+      final profile = await ref.read(authResolverProvider).resolveForRepo(repo);
+      if (!mounted) return;
       await for (final ev in ref
           .read(gitWriteOperationsProvider)
           .fetch(repo, auth: profile?.spec)) {
         // `ev` is a typed GitProgress — read its fields directly rather than
         // via `as dynamic`, which would crash at runtime if the shape changed.
-        ops.updateProgress(id, ev.fraction, ev.phase);
+        if (id != null) ops.updateProgress(id, ev.fraction, ev.phase);
       }
-      ops.finishSuccess(id);
+      if (id != null) ops.finishSuccess(id);
       if (mounted) refreshRepo(ref, repo);
     } catch (e) {
-      ops.finishFailure(id, e.toString());
+      if (id != null) {
+        ops.finishFailure(id, e.toString());
+      } else {
+        _log.w('Auto-fetch failed: $e');
+      }
+    } finally {
+      _fetchInFlight = false;
     }
   }
 
@@ -217,6 +258,13 @@ class _ShellState extends ConsumerState<Shell> {
 
     // F5 from the command palette / other non-key sources.
     ref.listen<int>(triggerFetchProvider, (_, _) => _fetchActive());
+
+    // Keep the background fetch timer in sync with settings. Watching here
+    // re-runs build (and reconciliation) whenever either field changes; the
+    // reconcile is idempotent so repeated identical builds are harmless.
+    final autoFetch = ref.watch(appSettingsProvider
+        .select((s) => (s.autoFetchEnabled, s.autoFetchIntervalMinutes)));
+    _reconcileAutoFetchTimer(autoFetch.$1, autoFetch.$2);
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{

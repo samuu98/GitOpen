@@ -141,13 +141,49 @@ class GeneralSection extends ConsumerWidget {
                 SettingsRow(
                   label: 'Sign-off by default',
                   description: 'Adds Signed-off-by to every commit message.',
-                  divider: false,
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Switch(
                       value: s.commitSignoffDefault,
                       onChanged: notifier.setCommitSignoffDefault,
                     ),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Auto-fetch',
+                  description:
+                      'Periodically fetch the active repository in the background.',
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Switch(
+                      value: s.autoFetchEnabled,
+                      onChanged: notifier.setAutoFetchEnabled,
+                    ),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Fetch interval',
+                  description: 'How often the background fetch runs.',
+                  divider: false,
+                  child: DropdownButton<int>(
+                    value: s.autoFetchIntervalMinutes,
+                    isDense: true,
+                    underline: const SizedBox.shrink(),
+                    style: TextStyle(color: palette.fg0, fontSize: 12.5),
+                    items: const [
+                      DropdownMenuItem(value: 5, child: Text('5 minutes')),
+                      DropdownMenuItem(value: 10, child: Text('10 minutes')),
+                      DropdownMenuItem(value: 15, child: Text('15 minutes')),
+                      DropdownMenuItem(value: 30, child: Text('30 minutes')),
+                    ],
+                    // Disabled until auto-fetch is turned on.
+                    onChanged: s.autoFetchEnabled
+                        ? (v) {
+                            if (v != null) {
+                              notifier.setAutoFetchIntervalMinutes(v);
+                            }
+                          }
+                        : null,
                   ),
                 ),
               ],

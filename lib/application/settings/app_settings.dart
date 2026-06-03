@@ -14,6 +14,14 @@ final class AppSettingsState extends Equatable {
   final String? fontFamily;
   final String? githubClientId;
   final bool autoUpdateCheck;
+
+  /// Periodically fetch the active repository in the background. Off by
+  /// default — the user opts in explicitly.
+  final bool autoFetchEnabled;
+
+  /// Interval, in minutes, between background fetches when [autoFetchEnabled].
+  final int autoFetchIntervalMinutes;
+
   final double sidebarWidth;
   final double bottomPanelHeight;
 
@@ -41,6 +49,8 @@ final class AppSettingsState extends Equatable {
     this.fontFamily,
     this.githubClientId,
     this.autoUpdateCheck = true,
+    this.autoFetchEnabled = false,
+    this.autoFetchIntervalMinutes = 10,
     this.sidebarWidth = 260,
     this.bottomPanelHeight = 320,
     this.pinnedBranches = const {},
@@ -65,6 +75,8 @@ final class AppSettingsState extends Equatable {
     Object? fontFamily = _unset,
     Object? githubClientId = _unset,
     bool? autoUpdateCheck,
+    bool? autoFetchEnabled,
+    int? autoFetchIntervalMinutes,
     double? sidebarWidth,
     double? bottomPanelHeight,
     Map<String, List<String>>? pinnedBranches,
@@ -88,6 +100,9 @@ final class AppSettingsState extends Equatable {
           ? this.githubClientId
           : githubClientId as String?,
       autoUpdateCheck: autoUpdateCheck ?? this.autoUpdateCheck,
+      autoFetchEnabled: autoFetchEnabled ?? this.autoFetchEnabled,
+      autoFetchIntervalMinutes:
+          autoFetchIntervalMinutes ?? this.autoFetchIntervalMinutes,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       bottomPanelHeight: bottomPanelHeight ?? this.bottomPanelHeight,
       pinnedBranches: pinnedBranches ?? this.pinnedBranches,
@@ -101,7 +116,8 @@ final class AppSettingsState extends Equatable {
   @override
   List<Object?> get props => [
     theme, externalEditorPath, defaultPullStrategy, commitSignoffDefault,
-    fontSize, fontFamily, githubClientId, autoUpdateCheck, sidebarWidth,
+    fontSize, fontFamily, githubClientId, autoUpdateCheck,
+    autoFetchEnabled, autoFetchIntervalMinutes, sidebarWidth,
     bottomPanelHeight, pinnedBranches, collapsedSections, keybindings,
     gitIdentities, authRepoBindings,
   ];

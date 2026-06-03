@@ -416,6 +416,8 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
       context,
       globalPosition: globalPos,
       entries: const [
+        AppMenuItem(value: 'checkout', label: 'Checkout this commit', icon: Icons.commit),
+        AppMenuDivider(),
         AppMenuItem(value: 'merge', label: 'Merge into current', icon: Icons.call_merge),
         AppMenuItem(value: 'rebase', label: 'Rebase current onto this', icon: Icons.compare_arrows),
         AppMenuDivider(),
@@ -440,6 +442,27 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     final repo = widget.repo;
     final palette = AppPalette.of(context);
     switch (selected) {
+      case 'checkout':
+        // Checking out a bare SHA lands on a detached HEAD. safeCheckout
+        // reuses the discard/stash/keep dialog for a dirty working tree.
+        final ok = await safeCheckout(
+          context: context,
+          ref: ref,
+          repo: repo,
+          targetRef: sha.value,
+        );
+        if (ok) {
+          ref.invalidate(commitGraphDataProvider(repo));
+          ref.invalidate(repoStateProvider(repo));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                  'Detached HEAD at ${sha.short()} — create a branch here to keep new commits.'),
+              backgroundColor: palette.accentCurrent,
+            ));
+          }
+        }
+
       case 'merge':
         final current = await currentBranchName(ref, repo);
         if (!context.mounted) return;

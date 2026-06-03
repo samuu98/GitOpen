@@ -88,6 +88,31 @@ void main() {
     await db.close();
   });
 
+  test('auto-fetch defaults to off at 10 minutes', () async {
+    final db = newInMemoryDb();
+    final notifier = AppSettingsNotifier(SettingsRepository(db));
+    await Future.delayed(const Duration(milliseconds: 50));
+    expect(notifier.state.autoFetchEnabled, isFalse);
+    expect(notifier.state.autoFetchIntervalMinutes, 10);
+    await db.close();
+  });
+
+  test('auto-fetch enable + interval persist and re-load', () async {
+    final db = newInMemoryDb();
+    final notifier = AppSettingsNotifier(SettingsRepository(db));
+    await Future.delayed(const Duration(milliseconds: 50));
+    await notifier.setAutoFetchEnabled(true);
+    await notifier.setAutoFetchIntervalMinutes(15);
+    expect(notifier.state.autoFetchEnabled, isTrue);
+    expect(notifier.state.autoFetchIntervalMinutes, 15);
+
+    final fresh = AppSettingsNotifier(SettingsRepository(db));
+    await Future.delayed(const Duration(milliseconds: 50));
+    expect(fresh.state.autoFetchEnabled, isTrue);
+    expect(fresh.state.autoFetchIntervalMinutes, 15);
+    await db.close();
+  });
+
   test('setKeybinding stores key combo and round-trips', () async {
     final db = newInMemoryDb();
     final notifier = AppSettingsNotifier(SettingsRepository(db));
