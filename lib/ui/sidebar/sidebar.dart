@@ -12,6 +12,7 @@ import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
+import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
@@ -34,11 +35,18 @@ void _revealCommit(WidgetRef ref, CommitSha sha) {
 }
 
 class _SidebarData {
-  _SidebarData(this.branches, this.tags, this.remotes, this.stashes);
+  _SidebarData(
+    this.branches,
+    this.tags,
+    this.remotes,
+    this.stashes,
+    this.submodules,
+  );
   final List<Branch> branches;
   final List<Tag> tags;
   final List<Remote> remotes;
   final List<Stash> stashes;
+  final List<Submodule> submodules;
 }
 
 final FutureProviderFamily<_SidebarData, RepoLocation> _sidebarDataProvider =
@@ -52,8 +60,10 @@ final FutureProviderFamily<_SidebarData, RepoLocation> _sidebarDataProvider =
   final remotes = await git.getRemotes(repo);
   appLog.i('sidebar: ${remotes.length} remotes — loading stashes');
   final stashes = await git.getStashes(repo);
-  appLog.i('sidebar: ${stashes.length} stashes — done');
-  return _SidebarData(branches, tags, remotes, stashes);
+  appLog.i('sidebar: ${stashes.length} stashes — loading submodules');
+  final submodules = await git.getSubmodules(repo);
+  appLog.i('sidebar: ${submodules.length} submodules — done');
+  return _SidebarData(branches, tags, remotes, stashes, submodules);
 });
 
 class Sidebar extends ConsumerWidget {
@@ -170,6 +180,22 @@ class _SidebarContent extends ConsumerWidget {
                     for (final s in data.stashes)
                       _StashRow(
                         stash: s,
+                        repo: repo,
+                        onRefresh: () => _refreshSidebar(ref),
+                      ),
+                  ],
+                ),
+        ),
+        _Section(
+          title: 'SUBMODULES',
+          child: data.submodules.isEmpty
+              ? const _EmptyHint('No submodules')
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final s in data.submodules)
+                      _SubmoduleRow(
+                        submodule: s,
                         repo: repo,
                         onRefresh: () => _refreshSidebar(ref),
                       ),
@@ -364,6 +390,134 @@ class _StashRow extends ConsumerWidget {
         await write.stashDrop(repo, stash.index);
         onRefresh();
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Submodule row with status badge + update context menu
+// ---------------------------------------------------------------------------
+
+class _SubmoduleRow extends ConsumerWidget {
+  const _SubmoduleRow({
+    required this.submodule,
+    required this.repo,
+    required this.onRefresh,
+  });
+  final Submodule submodule;
+  final RepoLocation repo;
+  final VoidCallback onRefresh;
+
+  bool get _isUninitialized =>
+      submodule.status == SubmoduleStatus.uninitialized;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = AppPalette.of(context);
+    return GestureDetector(
+      onSecondaryTapDown: (details) =>
+          _showContextMenu(context, ref, details.globalPosition),
+      child: InkWell(
+        // Initialized submodules point at a real commit; reveal it in the
+        // graph. Uninitialized ones still record the expected SHA, but it may
+        // not be present locally yet, so tapping is a no-op there.
+        onTap: _isUninitialized
+            ? null
+            : () => _revealCommit(ref, submodule.sha),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  submodule.path,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.fg1, fontSize: 12.5),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                submodule.sha.short(),
+                style: TextStyle(
+                  color: palette.fg3,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const SizedBox(width: 6),
+              _SubmoduleStatusBadge(status: submodule.status),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showContextMenu(
+      BuildContext context, WidgetRef ref, Offset globalPos) async {
+    final selected = await AppContextMenu.show<String>(
+      context,
+      globalPosition: globalPos,
+      entries: [
+        if (_isUninitialized)
+          const AppMenuItem(
+            value: 'init',
+            label: 'Init & update',
+            icon: Icons.download_for_offline_outlined,
+          )
+        else
+          const AppMenuItem(
+            value: 'update',
+            label: 'Update',
+            icon: Icons.sync,
+          ),
+      ],
+    );
+    if (selected == null || !context.mounted) return;
+    final write = ref.read(gitWriteOperationsProvider);
+    final palette = AppPalette.of(context);
+
+    // `init` and `update` both go through updateSubmodule; `init: true`
+    // additionally registers + clones an uninitialized submodule.
+    final result = await write.updateSubmodule(
+      repo,
+      submodule.path,
+      init: selected == 'init',
+    );
+    onRefresh();
+    if (!context.mounted) return;
+    if (result case GitFailure(:final message)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Submodule update failed: $message'),
+        backgroundColor: palette.accentErr,
+      ));
+    }
+  }
+}
+
+class _SubmoduleStatusBadge extends StatelessWidget {
+  const _SubmoduleStatusBadge({required this.status});
+  final SubmoduleStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    final (label, color) = switch (status) {
+      SubmoduleStatus.uninitialized => ('uninit', palette.fg3),
+      SubmoduleStatus.upToDate => ('ok', palette.accentCurrent),
+      SubmoduleStatus.modified => ('modified', palette.accentWarn),
+      SubmoduleStatus.mergeConflict => ('conflict', palette.accentErr),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 10),
+      ),
+    );
   }
 }
 

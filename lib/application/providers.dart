@@ -14,6 +14,7 @@ import 'package:gitopen/application/workspaces/workspace.dart';
 import 'package:gitopen/application/workspaces/workspace_manager.dart';
 import 'package:gitopen/application/workspaces/workspace_persistence.dart';
 import 'package:gitopen/domain/refs/branch.dart';
+import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
 import 'package:gitopen/infrastructure/auth/secure_auth_profile_store.dart';
@@ -137,6 +138,13 @@ final FutureProviderFamily<List<Branch>, RepoLocation> branchesProvider =
   final locals = await ref.watch(localBranchesProvider(repo).future);
   final remotes = await ref.watch(remoteBranchesProvider(repo).future);
   return [...locals, ...remotes];
+});
+
+/// Submodules registered in the superproject (`git submodule status`).
+/// Family-keyed by [RepoLocation] like the other ref providers.
+final FutureProviderFamily<List<Submodule>, RepoLocation> submodulesProvider =
+    FutureProvider.family<List<Submodule>, RepoLocation>((ref, repo) {
+  return ref.watch(gitReadOperationsProvider).getSubmodules(repo);
 });
 
 final AutoDisposeFutureProviderFamily<AuthProfile?, RepoLocation>

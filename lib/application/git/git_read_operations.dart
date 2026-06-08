@@ -7,6 +7,7 @@ import 'package:gitopen/domain/files/file_tree_entry.dart';
 import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
+import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
@@ -63,6 +64,11 @@ abstract interface class GitReadOperations {
   Future<List<Tag>> getTags(RepoLocation repo);
   Future<List<Remote>> getRemotes(RepoLocation repo);
   Future<List<Stash>> getStashes(RepoLocation repo);
+
+  /// Submodules registered in the superproject (`git submodule status`).
+  /// Empty output (no submodules) yields an empty list.
+  Future<List<Submodule>> getSubmodules(RepoLocation repo);
+
   Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec);
   Future<List<FileTreeEntry>> getFileTree(
       RepoLocation repo, CommitSha sha, String path);

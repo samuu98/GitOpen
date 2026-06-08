@@ -237,6 +237,58 @@ class RepoFixture {
     return f;
   }
 
+  /// Path of the inner repo a [withSubmodule] superproject points at, so a
+  /// test can drive `update --init` cloning from this local path. Empty for
+  /// fixtures that don't add a submodule.
+  String submoduleSourcePath = '';
+
+  /// A superproject repo with one submodule registered at path `sub`,
+  /// pointing at a freshly-built inner repo (a single commit).
+  ///
+  /// `git submodule add` from a local/file path is blocked by recent git
+  /// unless `protocol.file.allow=always` is set, so every submodule git call
+  /// here passes that `-c` override. The submodule is added but NOT checked
+  /// out into the super working tree beyond what `add` does — to model the
+  /// "uninitialized" state, the test deinits it (see notes in the test).
+  static Future<RepoFixture> withSubmodule() async {
+    // Inner repo that the submodule will point at.
+    final inner = await empty();
+    await File(p.join(inner.path, 'inner.txt')).writeAsString('inner\n');
+    await _git(inner.path, ['add', 'inner.txt']);
+    await _git(inner.path, ['commit', '-q', '-m', 'inner commit']);
+
+    // Superproject with an initial commit so it isn't empty.
+    final superRepo = await empty();
+    await File(p.join(superRepo.path, 'top.txt')).writeAsString('top\n');
+    await _git(superRepo.path, ['add', 'top.txt']);
+    await _git(superRepo.path, ['commit', '-q', '-m', 'top commit']);
+
+    // Allow local/file submodule transport for this test repo (git blocks it
+    // by default since CVE-2022-39253). Set persistently so the production
+    // `submodule update` path — which intentionally does NOT force the
+    // override — can still initialize the local-path submodule under test.
+    await _git(superRepo.path, ['config', 'protocol.file.allow', 'always']);
+
+    // Adding a submodule from a file path requires the protocol allowance on
+    // recent git; the path is passed forward-slashed so git's URL parser is
+    // happy on Windows.
+    final innerUrl = inner.path.replaceAll(r'\', '/');
+    await _git(superRepo.path, [
+      '-c',
+      'protocol.file.allow=always',
+      'submodule',
+      'add',
+      innerUrl,
+      'sub',
+    ]);
+    await _git(superRepo.path, ['commit', '-q', '-m', 'add submodule']);
+
+    superRepo
+      ..submoduleSourcePath = inner.path
+      ..headSha = (await _git(superRepo.path, ['rev-parse', 'HEAD'])).trim();
+    return superRepo;
+  }
+
   Future<void> dispose() async {
     try {
       await Directory(path).delete(recursive: true);

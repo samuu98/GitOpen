@@ -17,6 +17,7 @@ import 'package:gitopen/domain/files/file_tree_entry.dart';
 import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
+import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
@@ -723,6 +724,52 @@ final class GitCliReadOperations implements GitReadOperations {
     }
 
     return stashes;
+  }
+
+  @override
+  Future<List<Submodule>> getSubmodules(RepoLocation repo) async {
+    // `git submodule status` exits 0 even with no submodules; empty output
+    // means none are registered. Each line is:
+    //   "<flag><40-hex> <path>[ (<describe>)]"
+    // where <flag> is one of ' ', '-', '+', 'U'. The describe suffix is
+    // present only for initialized submodules and is optional.
+    final stdout = await _runner.run(repo.path, ['submodule', 'status']);
+    if (stdout.trim().isEmpty) return [];
+
+    // flag, sha, path, optional "(describe)".  The path can contain spaces, so
+    // capture it lazily up to an optional trailing " (...)" group.
+    final lineRe = RegExp(
+      r'^([ \-+U])([0-9a-f]{40}) (.+?)(?: \((.*)\))?$',
+    );
+
+    final submodules = <Submodule>[];
+    for (final line in const LineSplitter().convert(stdout)) {
+      if (line.isEmpty) continue;
+      final m = lineRe.firstMatch(line);
+      if (m == null) continue;
+
+      submodules.add(Submodule(
+        path: m.group(3)!,
+        sha: CommitSha(m.group(2)!),
+        describe: m.group(4),
+        status: _mapSubmoduleStatus(m.group(1)!),
+      ));
+    }
+    return submodules;
+  }
+
+  SubmoduleStatus _mapSubmoduleStatus(String flag) {
+    switch (flag) {
+      case '-':
+        return SubmoduleStatus.uninitialized;
+      case '+':
+        return SubmoduleStatus.modified;
+      case 'U':
+        return SubmoduleStatus.mergeConflict;
+      case ' ':
+      default:
+        return SubmoduleStatus.upToDate;
+    }
   }
 
   @override

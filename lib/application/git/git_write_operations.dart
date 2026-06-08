@@ -139,4 +139,21 @@ abstract interface class GitWriteOperations {
   Future<GitResult<void>> rebaseSkip(RepoLocation r);
 
   Stream<GitProgress> clone(String url, String destination, {AuthSpec? auth});
+
+  /// Updates a single submodule at [path] (`git submodule update`). When
+  /// [init] is true, also registers and clones an uninitialized submodule
+  /// (`--init`).
+  Future<GitResult<void>> updateSubmodule(
+    RepoLocation r,
+    String path, {
+    bool init = true,
+  });
+
+  /// Updates every submodule in the superproject (`git submodule update`,
+  /// no path). When [init] is true, uninitialized submodules are registered
+  /// and cloned first (`--init`).
+  Future<GitResult<void>> updateAllSubmodules(
+    RepoLocation r, {
+    bool init = true,
+  });
 }

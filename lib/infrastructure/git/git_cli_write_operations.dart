@@ -764,4 +764,38 @@ final class GitCliWriteOperations implements GitWriteOperations {
       yield p;
     }
   }
+
+  @override
+  Future<GitResult<void>> updateSubmodule(
+    RepoLocation r,
+    String path, {
+    bool init = true,
+  }) async {
+    return _runVoid(r, _submoduleUpdateArgs(init: init, path: path));
+  }
+
+  @override
+  Future<GitResult<void>> updateAllSubmodules(
+    RepoLocation r, {
+    bool init = true,
+  }) async {
+    return _runVoid(r, _submoduleUpdateArgs(init: init));
+  }
+
+  /// Builds the argv for `git submodule update`, optionally `--init` and
+  /// optionally scoped to a single [path] (after `--`).
+  ///
+  /// We deliberately do NOT force `protocol.file.allow=always`: that would
+  /// re-enable the local/`file://` submodule transport git disables by default
+  /// (CVE-2022-39253 mitigation). Submodules over https/ssh initialize fine;
+  /// users who genuinely vendor local-path submodules can opt in via their own
+  /// `git config protocol.file.allow` rather than have the client weaken it
+  /// for everyone.
+  List<String> _submoduleUpdateArgs({required bool init, String? path}) {
+    return <String>[
+      'submodule', 'update',
+      if (init) '--init',
+      if (path != null) ...['--', path],
+    ];
+  }
 }
