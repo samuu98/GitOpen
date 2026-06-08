@@ -1,0 +1,157 @@
+name: CD Release
+
+on:
+  push:
+    branches:
+      - main
+    # Only app code makes a release. Docs/workflow-only merges don't trigger a
+    # build (mirrors the path-filtered CD on the NE.* repos).
+    paths:
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'windows/**'
+      - 'linux/**'
+      - 'installer/**'
+      - 'scripts/**'
+      - 'assets/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write # create the GitHub Release and push the v<version> tag
+
+jobs:
+  # Resolve the pubspec version and decide whether this version is already
+  # released. No test step anywhere in CD: `main` is gated by the required
+  # `build-and-test` check (strict + enforce_admins), so the published tree is
+  # always test-green — re-running tests here would only duplicate compute.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      released: ${{ steps.v.outputs.released }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve version and release state
+        id: v
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version:[[:space:]]*\([0-9][^+ ]*\).*/\1/p' pubspec.yaml | head -1)
+          if [ -z "$version" ]; then
+            echo "::error file=pubspec.yaml::Unable to resolve version from pubspec.yaml."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null 2>&1; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "v$version is already released — build and release jobs will be skipped."
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "v$version is unreleased — building and releasing."
+          fi
+
+  build-windows:
+    needs: version
+    if: needs.version.outputs.released == 'false'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Codegen
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build Flutter (Windows)
+        run: flutter build windows --release
+
+      - name: Build Inno Setup installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc /DAppVersion=${{ needs.version.outputs.version }} `
+                  installer\windows\gitopen.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: build/installer/GitOpen-Setup-*.exe
+
+  build-linux:
+    needs: version
+    if: needs.version.outputs.released == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Linux desktop deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libgtk-3-dev \
+            liblzma-dev \
+            libstdc++-12-dev \
+            dpkg-dev
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Codegen
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build .deb
+        run: ./scripts/build-deb.sh ${{ needs.version.outputs.version }}
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: build/gitopen_*_amd64.deb
+
+  release:
+    needs: [version, build-windows, build-linux]
+    if: needs.version.outputs.released == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create release v<version> and tag
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: GitOpen v${{ needs.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/windows-installer/GitOpen-Setup-*.exe
+            dist/linux-deb/gitopen_*_amd64.deb

@@ -1,21 +1,35 @@
-name: CI
+name: CI GitOpen
 
 on:
-  push:
-    branches: [master, main]
   pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  test:
+  build-and-test:
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+    steps:
+      # First-party (`actions/*`) actions stay on a major-version tag — GitHub
+      # owns them, so the supply-chain risk is the same as trusting GitHub.
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Third-party actions are SHA-pinned (supply-chain best practice). Bump the
+      # SHA together with the version comment when the action releases.
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
           cache: true

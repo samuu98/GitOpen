@@ -1,0 +1,75 @@
+name: CI Version Bump
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify app version is publishable
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+
+          # Only app code makes a release "shippable". Changes confined to tests,
+          # docs, workflows, etc. never need a version bump, so this always-on
+          # check reports success for them instead of being skipped by a path
+          # filter (a path-skipped required check stays pending forever and would
+          # block branch protection).
+          if git diff --quiet "$base"...HEAD -- 'lib/' 'pubspec.yaml'; then
+            echo "No changes under lib/ or pubspec.yaml — version bump not required."
+            exit 0
+          fi
+
+          # pubspec version looks like `1.2.3+4`; the release identity is the
+          # `1.2.3` part (the `+build` is stripped), matching the `v*` tags the
+          # in-app updater checks.
+          extract_version() {
+            sed -n 's/^version:[[:space:]]*\([0-9][^+ ]*\).*/\1/p' | head -1
+          }
+
+          head_version=$(extract_version < pubspec.yaml)
+          base_version=$(git show "$base:pubspec.yaml" | extract_version)
+
+          if [ -z "$head_version" ]; then
+            echo "::error file=pubspec.yaml::Could not resolve version from pubspec.yaml."
+            exit 1
+          fi
+
+          echo "Base version: $base_version"
+          echo "Head version: $head_version"
+
+          # Release guard: app code changed, so the head version must not already
+          # be released (cd-release.yml tags v<version> on publish).
+          tag="v$head_version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::error file=pubspec.yaml::App code changed but version ($head_version) is already released (tag $tag exists on origin). Bump version in pubspec.yaml before merging."
+            exit 1
+          fi
+
+          # Never let the version go backwards relative to the base branch.
+          if [ -n "$base_version" ]; then
+            latest=$(printf '%s\n%s\n' "$base_version" "$head_version" | sort -V | tail -1)
+            if [ "$latest" != "$head_version" ]; then
+              echo "::error file=pubspec.yaml::Head version ($head_version) must be greater than or equal to base ($base_version)."
+              exit 1
+            fi
+          fi
+
+          echo "Version OK: $head_version is unreleased and publishable on merge."
