@@ -214,6 +214,29 @@ final class GitCliReadOperations implements GitReadOperations {
     ];
     if (query.skip != null) args.add('--skip=${query.skip}');
     if (query.take != null) args.add('--max-count=${query.take}');
+
+    // Search filters.  Appended only when set so that an empty query produces
+    // byte-identical args to the pre-search behaviour.  When BOTH grep and
+    // author are present, --all-match makes git require every --grep/--author
+    // condition to hold (git's default is to OR them).
+    final grep = query.grep;
+    if (grep != null) {
+      args
+        ..add('--grep=$grep')
+        ..add('--regexp-ignore-case');
+    }
+    final author = query.author;
+    if (author != null) {
+      args.add('--author=$author');
+    }
+    if (grep != null && author != null) {
+      args.add('--all-match');
+    }
+    final touchingContent = query.touchingContent;
+    if (touchingContent != null) {
+      args.add('-S$touchingContent');
+    }
+
     if (query.refs != null && query.refs!.isNotEmpty) {
       args.addAll(query.refs!);
     } else if (query.refSpec != null) {

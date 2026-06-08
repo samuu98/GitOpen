@@ -8,6 +8,7 @@ import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/branch_visibility_provider.dart';
 import 'package:gitopen/application/commit_graph/commit_graph_layout.dart';
 import 'package:gitopen/application/commit_graph/commit_node.dart';
+import 'package:gitopen/application/commit_search_provider.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
@@ -59,6 +60,11 @@ final FutureProviderFamily<_GraphData, RepoLocation> _commitGraphDataProvider =
   // Watch hidden refs so the provider re-runs when visibility changes.
   final hidden = ref.watch(hiddenRefsProvider);
 
+  // Watch the search terms so the provider re-runs when the query changes.
+  // When empty, the CommitQuery below carries null search fields and the
+  // graph behaves exactly as before search existed.
+  final search = ref.watch(commitSearchProvider);
+
   appLog.i('graph: start load for ${repo.displayName}');
   // Share the branch fetch with the sidebar — same repo, same data, no
   // need to spawn a second `git for-each-ref`.
@@ -77,13 +83,18 @@ final FutureProviderFamily<_GraphData, RepoLocation> _commitGraphDataProvider =
   // large monorepos.  Body is loaded on demand in the details panel, not
   // here, so each commit row costs ~150 bytes.
   const takeCommits = 2000;
-  final query = refsForLog.isEmpty
-      ? const CommitQuery(take: takeCommits)
-      : CommitQuery(take: takeCommits, refs: refsForLog);
+  final query = CommitQuery(
+    take: takeCommits,
+    refs: refsForLog.isEmpty ? null : refsForLog,
+    grep: search.grep,
+    author: search.author,
+    touchingContent: search.touchingContent,
+  );
 
   appLog.i(
     'graph: running git log '
-    '(max=$takeCommits, refs=${refsForLog.length})',
+    '(max=$takeCommits, refs=${refsForLog.length}, '
+    'search=${search.isEmpty ? 'none' : 'active'})',
   );
   final List<CommitInfo> commits;
   try {
@@ -224,11 +235,31 @@ class CommitGraphPanel extends ConsumerStatefulWidget {
 
 class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
   final ScrollController _controller = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Debounce search input so typing doesn't fire a `git log` per keystroke.
+  /// An empty field resolves to [CommitSearch.none], restoring the unfiltered
+  /// graph.
+  void _onSearchChanged(String raw) {
+    // Rebuild now so the clear (x) affordance toggles with the field content;
+    // the expensive provider update (which triggers `git log`) is debounced.
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      final parsed = CommitSearch.parse(raw);
+      if (ref.read(commitSearchProvider) != parsed) {
+        ref.read(commitSearchProvider.notifier).state = parsed;
+      }
+    });
   }
 
   void _scrollToSha(CommitSha sha, List<CommitNode> nodes) {
@@ -267,73 +298,132 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
       });
     });
 
+    final searchActive = !ref.watch(commitSearchProvider).isEmpty;
+
     return ColoredBox(
       color: palette.bg1,
-      child: async.when(
-        data: (data) {
-          if (data.nodes.isEmpty) {
-            return Center(
-              child: Text('No commits in this repository.',
-                  style: TextStyle(color: palette.fg2)),
-            );
-          }
-          final selected = ref.watch(selectedCommitShaProvider);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              LocalChangesRow(repo: repo),
-              Expanded(
-                child: ListView.builder(
-                  controller: _controller,
-                  itemExtent: 26,
-                  itemCount: data.nodes.length,
-                  itemBuilder: (context, i) {
-                    final node = data.nodes[i];
-                    final refs =
-                        data.refsBySha[node.commit.sha.value] ?? const [];
-                    return CommitRow(
-                      node: node,
-                      maxLane: data.maxLane,
-                      refs: refs,
-                      isSelected: selected == node.commit.sha,
-                      onTap: () {
-                        ref.read(selectedCommitShaProvider.notifier).state =
-                            node.commit.sha;
-                      },
-                      onSecondaryTap: (globalPos) => _showCommitContextMenu(
-                        context,
-                        ref,
-                        node.commit.sha,
-                        globalPos,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSearchField(context, palette),
+          Expanded(
+            child: async.when(
+              data: (data) {
+                if (data.nodes.isEmpty) {
+                  return Center(
+                    child: Text(
+                      searchActive
+                          ? 'No commits match the search.'
+                          : 'No commits in this repository.',
+                      style: TextStyle(color: palette.fg2),
+                    ),
+                  );
+                }
+                final selected = ref.watch(selectedCommitShaProvider);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // The local-changes pseudo-row only makes sense for the
+                    // full graph; hide it while a search is active so results
+                    // are exactly the matching commits.
+                    if (!searchActive) LocalChangesRow(repo: repo),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: _controller,
+                        itemExtent: 26,
+                        itemCount: data.nodes.length,
+                        itemBuilder: (context, i) {
+                          final node = data.nodes[i];
+                          final refs =
+                              data.refsBySha[node.commit.sha.value] ?? const [];
+                          return CommitRow(
+                            node: node,
+                            maxLane: data.maxLane,
+                            refs: refs,
+                            isSelected: selected == node.commit.sha,
+                            onTap: () {
+                              ref
+                                  .read(selectedCommitShaProvider.notifier)
+                                  .state = node.commit.sha;
+                            },
+                            onSecondaryTap: (globalPos) =>
+                                _showCommitContextMenu(
+                              context,
+                              ref,
+                              node.commit.sha,
+                              globalPos,
+                            ),
+                            onRefTap: (r) {
+                              ref
+                                  .read(selectedCommitShaProvider.notifier)
+                                  .state = node.commit.sha;
+                            },
+                            onRefDoubleTap: (r) async {
+                              final ok = await safeCheckout(
+                                context: context,
+                                ref: ref,
+                                repo: widget.repo,
+                                targetRef: r.name,
+                              );
+                              if (ok) {
+                                ref.invalidate(_commitGraphDataProvider(repo));
+                              }
+                            },
+                          );
+                        },
                       ),
-                      onRefTap: (r) {
-                        ref.read(selectedCommitShaProvider.notifier).state =
-                            node.commit.sha;
-                      },
-                      onRefDoubleTap: (r) async {
-                        final ok = await safeCheckout(
-                          context: context,
-                          ref: ref,
-                          repo: widget.repo,
-                          targetRef: r.name,
-                        );
-                        if (ok) {
-                          ref.invalidate(_commitGraphDataProvider(repo));
-                        }
-                      },
-                    );
-                  },
+                    ),
+                  ],
+                );
+              },
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Failed to load graph: $e',
+                      style: TextStyle(color: palette.accentErr)),
                 ),
               ),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text('Failed to load graph: $e',
-                style: TextStyle(color: palette.accentErr)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField(BuildContext context, AppPalette palette) {
+    final hasText = _searchController.text.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      child: SizedBox(
+        height: 30,
+        child: TextField(
+          controller: _searchController,
+          style: TextStyle(color: palette.fg0, fontSize: 12),
+          onChanged: _onSearchChanged,
+          decoration: appInputDecoration(
+            context,
+            label: 'Search commits',
+            hint: 'message · author:name · touches:text',
+          ).copyWith(
+            prefixIcon: Icon(Icons.search, size: 16, color: palette.fg2),
+            prefixIconConstraints:
+                const BoxConstraints(minWidth: 32, minHeight: 30),
+            suffixIcon: hasText
+                ? IconButton(
+                    icon: Icon(Icons.close, size: 16, color: palette.fg2),
+                    splashRadius: 14,
+                    tooltip: 'Clear search',
+                    onPressed: () {
+                      _searchDebounce?.cancel();
+                      _searchController.clear();
+                      ref.read(commitSearchProvider.notifier).state =
+                          CommitSearch.none;
+                      setState(() {});
+                    },
+                  )
+                : null,
           ),
         ),
       ),

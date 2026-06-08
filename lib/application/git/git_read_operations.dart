@@ -11,11 +11,32 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
 
 class CommitQuery {
-  const CommitQuery({this.skip, this.take, this.refSpec, this.refs});
+  const CommitQuery({
+    this.skip,
+    this.take,
+    this.refSpec,
+    this.refs,
+    this.grep,
+    this.author,
+    this.touchingContent,
+  });
   final int? skip;
   final int? take;
   final String? refSpec;
   final List<String>? refs;
+
+  /// Filter to commits whose message matches this pattern, case-insensitively
+  /// (`git log --grep=<v> --regexp-ignore-case`).  Null disables the filter.
+  final String? grep;
+
+  /// Filter to commits authored by a matching author name/email
+  /// (`git log --author=<v>`).  Null disables the filter.
+  final String? author;
+
+  /// Filter to commits that add or remove an occurrence of this string in any
+  /// changed file — git's "pickaxe" search (`git log -S<v>`).  Null disables
+  /// the filter.
+  final String? touchingContent;
 }
 
 abstract interface class GitReadOperations {

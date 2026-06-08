@@ -29,6 +29,59 @@ class RepoFixture {
     return f;
   }
 
+  /// Linear history whose commits carry distinct messages and authors so
+  /// search-by-message / search-by-author / search-by-content can be asserted
+  /// against known data.  Commits are created oldest-first:
+  ///   0: "Add login feature"      author Alice  (adds login.txt -> 'token')
+  ///   1: "Fix logout bug"         author Bob    (adds logout.txt)
+  ///   2: "Refactor session store" author Alice  (adds session.txt)
+  static Future<RepoFixture> withSearchableHistory() async {
+    final f = await empty();
+
+    Future<void> make(
+      String fileName,
+      String contents,
+      String message,
+      String authorName,
+      String authorEmail,
+    ) async {
+      await File(p.join(f.path, fileName)).writeAsString(contents);
+      await _git(f.path, ['add', fileName]);
+      await _git(f.path, [
+        'commit',
+        '-q',
+        '-m',
+        message,
+        '--author=$authorName <$authorEmail>',
+      ]);
+    }
+
+    await make(
+      'login.txt',
+      'auth token = secret\n',
+      'Add login feature',
+      'Alice',
+      'alice@example.com',
+    );
+    await make(
+      'logout.txt',
+      'clear cookies\n',
+      'Fix logout bug',
+      'Bob',
+      'bob@example.com',
+    );
+    await make(
+      'session.txt',
+      'store session\n',
+      'Refactor session store',
+      'Alice',
+      'alice@example.com',
+    );
+
+    f.headSha = (await _git(f.path, ['rev-parse', 'HEAD'])).trim();
+    return f;
+  }
+
   static Future<RepoFixture> withFileRemote() async {
     final origin = await withLinearHistory(3);
     final local = await empty();
