@@ -6,6 +6,10 @@ class RepoFixture {
   final String path;
   String headSha;
 
+  /// Sha of the first (oldest) commit, set by fixtures that need to assert
+  /// against a non-HEAD commit (e.g. blame attribution).  Empty otherwise.
+  String firstSha = '';
+
   static Future<RepoFixture> empty() async {
     final dir = Directory.systemTemp.createTempSync('gitopen-test-');
     await _git(dir.path, ['init', '-q', '-b', 'master']);
@@ -79,6 +83,79 @@ class RepoFixture {
     );
 
     f.headSha = (await _git(f.path, ['rev-parse', 'HEAD'])).trim();
+    return f;
+  }
+
+  /// History exercising file-history (`--follow`) and blame.  Built
+  /// oldest-first:
+  ///   0: "create app"   adds app.txt ('line one\n') + other.txt
+  ///   1: "edit app"     app.txt -> 'line one\nline two\n'
+  ///   2: "rename app"   `git mv app.txt main.txt` (pure rename)
+  ///   3: "edit main"    main.txt -> 'line one\nline two CHANGED\n'
+  /// `other.txt` is touched only in commit 0 so its history must exclude
+  /// every app/main commit.  After commit 2 the file is named `main.txt`;
+  /// `--follow main.txt` must still report all four app/main commits.
+  static Future<RepoFixture> withFileHistory() async {
+    final f = await empty();
+
+    Future<void> commit(String message) async {
+      await _git(f.path, ['add', '-A']);
+      await _git(f.path, ['commit', '-q', '-m', message]);
+    }
+
+    final app = File(p.join(f.path, 'app.txt'));
+    await app.writeAsString('line one\n');
+    await File(p.join(f.path, 'other.txt')).writeAsString('unrelated\n');
+    await commit('create app');
+
+    await app.writeAsString('line one\nline two\n');
+    await commit('edit app');
+
+    await _git(f.path, ['mv', 'app.txt', 'main.txt']);
+    await commit('rename app');
+
+    await File(p.join(f.path, 'main.txt'))
+        .writeAsString('line one\nline two CHANGED\n');
+    await commit('edit main');
+
+    f.headSha = (await _git(f.path, ['rev-parse', 'HEAD'])).trim();
+    return f;
+  }
+
+  /// Repo with a two-line file authored by two different people, so blame
+  /// can be asserted per-line (sha + author).  Built oldest-first:
+  ///   0: Alice adds blame.txt with a single line 'alpha\n'
+  ///   1: Bob appends 'beta\n'  -> file is 'alpha\nbeta\n'
+  /// Line 1 is attributed to Alice's commit, line 2 to Bob's.
+  static Future<RepoFixture> withBlameHistory() async {
+    final f = await empty();
+    final file = File(p.join(f.path, 'blame.txt'));
+
+    await file.writeAsString('alpha\n');
+    await _git(f.path, ['add', 'blame.txt']);
+    await _git(f.path, [
+      'commit',
+      '-q',
+      '-m',
+      'add alpha',
+      '--author=Alice <alice@example.com>',
+    ]);
+    final firstSha = (await _git(f.path, ['rev-parse', 'HEAD'])).trim();
+
+    await file.writeAsString('alpha\nbeta\n');
+    await _git(f.path, ['add', 'blame.txt']);
+    await _git(f.path, [
+      'commit',
+      '-q',
+      '-m',
+      'add beta',
+      '--author=Bob <bob@example.com>',
+    ]);
+    final secondSha = (await _git(f.path, ['rev-parse', 'HEAD'])).trim();
+
+    f
+      ..headSha = secondSha
+      ..firstSha = firstSha;
     return f;
   }
 

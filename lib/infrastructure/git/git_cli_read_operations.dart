@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:gitopen/application/git/git_read_operations.dart';
+import 'package:gitopen/domain/blame/blame_line.dart';
 import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/commits/commit_signature.dart';
@@ -27,6 +28,16 @@ final class GitCliReadOperations implements GitReadOperations {
   GitCliReadOperations({GitProcessRunner? runner})
       : _runner = runner ?? GitProcessRunner();
   final GitProcessRunner _runner;
+
+  /// The 9 NUL-separated commit fields shared by [getCommits] and
+  /// [getFileHistory].  Each record is exactly 9 fields, parsed by
+  /// [_parseCommitFields]:
+  /// sha, parents, author name/email/date, committer name/email/date, subject.
+  /// The body (%b) is intentionally omitted — fetched on demand via
+  /// [getCommitFullMessage].
+  static const String _commitFormat =
+      '%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s';
+  static const int _commitFieldCount = 9;
 
   @override
   Future<RepoStatus> getStatus(RepoLocation repo) async {
@@ -210,7 +221,7 @@ final class GitCliReadOperations implements GitReadOperations {
     final args = <String>[
       'log', '-z',
       '--topo-order', '--date-order',
-      '--format=%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s',
+      '--format=$_commitFormat',
     ];
     if (query.skip != null) args.add('--skip=${query.skip}');
     if (query.take != null) args.add('--max-count=${query.take}');
@@ -281,8 +292,9 @@ final class GitCliReadOperations implements GitReadOperations {
         remainder = parts.removeLast();
         pending.addAll(parts);
 
-        while (pending.length >= 9) {
-          final f = List<String>.generate(9, (_) => pending.removeFirst());
+        while (pending.length >= _commitFieldCount) {
+          final f = List<String>.generate(
+              _commitFieldCount, (_) => pending.removeFirst());
           yield _parseCommitFields(f);
           emitted++;
           if (emitted % 500 == 0) {
@@ -296,8 +308,9 @@ final class GitCliReadOperations implements GitReadOperations {
       // terminate its last record with a NUL — defensive, shouldn't happen
       // with -z) and emit any final complete record.
       if (remainder.isNotEmpty) pending.add(remainder);
-      while (pending.length >= 9) {
-        final f = List<String>.generate(9, (_) => pending.removeFirst());
+      while (pending.length >= _commitFieldCount) {
+        final f = List<String>.generate(
+            _commitFieldCount, (_) => pending.removeFirst());
         yield _parseCommitFields(f);
         emitted++;
       }
@@ -771,6 +784,69 @@ final class GitCliReadOperations implements GitReadOperations {
     return entries;
   }
 
+  @override
+  Future<List<CommitInfo>> getFileHistory(
+    RepoLocation repo,
+    String path, {
+    int? take,
+  }) async {
+    // --follow tracks the file across renames; -z + the shared 9-field
+    // format means each commit produces exactly [_commitFieldCount]
+    // NUL-separated fields, parsed identically to [getCommits].  `--` keeps
+    // git from treating the path as a revision.
+    final args = <String>[
+      'log',
+      '--follow',
+      '-z',
+      '--format=$_commitFormat',
+    ];
+    if (take != null) args.add('--max-count=$take');
+    args
+      ..add('--')
+      ..add(path);
+
+    final stdout = await _runner.run(repo.path, args);
+    return _parseCommitRecords(stdout);
+  }
+
+  /// Splits the buffered NUL-separated output of a
+  /// `log --format=$_commitFormat` invocation into [CommitInfo]s.  Shared by
+  /// [getFileHistory]; mirrors the
+  /// field-chunking the streaming [getCommits] does, so a record is exactly
+  /// [_commitFieldCount] fields.  A trailing empty token (from the final NUL
+  /// terminator) is dropped before chunking.
+  List<CommitInfo> _parseCommitRecords(String stdout) {
+    if (stdout.isEmpty) return const [];
+    final tokens = stdout.split('\x00');
+    if (tokens.isNotEmpty && tokens.last.isEmpty) tokens.removeLast();
+
+    final commits = <CommitInfo>[];
+    var i = 0;
+    while (i + _commitFieldCount <= tokens.length) {
+      commits.add(
+        _parseCommitFields(tokens.sublist(i, i + _commitFieldCount)),
+      );
+      i += _commitFieldCount;
+    }
+    return commits;
+  }
+
+  @override
+  Future<List<BlameLine>> getBlame(
+    RepoLocation repo,
+    String path, {
+    CommitSha? at,
+  }) async {
+    final args = <String>['blame', '--porcelain'];
+    if (at != null) args.add(at.value);
+    args
+      ..add('--')
+      ..add(path);
+
+    final stdout = await _runner.run(repo.path, args);
+    return _BlameParser(stdout).parse();
+  }
+
   FileTreeKind _mapTreeKind(String type, String mode) {
     if (type == 'tree') return FileTreeKind.tree;
     if (type == 'commit') return FileTreeKind.submodule;
@@ -1002,4 +1078,87 @@ class _RawEntry {
   _RawEntry(this.status, this.oldPath);
   final String status;
   final String? oldPath;
+}
+
+/// Parser for `git blame --porcelain` output.
+///
+/// Porcelain groups one or more consecutive final-file lines per record.
+/// Each record begins with a header line:
+///   `<40-hex-sha> <orig-line> <final-line> [<lines-in-this-group>]`
+/// followed by zero or more extended headers (`author `, `author-mail `,
+/// `author-time `, `summary `, …) and finally the literal content line, which
+/// is the only line that starts with a TAB.
+///
+/// The author/time headers are emitted in full only the FIRST time a commit
+/// is seen; later groups for the same commit carry just the header line.  So
+/// we cache author name + time per sha and reuse them for repeat appearances.
+class _BlameParser {
+  _BlameParser(this._stdout);
+
+  final String _stdout;
+
+  final Map<String, ({String name, DateTime time})> _meta = {};
+
+  List<BlameLine> parse() {
+    final lines = const LineSplitter().convert(_stdout);
+    final result = <BlameLine>[];
+
+    String? currentSha;
+    var currentFinalLine = 0;
+    String? pendingName;
+    int? pendingTimeSecs;
+
+    for (final line in lines) {
+      if (line.startsWith('\t')) {
+        // Content line — closes the current record's first (or only) line.
+        final sha = currentSha;
+        if (sha == null) continue;
+
+        if (pendingName != null && pendingTimeSecs != null) {
+          _meta[sha] = (
+            name: pendingName,
+            time: DateTime.fromMillisecondsSinceEpoch(
+              pendingTimeSecs * 1000,
+              isUtc: true,
+            ),
+          );
+        }
+        final meta = _meta[sha];
+
+        result.add(BlameLine(
+          lineNumber: currentFinalLine,
+          content: line.substring(1),
+          sha: CommitSha(sha),
+          authorName: meta?.name ?? '',
+          authorTime: meta?.time ??
+              DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+        ));
+
+        pendingName = null;
+        pendingTimeSecs = null;
+        continue;
+      }
+
+      if (line.startsWith('author ')) {
+        pendingName = line.substring('author '.length);
+        continue;
+      }
+      if (line.startsWith('author-time ')) {
+        pendingTimeSecs =
+            int.tryParse(line.substring('author-time '.length).trim());
+        continue;
+      }
+
+      // Header line: "<sha> <orig> <final> [count]".  A 40-hex prefix followed
+      // by a space and a digit distinguishes it from extended headers like
+      // "summary ..." or "filename ...".
+      final m = RegExp(r'^([0-9a-f]{40}) \d+ (\d+)(?: \d+)?$').firstMatch(line);
+      if (m != null) {
+        currentSha = m.group(1);
+        currentFinalLine = int.parse(m.group(2)!);
+      }
+    }
+
+    return result;
+  }
 }

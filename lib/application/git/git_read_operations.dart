@@ -1,3 +1,4 @@
+import 'package:gitopen/domain/blame/blame_line.dart';
 import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/diff/diff_result.dart';
@@ -65,4 +66,23 @@ abstract interface class GitReadOperations {
   Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec);
   Future<List<FileTreeEntry>> getFileTree(
       RepoLocation repo, CommitSha sha, String path);
+
+  /// Commits that touched [path], newest first, following renames
+  /// (`git log --follow`).  [take] caps the number of commits returned
+  /// (`--max-count`); null returns the full history.  The returned
+  /// [CommitInfo]s carry the same fields as bulk [getCommits] (body omitted —
+  /// fetch on demand via [getCommitFullMessage]).
+  Future<List<CommitInfo>> getFileHistory(
+    RepoLocation repo,
+    String path, {
+    int? take,
+  });
+
+  /// Per-line authorship for [path] (`git blame --porcelain`).  When [at] is
+  /// given, blames the file as of that revision instead of the working tree.
+  Future<List<BlameLine>> getBlame(
+    RepoLocation repo,
+    String path, {
+    CommitSha? at,
+  });
 }
