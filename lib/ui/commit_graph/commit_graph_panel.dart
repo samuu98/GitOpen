@@ -29,6 +29,7 @@ import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/branch_create_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/dialogs/interactive_rebase_dialog.dart';
 import 'package:gitopen/ui/dialogs/merge_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -450,6 +451,11 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
           label: 'Rebase current onto this',
           icon: Icons.compare_arrows,
         ),
+        AppMenuItem(
+          value: 'interactive_rebase',
+          label: 'Interactive rebase from here…',
+          icon: Icons.format_list_numbered,
+        ),
         AppMenuDivider(),
         AppMenuItem(
           value: 'cherry_pick',
@@ -567,6 +573,33 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Rebase failed: $message'),
+              backgroundColor: palette.accentErr,
+            ),
+          );
+        }
+
+      case 'interactive_rebase':
+        if (!context.mounted) return;
+        final outcome = await InteractiveRebaseDialog.show(
+          context,
+          repo: repo,
+          onto: sha,
+        );
+        if (outcome == null) return;
+        // Refresh the graph + in-progress detection regardless of outcome.
+        ref.invalidate(gitReadOperationsProvider);
+        ref.invalidate(repoStateProvider(repo));
+        if (!context.mounted) return;
+        if (outcome is RebaseConflict) {
+          // The dialog already closed; the ConflictResolutionPanel /
+          // repoStateProvider flow takes over from here.
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Rebase paused on conflict in '
+                '${outcome.conflictedPaths.length} file(s). '
+                'Resolve in the conflicts panel below.',
+              ),
               backgroundColor: palette.accentErr,
             ),
           );

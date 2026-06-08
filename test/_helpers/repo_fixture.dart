@@ -10,6 +10,10 @@ class RepoFixture {
   /// against a non-HEAD commit (e.g. blame attribution).  Empty otherwise.
   String firstSha = '';
 
+  /// Per-commit SHAs (oldest-first) for fixtures that need to address every
+  /// commit individually, e.g. [withRebaseHistory]. Empty otherwise.
+  List<String> rebaseShas = const [];
+
   static Future<RepoFixture> empty() async {
     final dir = Directory.systemTemp.createTempSync('gitopen-test-');
     await _git(dir.path, ['init', '-q', '-b', 'master']);
@@ -156,6 +160,31 @@ class RepoFixture {
     f
       ..headSha = secondSha
       ..firstSha = firstSha;
+    return f;
+  }
+
+  /// Linear history of four commits for interactive-rebase tests. Built
+  /// oldest-first, each commit adding a distinct file with known content:
+  ///   c0 "c0 base"  adds c0.txt -> 'c0\n'
+  ///   c1 "c1"       adds c1.txt -> 'c1\n'
+  ///   c2 "c2"       adds c2.txt -> 'c2\n'
+  ///   c3 "c3"       adds c3.txt -> 'c3\n'
+  /// The per-commit SHAs are exposed via [rebaseShas] (oldest-first), so a
+  /// test can build a todo plan over `c1..c3` with `c0` as the rebase base.
+  static Future<RepoFixture> withRebaseHistory() async {
+    final f = await empty();
+    final shas = <String>[];
+    for (var i = 0; i < 4; i++) {
+      await File(p.join(f.path, 'c$i.txt')).writeAsString('c$i\n');
+      await _git(f.path, ['add', 'c$i.txt']);
+      final msg = i == 0 ? 'c0 base' : 'c$i';
+      await _git(f.path, ['commit', '-q', '-m', msg]);
+      shas.add((await _git(f.path, ['rev-parse', 'HEAD'])).trim());
+    }
+    f
+      ..rebaseShas = shas
+      ..firstSha = shas.first
+      ..headSha = shas.last;
     return f;
   }
 

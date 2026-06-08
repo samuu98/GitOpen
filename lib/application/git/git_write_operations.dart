@@ -9,6 +9,21 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 enum PullStrategy { ffOnly, merge, rebase }
 enum ResetMode { soft, mixed, hard }
 
+/// A single action in an interactive-rebase todo list. `reword`/`edit` are
+/// intentionally omitted — they require interactive message/commit editing,
+/// which is out of scope for this feature.
+enum RebaseTodoAction { pick, squash, fixup, drop }
+
+/// One line of a generated interactive-rebase instruction list: apply
+/// [action] to the commit [sha]. Entries are supplied to
+/// [GitWriteOperations.interactiveRebase] in the desired FINAL order,
+/// OLDEST-FIRST (the same order git writes its instruction sheet).
+final class RebaseTodoEntry {
+  const RebaseTodoEntry(this.sha, this.action);
+  final CommitSha sha;
+  final RebaseTodoAction action;
+}
+
 abstract interface class GitWriteOperations {
   Future<GitResult<void>> stageFiles(RepoLocation r, List<String> paths);
   Future<GitResult<void>> unstageFiles(RepoLocation r, List<String> paths);
@@ -107,6 +122,18 @@ abstract interface class GitWriteOperations {
   Future<GitResult<void>> reset(RepoLocation r, CommitSha to, ResetMode mode);
 
   Future<GitResult<RebaseOutcome>> rebase(RepoLocation r, String upstream);
+
+  /// Runs a non-interactive *interactive* rebase: replays [plan] onto [onto]
+  /// using a scripted todo list, with no editor prompts. [plan] lists the
+  /// commits in their desired FINAL order, OLDEST-FIRST (git todo order);
+  /// `squash`/`fixup` fold a commit into the entry above it, `drop` removes it.
+  /// Returns the same [RebaseOutcome] variants as [rebase].
+  Future<GitResult<RebaseOutcome>> interactiveRebase(
+    RepoLocation r,
+    CommitSha onto,
+    List<RebaseTodoEntry> plan,
+  );
+
   Future<GitResult<void>> rebaseAbort(RepoLocation r);
   Future<GitResult<CommitSha>> rebaseContinue(RepoLocation r);
   Future<GitResult<void>> rebaseSkip(RepoLocation r);

@@ -14,6 +14,7 @@ import 'package:gitopen/infrastructure/git/credential_helper.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
 import 'package:gitopen/infrastructure/git/git_progress_parser.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
+import 'package:path/path.dart' as p;
 
 final class GitCliWriteOperations implements GitWriteOperations {
   GitCliWriteOperations({GitProcessRunner? runner})
@@ -552,6 +553,86 @@ final class GitCliWriteOperations implements GitWriteOperations {
     }
     final exc = GitProcessException(args, result.exitCode, err);
     return GitFailure(_classify(exc), err, err);
+  }
+
+  @override
+  Future<GitResult<RebaseOutcome>> interactiveRebase(
+    RepoLocation r,
+    CommitSha onto,
+    List<RebaseTodoEntry> plan,
+  ) async {
+    // Build the todo text — one line per entry, oldest-first, exactly as git
+    // writes its own todo file. `drop` is emitted explicitly so the rebase is
+    // self-documenting (omitting the line would also drop the commit).
+    final todo = StringBuffer();
+    for (final e in plan) {
+      final verb = switch (e.action) {
+        RebaseTodoAction.pick => 'pick',
+        RebaseTodoAction.squash => 'squash',
+        RebaseTodoAction.fixup => 'fixup',
+        RebaseTodoAction.drop => 'drop',
+      };
+      todo.writeln('$verb ${e.sha.value}');
+    }
+
+    // Write the scripted todo to a temp file. Git invokes
+    //   sh -c "$GIT_SEQUENCE_EDITOR <git-todo-path>"
+    // so we set GIT_SEQUENCE_EDITOR to a `cp` that overwrites git's todo file
+    // with ours. Forward-slash paths keep Git-for-Windows' bundled `sh` happy.
+    final tmpDir = Directory.systemTemp.createTempSync('gitopen-irebase-');
+    final todoFile = File(p.join(tmpDir.path, 'todo'))
+      ..writeAsStringSync(todo.toString());
+    final todoPosix = todoFile.path.replaceAll(r'\', '/');
+
+    final args = <String>[
+      // `core.editor=true` is a no-op editor for any commit-message prompt
+      // squash would otherwise raise (we keep messages as-is).
+      '-c', 'core.editor=true',
+      'rebase', '-i', onto.value,
+    ];
+
+    final env = buildGitEnvironment({
+      // The trailing space lets git append the todo path as a second argument:
+      //   cp "<ourtodo>" <git-todo-path>
+      'GIT_SEQUENCE_EDITOR': "cp '$todoPosix' ",
+      // No-op editor for squash/fixup message prompts (kept identical via
+      // core.editor too, for safety across git versions).
+      'GIT_EDITOR': 'true',
+    });
+
+    try {
+      final result = await Process.run(
+        _runner.executable,
+        args,
+        workingDirectory: r.path,
+        environment: env,
+        stdoutEncoding: utf8,
+        stderrEncoding: utf8,
+      );
+      final out = result.stdout.toString();
+      final err = result.stderr.toString();
+      if (result.exitCode == 0) {
+        if (out.contains('is up to date') || out.contains('up to date')) {
+          return const GitSuccess(RebaseUpToDate());
+        }
+        final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
+        return GitSuccess(RebaseApplied(CommitSha(head)));
+      }
+      final combined = out + err;
+      if (combined.contains('CONFLICT') ||
+          combined.contains('could not apply') ||
+          combined.contains('Resolve all conflicts')) {
+        return GitSuccess(RebaseConflict(await _listUnmergedPaths(r)));
+      }
+      final exc = GitProcessException(args, result.exitCode, err);
+      return GitFailure(_classify(exc), err, err);
+    } finally {
+      try {
+        tmpDir.deleteSync(recursive: true);
+      } on Object {
+        // Best-effort cleanup; ignore failures (e.g. locked files on Windows).
+      }
+    }
   }
 
   @override
