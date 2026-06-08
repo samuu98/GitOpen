@@ -64,7 +64,11 @@ jobs:
       # redirect produces UTF-8 (pwsh `>` would emit UTF-16 and break parsing).
       - name: Test
         shell: bash
-        run: flutter test --machine --coverage > test-results.json
+        # `flutter test` prints a non-JSON "Resolving dependencies…" preamble to
+        # stdout that corrupts the --machine stream; keep only the JSON event
+        # lines (each starts with `{`) so the reporter can parse it. GitHub runs
+        # bash with `pipefail`, so a real test failure still fails the step.
+        run: flutter test --machine --coverage | grep '^{' > test-results.json
 
       - name: Publish test results
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
