@@ -13,6 +13,7 @@ final class AppSettingsState extends Equatable {
     this.externalEditorPath,
     this.defaultPullStrategy = DefaultPullStrategy.merge,
     this.commitSignoffDefault = false,
+    this.gpgSignByDefault = false,
     this.fontSize = 12,
     this.fontFamily,
     this.githubClientId,
@@ -25,6 +26,10 @@ final class AppSettingsState extends Equatable {
   final String? externalEditorPath;
   final DefaultPullStrategy defaultPullStrategy;
   final bool commitSignoffDefault;
+
+  /// When true, the commit compose panel defaults its "Sign (GPG)" toggle on,
+  /// so new commits are GPG-signed unless the user turns it off per-commit.
+  final bool gpgSignByDefault;
   final int fontSize;
   final String? fontFamily;
   final String? githubClientId;
@@ -43,6 +48,7 @@ final class AppSettingsState extends Equatable {
     String? externalEditorPath,
     DefaultPullStrategy? defaultPullStrategy,
     bool? commitSignoffDefault,
+    bool? gpgSignByDefault,
     int? fontSize,
     String? fontFamily,
     String? githubClientId,
@@ -56,6 +62,7 @@ final class AppSettingsState extends Equatable {
       externalEditorPath: externalEditorPath ?? this.externalEditorPath,
       defaultPullStrategy: defaultPullStrategy ?? this.defaultPullStrategy,
       commitSignoffDefault: commitSignoffDefault ?? this.commitSignoffDefault,
+      gpgSignByDefault: gpgSignByDefault ?? this.gpgSignByDefault,
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
       githubClientId: githubClientId ?? this.githubClientId,
@@ -69,7 +76,7 @@ final class AppSettingsState extends Equatable {
   @override
   List<Object?> get props => [
     theme, externalEditorPath, defaultPullStrategy, commitSignoffDefault,
-    fontSize, fontFamily, githubClientId, autoUpdateCheck, keybindings,
-    gitIdentities, authRepoBindings,
+    gpgSignByDefault, fontSize, fontFamily, githubClientId, autoUpdateCheck,
+    keybindings, gitIdentities, authRepoBindings,
   ];
 }

@@ -29,6 +29,7 @@ void main() {
       expect(state.externalEditorPath, isNull);
       expect(state.defaultPullStrategy, DefaultPullStrategy.merge);
       expect(state.commitSignoffDefault, isFalse);
+      expect(state.gpgSignByDefault, isFalse);
       expect(state.fontSize, 12);
       expect(state.fontFamily, isNull);
       expect(state.githubClientId, isNull);
@@ -44,12 +45,14 @@ void main() {
         theme: AppTheme.light,
         defaultPullStrategy: DefaultPullStrategy.rebase,
         commitSignoffDefault: true,
+        gpgSignByDefault: true,
         fontSize: 16,
         autoUpdateCheck: false,
       );
       expect(updated.theme, AppTheme.light);
       expect(updated.defaultPullStrategy, DefaultPullStrategy.rebase);
       expect(updated.commitSignoffDefault, isTrue);
+      expect(updated.gpgSignByDefault, isTrue);
       expect(updated.fontSize, 16);
       expect(updated.autoUpdateCheck, isFalse);
       // Untouched fields retain their prior values.
@@ -107,11 +110,15 @@ void main() {
         base,
         isNot(const AppSettingsState(commitSignoffDefault: true)),
       );
+      expect(
+        base,
+        isNot(const AppSettingsState(gpgSignByDefault: true)),
+      );
     });
 
-    test('props enumerates all eleven fields', () {
+    test('props enumerates all twelve fields', () {
       const state = AppSettingsState();
-      expect(state.props, hasLength(11));
+      expect(state.props, hasLength(12));
     });
   });
 
@@ -122,6 +129,20 @@ void main() {
     expect(notifier.state.theme, AppTheme.dark);
     expect(notifier.state.defaultPullStrategy, DefaultPullStrategy.merge);
     expect(notifier.state.commitSignoffDefault, isFalse);
+    expect(notifier.state.gpgSignByDefault, isFalse);
+    await db.close();
+  });
+
+  test('setGpgSignByDefault persists and re-loads', () async {
+    final db = newInMemoryDb();
+    final notifier = AppSettingsNotifier(SettingsRepository(db));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await notifier.setGpgSignByDefault(true);
+    expect(notifier.state.gpgSignByDefault, isTrue);
+    // New notifier on same DB hydrates the saved value.
+    final fresh = AppSettingsNotifier(SettingsRepository(db));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(fresh.state.gpgSignByDefault, isTrue);
     await db.close();
   });
 

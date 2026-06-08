@@ -45,6 +45,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
         DefaultPullStrategy.merge,
       ),
       commitSignoffDefault: (all['commit_signoff_default'] as bool?) ?? false,
+      gpgSignByDefault: (all['gpg_sign_by_default'] as bool?) ?? false,
       fontSize: (all['font_size'] as int?) ?? 12,
       fontFamily: all['font_family'] as String?,
       githubClientId: all['github_client_id'] as String?,
@@ -96,6 +97,14 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
   Future<void> setCommitSignoffDefault(bool v) async {
     state = state.copyWith(commitSignoffDefault: v);
     await _repo.put('commit_signoff_default', v);
+  }
+
+  // Positional bool retained so the method can be used as a void Function(bool)
+  // tear-off for a Switch's onChanged callback in the settings UI.
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setGpgSignByDefault(bool v) async {
+    state = state.copyWith(gpgSignByDefault: v);
+    await _repo.put('gpg_sign_by_default', v);
   }
 
   Future<void> setFontSize(int v) async {
