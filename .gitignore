@@ -508,3 +508,10 @@ macos/Flutter/GeneratedPluginRegistrant.swift
 
 # Drift codegen
 **/*.g.dart
+
+# Re-include the app icon assets. The macOS `Icon` rule earlier in this file
+# ignores any directory literally named `icon` on case-insensitive
+# filesystems (Windows), which would otherwise drop assets/icon/ — referenced
+# by pubspec.yaml and msix_config — and leave a fresh clone failing analyze.
+!assets/icon/
+!assets/icon/**
