@@ -457,8 +457,8 @@ final class GitCliReadOperations implements GitReadOperations {
     String scope,
   ) {
     if (line.isEmpty) return;
-    final fields = line.split('\x00');
-    if (fields.length < 4) return;
+    final fields = _nulFields(line, 4);
+    if (fields == null) return;
 
     final refname = fields[0];
     final sha = fields[1];
@@ -496,6 +496,16 @@ final class GitCliReadOperations implements GitReadOperations {
     }
   }
 
+  /// Splits a NUL-separated record into its fields, returning `null` when the
+  /// line yields fewer than [min] fields.  Centralises the
+  /// `split('\x00')` + length-guard pattern shared by the ref/tag/remote/stash
+  /// parsers so each call site can index fields without repeating the guard.
+  List<String>? _nulFields(String line, int min) {
+    final fields = line.split('\x00');
+    if (fields.length < min) return null;
+    return fields;
+  }
+
   @override
   Future<List<Tag>> getTags(RepoLocation repo) async {
     const format = '--format=%(refname:short)%00%(refname)%00'
@@ -513,8 +523,8 @@ final class GitCliReadOperations implements GitReadOperations {
 
     for (final line in lines) {
       if (line.isEmpty) continue;
-      final fields = line.split('\x00');
-      if (fields.length < 5) continue;
+      final fields = _nulFields(line, 5);
+      if (fields == null) continue;
 
       final shortName = fields[0];
       final fullName = fields[1];
@@ -580,8 +590,8 @@ final class GitCliReadOperations implements GitReadOperations {
       final aheadBehindRe = RegExp(r'(?:ahead (\d+))?(?:.*?behind (\d+))?');
       for (final line in branchOut.split('\n')) {
         if (line.isEmpty) continue;
-        final fields = line.split('\x00');
-        if (fields.length < 5) continue;
+        final fields = _nulFields(line, 5);
+        if (fields == null) continue;
 
         final refname = fields[0];
         final sha = fields[1];
@@ -650,8 +660,8 @@ final class GitCliReadOperations implements GitReadOperations {
 
     for (final line in stdout.split('\n')) {
       if (line.isEmpty) continue;
-      final fields = line.split('\x00');
-      if (fields.length < 4) continue;
+      final fields = _nulFields(line, 4);
+      if (fields == null) continue;
 
       final sha = fields[0];
       final reflogSelector = fields[1]; // e.g., stash@{0}
@@ -702,11 +712,66 @@ final class GitCliReadOperations implements GitReadOperations {
         ],
     };
     final stdout = await _runner.run(repo.path, args);
+    return _DiffParser(stdout).parse();
+  }
 
-    final files = <FileDiff>[];
-    final rawByPath = <String, _RawEntry>{};
+  @override
+  Future<List<FileTreeEntry>> getFileTree(
+      RepoLocation repo, CommitSha sha, String path) async {
+    final ref = path.isEmpty ? sha.value : '${sha.value}:$path';
+    final stdout = await _runner.run(repo.path, ['ls-tree', '-l', ref]);
+    final entries = <FileTreeEntry>[];
+    for (final line in stdout.split('\n')) {
+      if (line.isEmpty) continue;
+      final tabIdx = line.indexOf('\t');
+      if (tabIdx < 0) continue;
+      final meta = line.substring(0, tabIdx).split(RegExp(r'\s+'));
+      if (meta.length < 4) continue;
+      final mode = meta[0];
+      final type = meta[1];
+      // meta[2] is object sha (not needed here)
+      final sizeStr = meta[3];
+      final filePath = line.substring(tabIdx + 1);
+      final name = filePath.contains('/')
+          ? filePath.substring(filePath.lastIndexOf('/') + 1)
+          : filePath;
+      final kind = _mapTreeKind(type, mode);
+      final size = sizeStr == '-' ? null : int.tryParse(sizeStr);
+      entries.add(FileTreeEntry(
+        name: name,
+        fullPath: path.isEmpty ? filePath : '$path/$filePath',
+        kind: kind,
+        sizeBytes: size,
+        containingCommit: sha,
+      ));
+    }
+    return entries;
+  }
 
-    final lines = stdout.split('\n');
+  FileTreeKind _mapTreeKind(String type, String mode) {
+    if (type == 'tree') return FileTreeKind.tree;
+    if (type == 'commit') return FileTreeKind.submodule;
+    if (mode == '120000') return FileTreeKind.symlink;
+    return FileTreeKind.blob;
+  }
+}
+
+/// Stateful parser for git's combined `--raw -p` (unified) diff output.
+///
+/// Extracted verbatim from [GitCliReadOperations.getDiff] so that the diff
+/// command construction stays in the read-operations facade while the line-by
+/// -line parsing — which is the bulk of the logic — lives in one focused
+/// place.  Behaviour is identical: same field indices, regexes, and guards.
+class _DiffParser {
+  _DiffParser(this._stdout);
+
+  final String _stdout;
+
+  final List<FileDiff> _files = <FileDiff>[];
+  final Map<String, _RawEntry> _rawByPath = <String, _RawEntry>{};
+
+  DiffResult parse() {
+    final lines = _stdout.split('\n');
     var i = 0;
 
     // Skip blank lines at start (--format= produces an empty header line)
@@ -732,7 +797,7 @@ final class GitCliReadOperations implements GitReadOperations {
           } else {
             path = parts[1];
           }
-          rawByPath[path] = _RawEntry(letter, oldPath);
+          _rawByPath[path] = _RawEntry(letter, oldPath);
         }
       }
       i++;
@@ -753,7 +818,7 @@ final class GitCliReadOperations implements GitReadOperations {
         continue;
       }
       final newPath = pathMatch.group(2)!;
-      final raw = rawByPath[newPath];
+      final raw = _rawByPath[newPath];
       final changeKind = _mapDiffStatus(raw?.status ?? 'M');
       var isBinary = false;
       final hunks = <DiffHunk>[];
@@ -874,7 +939,7 @@ final class GitCliReadOperations implements GitReadOperations {
         ));
       }
 
-      files.add(FileDiff(
+      _files.add(FileDiff(
         path: newPath,
         oldPath: raw?.oldPath,
         changeKind: changeKind,
@@ -885,7 +950,7 @@ final class GitCliReadOperations implements GitReadOperations {
       ));
     }
 
-    return DiffResult(files: files);
+    return DiffResult(files: _files);
   }
 
   FileChangeKind _mapDiffStatus(String letter) {
@@ -907,46 +972,6 @@ final class GitCliReadOperations implements GitReadOperations {
       default:
         return FileChangeKind.modified;
     }
-  }
-
-  @override
-  Future<List<FileTreeEntry>> getFileTree(
-      RepoLocation repo, CommitSha sha, String path) async {
-    final ref = path.isEmpty ? sha.value : '${sha.value}:$path';
-    final stdout = await _runner.run(repo.path, ['ls-tree', '-l', ref]);
-    final entries = <FileTreeEntry>[];
-    for (final line in stdout.split('\n')) {
-      if (line.isEmpty) continue;
-      final tabIdx = line.indexOf('\t');
-      if (tabIdx < 0) continue;
-      final meta = line.substring(0, tabIdx).split(RegExp(r'\s+'));
-      if (meta.length < 4) continue;
-      final mode = meta[0];
-      final type = meta[1];
-      // meta[2] is object sha (not needed here)
-      final sizeStr = meta[3];
-      final filePath = line.substring(tabIdx + 1);
-      final name = filePath.contains('/')
-          ? filePath.substring(filePath.lastIndexOf('/') + 1)
-          : filePath;
-      final kind = _mapTreeKind(type, mode);
-      final size = sizeStr == '-' ? null : int.tryParse(sizeStr);
-      entries.add(FileTreeEntry(
-        name: name,
-        fullPath: path.isEmpty ? filePath : '$path/$filePath',
-        kind: kind,
-        sizeBytes: size,
-        containingCommit: sha,
-      ));
-    }
-    return entries;
-  }
-
-  FileTreeKind _mapTreeKind(String type, String mode) {
-    if (type == 'tree') return FileTreeKind.tree;
-    if (type == 'commit') return FileTreeKind.submodule;
-    if (mode == '120000') return FileTreeKind.symlink;
-    return FileTreeKind.blob;
   }
 }
 

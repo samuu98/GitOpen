@@ -26,12 +26,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     List<String> paths,
   ) async {
     if (paths.isEmpty) return const GitSuccess(null);
-    try {
-      await _runner.run(r.path, ['add', '--', ...paths]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['add', '--', ...paths]);
   }
 
   @override
@@ -40,12 +35,48 @@ final class GitCliWriteOperations implements GitWriteOperations {
     List<String> paths,
   ) async {
     if (paths.isEmpty) return const GitSuccess(null);
+    return _runVoid(r, ['restore', '--staged', '--', ...paths]);
+  }
+
+  /// Runs [args] in [r] and returns success, mapping any process failure to a
+  /// classified [GitFailure]. Collapses the repeated try/run/catch block used
+  /// by the many fire-and-forget git commands.
+  Future<GitResult<void>> _runVoid(RepoLocation r, List<String> args) async {
     try {
-      await _runner.run(r.path, ['restore', '--staged', '--', ...paths]);
+      await _runner.run(r.path, args);
       return const GitSuccess(null);
     } on GitProcessException catch (e) {
       return GitFailure(_classify(e), e.stderr, e.stderr);
     }
+  }
+
+  /// Runs [args] in [r] then resolves the new HEAD, returning it as a
+  /// [CommitSha]. Used by the commands that report the commit they produced.
+  Future<GitResult<CommitSha>> _runThenHead(
+    RepoLocation r,
+    List<String> args,
+  ) async {
+    try {
+      await _runner.run(r.path, args);
+      final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
+      return GitSuccess(CommitSha(head));
+    } on GitProcessException catch (e) {
+      return GitFailure(_classify(e), e.stderr, e.stderr);
+    }
+  }
+
+  /// Lists the unique paths git reports as unmerged via `ls-files --unmerged`,
+  /// which always exits 0. Each raw line is
+  /// `<mode> <sha> <stage>` then a tab then the path; we take the path after
+  /// the tab and de-duplicate across the (up to three) stage entries per file.
+  Future<List<String>> _listUnmergedPaths(RepoLocation r) async {
+    final raw = await _runner.run(r.path, ['ls-files', '--unmerged']);
+    return raw
+        .split('\n')
+        .where((l) => l.isNotEmpty)
+        .map((l) => l.split('\t').last)
+        .toSet()
+        .toList();
   }
 
   GitErrorKind _classify(GitProcessException e) {
@@ -109,12 +140,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     List<String> paths,
   ) async {
     if (paths.isEmpty) return const GitSuccess(null);
-    try {
-      await _runner.run(r.path, ['checkout', '--', ...paths]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['checkout', '--', ...paths]);
   }
 
   @override
@@ -123,13 +149,8 @@ final class GitCliWriteOperations implements GitWriteOperations {
     List<String> paths,
   ) async {
     if (paths.isEmpty) return const GitSuccess(null);
-    try {
-      // `--` separates paths so leading dashes can't be mistaken for flags.
-      await _runner.run(r.path, ['clean', '-f', '--', ...paths]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    // `--` separates paths so leading dashes can't be mistaken for flags.
+    return _runVoid(r, ['clean', '-f', '--', ...paths]);
   }
 
   @override
@@ -142,13 +163,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     }
     // Allow empty commits only on amend (to update msg of last commit)
     if (req.amend) args.add('--allow-empty');
-    try {
-      await _runner.run(r.path, args);
-      final sha = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
-      return GitSuccess(CommitSha(sha));
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runThenHead(r, args);
   }
   @override
   Future<GitResult<void>> createBranch(
@@ -157,14 +172,9 @@ final class GitCliWriteOperations implements GitWriteOperations {
     CommitSha? at,
     bool checkout = false,
   }) async {
-    try {
-      final args = checkout ? ['checkout', '-b', name] : ['branch', name];
-      if (at != null) args.add(at.value);
-      await _runner.run(r.path, args);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    final args = checkout ? ['checkout', '-b', name] : ['branch', name];
+    if (at != null) args.add(at.value);
+    return _runVoid(r, args);
   }
 
   @override
@@ -173,15 +183,10 @@ final class GitCliWriteOperations implements GitWriteOperations {
     String ref, {
     bool force = false,
   }) async {
-    try {
-      final args = <String>['checkout'];
-      if (force) args.add('--force');
-      args.add(ref);
-      await _runner.run(r.path, args);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    final args = <String>['checkout'];
+    if (force) args.add('--force');
+    args.add(ref);
+    return _runVoid(r, args);
   }
 
   @override
@@ -191,30 +196,21 @@ final class GitCliWriteOperations implements GitWriteOperations {
     bool force = false,
     bool remote = false,
   }) async {
-    try {
-      if (remote) {
-        // Delete remote branch via push --delete
-        final parts = name.split('/');
-        if (parts.length < 2) {
-          return const GitFailure(
-            GitErrorKind.invalidArgument,
-            'remote branch name must be <remote>/<branch>',
-          );
-        }
-        final remoteName = parts.first;
-        final branchName = parts.sublist(1).join('/');
-        await _runner.run(
-          r.path,
-          ['push', remoteName, '--delete', branchName],
+    if (remote) {
+      // Delete remote branch via push --delete
+      final parts = name.split('/');
+      if (parts.length < 2) {
+        return const GitFailure(
+          GitErrorKind.invalidArgument,
+          'remote branch name must be <remote>/<branch>',
         );
-      } else {
-        final flag = force ? '-D' : '-d';
-        await _runner.run(r.path, ['branch', flag, name]);
       }
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
+      final remoteName = parts.first;
+      final branchName = parts.sublist(1).join('/');
+      return _runVoid(r, ['push', remoteName, '--delete', branchName]);
     }
+    final flag = force ? '-D' : '-d';
+    return _runVoid(r, ['branch', flag, name]);
   }
 
   @override
@@ -223,12 +219,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     String oldName,
     String newName,
   ) async {
-    try {
-      await _runner.run(r.path, ['branch', '-m', oldName, newName]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['branch', '-m', oldName, newName]);
   }
 
   @override
@@ -237,15 +228,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     String branch,
     String upstream,
   ) async {
-    try {
-      await _runner.run(
-        r.path,
-        ['branch', '--set-upstream-to=$upstream', branch],
-      );
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['branch', '--set-upstream-to=$upstream', branch]);
   }
   @override
   Future<GitResult<void>> addRemote(
@@ -253,22 +236,12 @@ final class GitCliWriteOperations implements GitWriteOperations {
     String name,
     String url,
   ) async {
-    try {
-      await _runner.run(r.path, ['remote', 'add', name, url]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['remote', 'add', name, url]);
   }
 
   @override
   Future<GitResult<void>> removeRemote(RepoLocation r, String name) async {
-    try {
-      await _runner.run(r.path, ['remote', 'remove', name]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['remote', 'remove', name]);
   }
 
   @override
@@ -277,12 +250,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     String oldName,
     String newName,
   ) async {
-    try {
-      await _runner.run(r.path, ['remote', 'rename', oldName, newName]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['remote', 'rename', oldName, newName]);
   }
 
   @override
@@ -291,12 +259,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     String name,
     String url,
   ) async {
-    try {
-      await _runner.run(r.path, ['remote', 'set-url', name, url]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['remote', 'set-url', name, url]);
   }
 
   @override
@@ -306,26 +269,16 @@ final class GitCliWriteOperations implements GitWriteOperations {
     CommitSha? at,
     String? message,
   }) async {
-    try {
-      final args = <String>['tag'];
-      if (message != null) args.addAll(['-a', '-m', message]);
-      args.add(name);
-      if (at != null) args.add(at.value);
-      await _runner.run(r.path, args);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    final args = <String>['tag'];
+    if (message != null) args.addAll(['-a', '-m', message]);
+    args.add(name);
+    if (at != null) args.add(at.value);
+    return _runVoid(r, args);
   }
 
   @override
   Future<GitResult<void>> deleteTag(RepoLocation r, String name) async {
-    try {
-      await _runner.run(r.path, ['tag', '-d', name]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['tag', '-d', name]);
   }
   @override
   Stream<GitProgress> fetch(RepoLocation r,
@@ -448,44 +401,24 @@ final class GitCliWriteOperations implements GitWriteOperations {
     String message, {
     bool includeUntracked = false,
   }) async {
-    try {
-      final args = <String>['stash', 'push', '-m', message];
-      if (includeUntracked) args.add('-u');
-      await _runner.run(r.path, args);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    final args = <String>['stash', 'push', '-m', message];
+    if (includeUntracked) args.add('-u');
+    return _runVoid(r, args);
   }
 
   @override
   Future<GitResult<void>> stashPop(RepoLocation r, int index) async {
-    try {
-      await _runner.run(r.path, ['stash', 'pop', 'stash@{$index}']);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['stash', 'pop', 'stash@{$index}']);
   }
 
   @override
   Future<GitResult<void>> stashApply(RepoLocation r, int index) async {
-    try {
-      await _runner.run(r.path, ['stash', 'apply', 'stash@{$index}']);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['stash', 'apply', 'stash@{$index}']);
   }
 
   @override
   Future<GitResult<void>> stashDrop(RepoLocation r, int index) async {
-    try {
-      await _runner.run(r.path, ['stash', 'drop', 'stash@{$index}']);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['stash', 'drop', 'stash@{$index}']);
   }
 
   @override
@@ -534,16 +467,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     final combined = out + err;
     if (combined.contains('CONFLICT') ||
         combined.contains('Automatic merge failed')) {
-      // List unmerged files — ls-files --unmerged always exits 0
-      final raw = await _runner.run(r.path, ['ls-files', '--unmerged']);
-      // Each line: "<mode> <sha> <stage>\t<path>" — extract unique paths
-      final conflicted = raw
-          .split('\n')
-          .where((l) => l.isNotEmpty)
-          .map((l) => l.split('\t').last)
-          .toSet()
-          .toList();
-      return GitSuccess(MergeConflict(conflicted));
+      return GitSuccess(MergeConflict(await _listUnmergedPaths(r)));
     }
     final exc = GitProcessException(args, result.exitCode, err);
     return GitFailure(_classify(exc), err, err);
@@ -551,24 +475,12 @@ final class GitCliWriteOperations implements GitWriteOperations {
 
   @override
   Future<GitResult<void>> mergeAbort(RepoLocation r) async {
-    try {
-      await _runner.run(r.path, ['merge', '--abort']);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['merge', '--abort']);
   }
 
   @override
-  Future<GitResult<CommitSha>> mergeContinue(RepoLocation r) async {
-    try {
-      await _runner.run(r.path, ['merge', '--continue', '--no-edit']);
-      final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
-      return GitSuccess(CommitSha(head));
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
-  }
+  Future<GitResult<CommitSha>> mergeContinue(RepoLocation r) =>
+      _runThenHead(r, ['merge', '--continue', '--no-edit']);
   @override
   Future<GitResult<MergePreview>> previewMerge(
     RepoLocation r,
@@ -636,14 +548,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     if (combined.contains('CONFLICT') ||
         combined.contains('could not apply') ||
         combined.contains('Resolve all conflicts')) {
-      final raw = await _runner.run(r.path, ['ls-files', '--unmerged']);
-      final conflicted = raw
-          .split('\n')
-          .where((l) => l.isNotEmpty)
-          .map((l) => l.split('\t').last)
-          .toSet()
-          .toList();
-      return GitSuccess(RebaseConflict(conflicted));
+      return GitSuccess(RebaseConflict(await _listUnmergedPaths(r)));
     }
     final exc = GitProcessException(args, result.exitCode, err);
     return GitFailure(_classify(exc), err, err);
@@ -651,37 +556,16 @@ final class GitCliWriteOperations implements GitWriteOperations {
 
   @override
   Future<GitResult<void>> rebaseAbort(RepoLocation r) async {
-    try {
-      await _runner.run(r.path, ['rebase', '--abort']);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['rebase', '--abort']);
   }
 
   @override
-  Future<GitResult<CommitSha>> rebaseContinue(RepoLocation r) async {
-    try {
-      await _runner.run(
-        r.path,
-        ['-c', 'core.editor=true', 'rebase', '--continue'],
-      );
-      final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
-      return GitSuccess(CommitSha(head));
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
-  }
+  Future<GitResult<CommitSha>> rebaseContinue(RepoLocation r) =>
+      _runThenHead(r, ['-c', 'core.editor=true', 'rebase', '--continue']);
 
   @override
-  Future<GitResult<void>> rebaseSkip(RepoLocation r) async {
-    try {
-      await _runner.run(r.path, ['rebase', '--skip']);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
-  }
+  Future<GitResult<void>> rebaseSkip(RepoLocation r) =>
+      _runVoid(r, ['rebase', '--skip']);
 
   @override
   Future<GitResult<CherryPickOutcome>> cherryPick(
@@ -706,14 +590,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     final combined = out + err;
     if (combined.contains('CONFLICT') ||
         combined.contains('after resolving the conflicts')) {
-      final raw = await _runner.run(r.path, ['ls-files', '--unmerged']);
-      final conflicted = raw
-          .split('\n')
-          .where((l) => l.isNotEmpty)
-          .map((l) => l.split('\t').last)
-          .toSet()
-          .toList();
-      return GitSuccess(CherryPickConflict(conflicted));
+      return GitSuccess(CherryPickConflict(await _listUnmergedPaths(r)));
     }
     final exc = GitProcessException(
       ['cherry-pick', sha.value],
@@ -725,24 +602,12 @@ final class GitCliWriteOperations implements GitWriteOperations {
 
   @override
   Future<GitResult<void>> cherryPickAbort(RepoLocation r) async {
-    try {
-      await _runner.run(r.path, ['cherry-pick', '--abort']);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['cherry-pick', '--abort']);
   }
 
   @override
-  Future<GitResult<CommitSha>> cherryPickContinue(RepoLocation r) async {
-    try {
-      await _runner.run(r.path, ['cherry-pick', '--continue']);
-      final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
-      return GitSuccess(CommitSha(head));
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
-  }
+  Future<GitResult<CommitSha>> cherryPickContinue(RepoLocation r) =>
+      _runThenHead(r, ['cherry-pick', '--continue']);
 
   @override
   Future<GitResult<RevertOutcome>> revert(
@@ -787,24 +652,12 @@ final class GitCliWriteOperations implements GitWriteOperations {
 
   @override
   Future<GitResult<void>> revertAbort(RepoLocation r) async {
-    try {
-      await _runner.run(r.path, ['revert', '--abort']);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['revert', '--abort']);
   }
 
   @override
-  Future<GitResult<CommitSha>> revertContinue(RepoLocation r) async {
-    try {
-      await _runner.run(r.path, ['revert', '--continue', '--no-edit']);
-      final head = (await _runner.run(r.path, ['rev-parse', 'HEAD'])).trim();
-      return GitSuccess(CommitSha(head));
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
-  }
+  Future<GitResult<CommitSha>> revertContinue(RepoLocation r) =>
+      _runThenHead(r, ['revert', '--continue', '--no-edit']);
 
   @override
   Future<GitResult<void>> reset(
@@ -817,12 +670,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
       ResetMode.mixed => '--mixed',
       ResetMode.hard => '--hard',
     };
-    try {
-      await _runner.run(r.path, ['reset', flag, to.value]);
-      return const GitSuccess(null);
-    } on GitProcessException catch (e) {
-      return GitFailure(_classify(e), e.stderr, e.stderr);
-    }
+    return _runVoid(r, ['reset', flag, to.value]);
   }
   @override
   Stream<GitProgress> clone(
