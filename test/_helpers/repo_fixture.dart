@@ -47,6 +47,30 @@ class RepoFixture {
     return f;
   }
 
+  /// Repo whose HEAD is a real (`--no-ff`) merge commit with two parents.
+  /// `master` adds master.txt, `feature` adds feature.txt; the merge
+  /// introduces feature.txt relative to its FIRST parent (master).
+  static Future<RepoFixture> withMergeCommit() async {
+    final f = await empty();
+    await File(p.join(f.path, 'file_0.txt')).writeAsString('content 0\n');
+    await _git(f.path, ['add', 'file_0.txt']);
+    await _git(f.path, ['commit', '-q', '-m', 'commit 0']);
+
+    await _git(f.path, ['checkout', '-q', '-b', 'feature']);
+    await File(p.join(f.path, 'feature.txt')).writeAsString('feature\n');
+    await _git(f.path, ['add', 'feature.txt']);
+    await _git(f.path, ['commit', '-q', '-m', 'on feature']);
+
+    await _git(f.path, ['checkout', '-q', 'master']);
+    await File(p.join(f.path, 'master.txt')).writeAsString('master\n');
+    await _git(f.path, ['add', 'master.txt']);
+    await _git(f.path, ['commit', '-q', '-m', 'on master']);
+
+    await _git(f.path, ['merge', '-q', '--no-ff', '-m', 'merge feature', 'feature']);
+    f.headSha = (await _git(f.path, ['rev-parse', 'HEAD'])).trim();
+    return f;
+  }
+
   Future<void> dispose() async {
     try {
       await Directory(path).delete(recursive: true);

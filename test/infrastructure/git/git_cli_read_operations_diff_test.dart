@@ -35,5 +35,20 @@ void main() {
         expect(diff.files.first.changeKind, FileChangeKind.added);
       } finally { await f.dispose(); }
     });
+
+    test('merge commit diffs against first parent (not empty)', () async {
+      final f = await RepoFixture.withMergeCommit();
+      try {
+        final sut = GitCliReadOperations();
+        final diff = await sut.getDiff(
+            loc(f), DiffSpecCommitVsParent(CommitSha(f.headSha)));
+        final feature = diff.files.where((d) => d.path == 'feature.txt');
+        expect(feature, hasLength(1));
+        expect(feature.first.changeKind, FileChangeKind.added);
+        expect(feature.first.hunks, isNotEmpty);
+      } finally {
+        await f.dispose();
+      }
+    });
   });
 }

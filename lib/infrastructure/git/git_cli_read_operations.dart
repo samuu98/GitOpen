@@ -678,7 +678,13 @@ final class GitCliReadOperations implements GitReadOperations {
   Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec) async {
     final args = switch (spec) {
       DiffSpecCommitVsParent(:final commitSha) => [
-          'show', commitSha.value, '--format=', '--raw', '-p', '--no-color',
+          // `--first-parent -m` makes merge commits emit a normal 2-way diff
+          // against their first parent (Fork/GitKraken default) instead of a
+          // combined diff (diff --cc / @@@) the unified parser can't read.
+          // It is a no-op on normal and root commits, so it is safe for all
+          // single-commit diffs.
+          'show', commitSha.value, '--first-parent', '-m',
+          '--format=', '--raw', '-p', '--no-color',
         ],
       DiffSpecCommitVsCommit(:final from, :final to) => [
           'diff', '${from.value}..${to.value}', '--raw', '-p', '--no-color',
