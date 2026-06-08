@@ -58,6 +58,8 @@ class AboutSection extends StatelessWidget {
                       _Meta(label: 'Version', value: '0.3.0-dev'),
                       const SizedBox(height: 4),
                       _Meta(label: 'License', value: 'MIT'),
+                      const SizedBox(height: 4),
+                      _Meta(label: 'Fork', value: 'zN3utr4l'),
                     ],
                   ),
                 ),

@@ -3,6 +3,9 @@
 Cross-platform open-source desktop git client built on Flutter.
 Inspired by Fork. Targets Windows and Linux.
 
+> **Fork maintained by [zN3utr4l](https://github.com/zN3utr4l).** Based on the
+> original [GitOpen](https://github.com/samuu98/GitOpen) by s.porta (MIT).
+
 > **Status:** Slice 2 (write operations) complete. See
 > `docs/superpowers/specs/` and `docs/superpowers/plans/` for roadmap.
 

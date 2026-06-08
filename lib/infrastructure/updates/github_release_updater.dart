@@ -14,8 +14,8 @@ class GitHubReleaseUpdater {
   final http.Client _client;
 
   GitHubReleaseUpdater({
-    this.owner = 's-porta',
-    this.repo = 'gitopen',
+    this.owner = 'zN3utr4l',
+    this.repo = 'GitOpen',
     http.Client? client,
   }) : _client = client ?? http.Client();
 
