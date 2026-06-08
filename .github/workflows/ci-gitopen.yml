@@ -27,6 +27,9 @@ jobs:
       # owns them, so the supply-chain risk is the same as trusting GitHub.
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       # Third-party actions are SHA-pinned (supply-chain best practice). Bump the
       # SHA together with the version comment when the action releases.
@@ -34,6 +37,7 @@ jobs:
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
+          flutter-version: 3.44.x
           cache: true
 
       - name: Linux desktop deps
@@ -102,6 +106,13 @@ jobs:
           recreate: true
           path: code-coverage-results.md
 
-      - name: Check outdated packages
+      # Mirrors the NE.* "check vulnerable packages" step: scan pubspec.lock
+      # against the OSV database. Informational (continue-on-error); Linux-only
+      # since the scanner action runs in a container.
+      - name: Scan dependencies for vulnerabilities
+        if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
-        run: flutter pub outdated
+        uses: google/osv-scanner-action@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+        with:
+          scan-args: |-
+            --lockfile=pubspec.lock
