@@ -8,6 +8,7 @@ import 'package:gitopen/domain/diff/diff_spec.dart';
 import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
+import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -741,11 +742,13 @@ class _DiffPreviewPane extends ConsumerWidget {
               ),
             );
           }
+          final language = languageForPath(sel.path);
           return ListView(
             padding: const EdgeInsets.all(8),
             children: [
               _DiffHeader(path: sel.path, fileDiff: fileDiff),
-              for (final h in fileDiff.hunks) _HunkBlock(hunk: h),
+              for (final h in fileDiff.hunks)
+                _HunkBlock(hunk: h, language: language),
             ],
           );
         },
@@ -788,8 +791,9 @@ class _DiffHeader extends StatelessWidget {
 }
 
 class _HunkBlock extends StatelessWidget {
-  const _HunkBlock({required this.hunk});
+  const _HunkBlock({required this.hunk, this.language});
   final DiffHunk hunk;
+  final String? language;
 
   @override
   Widget build(BuildContext context) {
@@ -814,7 +818,8 @@ class _HunkBlock extends StatelessWidget {
                   fontFamily: 'monospace',
                 )),
           ),
-          for (final line in hunk.lines) _DiffLine(line: line),
+          for (final line in hunk.lines)
+            _DiffLine(line: line, language: language),
         ],
       ),
     );
@@ -822,8 +827,9 @@ class _HunkBlock extends StatelessWidget {
 }
 
 class _DiffLine extends StatelessWidget {
-  const _DiffLine({required this.line});
+  const _DiffLine({required this.line, this.language});
   final DiffLine line;
+  final String? language;
 
   @override
   Widget build(BuildContext context) {
@@ -870,10 +876,15 @@ class _DiffLine extends StatelessWidget {
                     color: palette.fg3, fontSize: 12, fontFamily: 'monospace')),
           ),
           Expanded(
-            child: Text(
-              line.content,
-              style: TextStyle(
-                color: palette.fg0,
+            child: Text.rich(
+              TextSpan(
+                children: buildHighlightedSpans(
+                  line.content,
+                  language,
+                  baseColor: palette.fg0,
+                ),
+              ),
+              style: const TextStyle(
                 fontSize: 12,
                 fontFamily: 'monospace',
               ),

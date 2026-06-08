@@ -8,6 +8,7 @@ import 'package:gitopen/domain/diff/diff_result.dart';
 import 'package:gitopen/domain/diff/diff_spec.dart';
 import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final AutoDisposeFutureProviderFamily<DiffResult,
@@ -47,6 +48,7 @@ class _FileDiffBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final language = languageForPath(file.path);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -70,7 +72,7 @@ class _FileDiffBlock extends StatelessWidget {
               ),
             )
           else
-            for (final h in file.hunks) _hunk(context, h),
+            for (final h in file.hunks) _hunk(context, h, language),
         ],
       ),
     );
@@ -107,7 +109,7 @@ class _FileDiffBlock extends StatelessWidget {
     );
   }
 
-  Widget _hunk(BuildContext context, DiffHunk h) {
+  Widget _hunk(BuildContext context, DiffHunk h, String? language) {
     final palette = AppPalette.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -122,15 +124,17 @@ class _FileDiffBlock extends StatelessWidget {
                   fontStyle: FontStyle.italic,
                   fontFamily: 'monospace')),
         ),
-        for (final line in h.lines) _DiffLineRow(line: line),
+        for (final line in h.lines)
+          _DiffLineRow(line: line, language: language),
       ],
     );
   }
 }
 
 class _DiffLineRow extends StatelessWidget {
-  const _DiffLineRow({required this.line});
+  const _DiffLineRow({required this.line, this.language});
   final DiffLine line;
+  final String? language;
 
   @override
   Widget build(BuildContext context) {
@@ -189,10 +193,15 @@ class _DiffLineRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
-              line.content,
-              style: TextStyle(
-                color: palette.fg0,
+            child: Text.rich(
+              TextSpan(
+                children: buildHighlightedSpans(
+                  line.content,
+                  language,
+                  baseColor: palette.fg0,
+                ),
+              ),
+              style: const TextStyle(
                 fontSize: 12,
                 fontFamily: 'monospace',
               ),

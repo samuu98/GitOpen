@@ -21,6 +21,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.6.1 # state management
+  highlight: ^0.7.0
   http: ^1.6.0
   intl: ^0.20.0
   logger: ^2.5.0
