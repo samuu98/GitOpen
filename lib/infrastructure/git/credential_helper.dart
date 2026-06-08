@@ -22,7 +22,7 @@ class CredentialHelper {
         Map<String, String> env,
         List<String> extraArgs,
         void Function() dispose,
-      })> setup(AuthSpec? auth, String host) async {
+      })> setup(AuthSpec? auth) async {
     if (auth == null || auth is AuthSystemDefault) {
       return (
         env: <String, String>{},

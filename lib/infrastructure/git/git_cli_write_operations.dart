@@ -391,7 +391,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
 
   Stream<GitProgress> _runProgressStream(String cwd, List<String> args,
       {AuthSpec? auth}) async* {
-    final helper = await CredentialHelper.setup(auth, '');
+    final helper = await CredentialHelper.setup(auth);
     // The helper-supplied `-c key=value` overrides must come BEFORE the
     // git subcommand. They inject the Authorization header and reset
     // inherited credential helpers (so GCM is bypassed).

@@ -4,15 +4,7 @@ import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/main_view_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
-import 'package:gitopen/domain/status/repo_status.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
-
-final AutoDisposeFutureProviderFamily<RepoStatus, RepoLocation>
-    repoStatusProvider =
-    FutureProvider.family.autoDispose<RepoStatus, RepoLocation>((ref, r) async {
-  final git = ref.watch(gitReadOperationsProvider);
-  return git.getStatus(r);
-});
 
 class LocalChangesRow extends ConsumerWidget {
   const LocalChangesRow({required this.repo, super.key});

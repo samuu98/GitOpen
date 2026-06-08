@@ -78,20 +78,4 @@ class GitProcessRunner {
     if (exit != 0) throw GitProcessException(args, exit, errBuf.toString());
     return outBuf.toString();
   }
-
-  Stream<String> streamLines(String workingDir, List<String> args) async* {
-    final p = await Process.start(executable, args,
-        workingDirectory: workingDir, environment: buildGitEnvironment());
-    final stdoutLines =
-        p.stdout.transform(utf8.decoder).transform(const LineSplitter());
-    final stderrBuf = StringBuffer();
-    p.stderr.transform(utf8.decoder).listen(stderrBuf.write);
-    await for (final line in stdoutLines) {
-      yield line;
-    }
-    final exit = await p.exitCode;
-    if (exit != 0) {
-      throw GitProcessException(args, exit, stderrBuf.toString());
-    }
-  }
 }

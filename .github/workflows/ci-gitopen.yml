@@ -73,7 +73,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           pip install lcov_cobertura
-          lcov_cobertura coverage/lcov.info --excludes '.*\.g\.dart' -o coverage/cobertura.xml
+          # Drop generated files from coverage (lcov_cobertura --excludes matches
+          # the dotted package, not the filename, so filter the lcov directly).
+          awk '/^SF:/{skip = ($0 ~ /\.g\.dart/)} !skip' coverage/lcov.info > coverage/lcov.clean.info
+          lcov_cobertura coverage/lcov.clean.info -o coverage/cobertura.xml
 
       - name: Code coverage summary
         if: matrix.os == 'ubuntu-latest'

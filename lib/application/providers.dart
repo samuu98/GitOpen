@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_profile_store.dart';
 import 'package:gitopen/application/auth/auth_resolver.dart';
-import 'package:gitopen/application/commit_graph/commit_graph_layout.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/launcher/repo_launcher.dart';
@@ -52,10 +51,6 @@ final repositoryRegistryProvider = Provider<RepositoryRegistry>((ref) {
 
 final workspacePersistenceProvider = Provider<WorkspacePersistence>((ref) {
   return DriftWorkspacePersistence(ref.watch(appDatabaseProvider));
-});
-
-final commitGraphLayoutProvider = Provider<CommitGraphLayout>((ref) {
-  return const DefaultCommitGraphLayout();
 });
 
 final workspaceManagerProvider =
