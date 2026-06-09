@@ -31,11 +31,15 @@ void main() {
   test('run kills the child and throws when the timeout is exceeded', () async {
     final f = await RepoFixture.withLinearHistory(1);
     try {
+      // `hash-object --stdin` blocks reading stdin, which run() never closes,
+      // so the child outlives any timeout deterministically. Racing a fast
+      // command (e.g. rev-parse) against a tiny timeout is flaky: on fast
+      // Linux runners the process exits before the timeout is observed.
       await expectLater(
         GitProcessRunner().run(
           f.path,
-          ['rev-parse', 'HEAD'],
-          timeout: const Duration(microseconds: 1),
+          ['hash-object', '--stdin'],
+          timeout: const Duration(milliseconds: 200),
         ),
         throwsA(isA<GitProcessException>()),
       );
