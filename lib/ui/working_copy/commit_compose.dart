@@ -34,6 +34,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
   final _focus = FocusNode();
   bool _amend = false;
   bool _signOff = false;
+  bool _sign = false;
   bool _busy = false;
   int _lastTrigger = 0;
 
@@ -44,7 +45,10 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final s = ref.read(appSettingsProvider);
-      if (s.commitSignoffDefault) setState(() => _signOff = true);
+      setState(() {
+        if (s.commitSignoffDefault) _signOff = true;
+        if (s.gpgSignByDefault) _sign = true;
+      });
     });
   }
 
@@ -107,6 +111,13 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
                 active: _signOff,
                 onTap: () => setState(() => _signOff = !_signOff),
               ),
+              const SizedBox(width: 6),
+              _OptionPill(
+                icon: Icons.verified_user_outlined,
+                label: 'Sign (GPG)',
+                active: _sign,
+                onTap: () => setState(() => _sign = !_sign),
+              ),
               const Spacer(),
               _CommitButton(
                 busy: _busy,
@@ -131,6 +142,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
             message: _ctl.text.trim(),
             amend: _amend,
             signOff: _signOff,
+            sign: _sign,
           ),
         );
     if (!mounted) return;
@@ -140,6 +152,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
       setState(() {
         _amend = false;
         _signOff = false;
+        _sign = false;
       });
       ref.invalidate(gitReadOperationsProvider);
     } else if (res is GitFailure<CommitSha>) {

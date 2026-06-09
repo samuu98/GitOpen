@@ -62,5 +62,55 @@ void main() {
         expect(body.stdout.toString(), contains('Signed-off-by'));
       } finally { await f.dispose(); }
     });
+
+    // GPG signing: rather than depend on the host actually having a working
+    // gpg key (non-deterministic across CI/dev machines), we point the repo at
+    // a non-existent gpg program. With sign:true, git invokes that program and
+    // fails — proving `-S` was passed and git attempted to sign. With
+    // sign:false, git never touches gpg, so the same repo commits cleanly.
+    test('sign true attempts to GPG-sign and fails on a missing gpg program',
+        () async {
+      final f = await RepoFixture.withLinearHistory(1);
+      try {
+        // Force the signing path to be deterministic regardless of the host's
+        // real gpg setup: a gpg.program that does not exist always fails.
+        await Process.run(
+          'git',
+          ['config', 'gpg.program', 'gitopen-no-such-gpg'],
+          workingDirectory: f.path,
+        );
+        File(p.join(f.path, 'new.txt')).writeAsStringSync('hi');
+        await Process.run('git', ['add', 'new.txt'], workingDirectory: f.path);
+        final sut = GitCliWriteOperations();
+        final res = await sut.commit(RepoLocation(RepoId.newId(), f.path, 't'),
+            const CommitRequest(message: 'signed commit', sign: true));
+        expect(res, isA<GitFailure<CommitSha>>());
+      } finally { await f.dispose(); }
+    });
+
+    test('sign false still commits cleanly (unchanged behaviour)', () async {
+      final f = await RepoFixture.withLinearHistory(1);
+      try {
+        // Same broken gpg.program as the sign:true case — it must be ignored
+        // entirely when sign is false, proving `-S` is only passed on demand.
+        await Process.run(
+          'git',
+          ['config', 'gpg.program', 'gitopen-no-such-gpg'],
+          workingDirectory: f.path,
+        );
+        File(p.join(f.path, 'new.txt')).writeAsStringSync('hi');
+        await Process.run('git', ['add', 'new.txt'], workingDirectory: f.path);
+        final sut = GitCliWriteOperations();
+        final res = await sut.commit(RepoLocation(RepoId.newId(), f.path, 't'),
+            const CommitRequest(message: 'unsigned commit'));
+        expect(res, isA<GitSuccess<CommitSha>>());
+        final log = await Process.run(
+          'git',
+          ['log', '-1', '--format=%s'],
+          workingDirectory: f.path,
+        );
+        expect(log.stdout.toString().trim(), 'unsigned commit');
+      } finally { await f.dispose(); }
+    });
   });
 }

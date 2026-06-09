@@ -159,6 +159,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     final args = <String>['commit', '-m', req.message];
     if (req.amend) args.add('--amend');
     if (req.signOff) args.add('--signoff');
+    if (req.sign) args.add('-S');
     if (req.authorName != null && req.authorEmail != null) {
       args.addAll(['--author', '${req.authorName} <${req.authorEmail}>']);
     }

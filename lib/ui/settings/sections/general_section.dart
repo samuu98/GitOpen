@@ -151,12 +151,25 @@ class GeneralSection extends ConsumerWidget {
                 SettingsRow(
                   label: 'Sign-off by default',
                   description: 'Adds Signed-off-by to every commit message.',
-                  divider: false,
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Switch(
                       value: s.commitSignoffDefault,
                       onChanged: notifier.setCommitSignoffDefault,
+                    ),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Sign commits (GPG) by default',
+                  description:
+                      'GPG-signs every commit (git commit -S). Requires a '
+                      'configured signing key.',
+                  divider: false,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Switch(
+                      value: s.gpgSignByDefault,
+                      onChanged: notifier.setGpgSignByDefault,
                     ),
                   ),
                 ),
