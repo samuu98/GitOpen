@@ -9,6 +9,7 @@ import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
 import 'package:gitopen/ui/common/diff_line_row.dart';
+import 'package:gitopen/ui/common/diff_prefs.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final AutoDisposeFutureProviderFamily<DiffResult,
@@ -32,10 +33,24 @@ class DiffView extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Error: $e',
           style: TextStyle(color: palette.accentErr))),
-      data: (d) => ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: d.files.length,
-        itemBuilder: (_, i) => _FileDiffBlock(file: d.files[i]),
+      data: (d) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 6, 12, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [WordDiffToggle()],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: d.files.length,
+              itemBuilder: (_, i) => _FileDiffBlock(file: d.files[i]),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -124,8 +139,7 @@ class _FileDiffBlock extends StatelessWidget {
                   fontStyle: FontStyle.italic,
                   fontFamily: 'monospace')),
         ),
-        for (final line in h.lines)
-          DiffLineRow(line: line, language: language),
+        HunkLines(lines: h.lines, language: language),
       ],
     );
   }
