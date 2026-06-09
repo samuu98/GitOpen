@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show HttpException;
 
+import 'package:gitopen/application/auth/device_flow_controller.dart';
 import 'package:http/http.dart' as http;
 
 /// GitHub OAuth Device Flow client.
@@ -92,6 +93,35 @@ class GitHubDeviceFlow {
       'GitHub Device Flow timed out — the device code expired.',
     );
   }
+}
+
+/// Adapts [GitHubDeviceFlow] to the application's [DeviceFlowPort] so the
+/// device-flow state machine can be driven without the UI touching
+/// infrastructure (or tests touching HTTP).
+class GitHubDeviceFlowPort implements DeviceFlowPort {
+  GitHubDeviceFlowPort(this._flow);
+  final GitHubDeviceFlow _flow;
+
+  @override
+  Future<DeviceFlowSession> requestDeviceCode() async {
+    final resp = await _flow.requestDeviceCode();
+    return _GitHubDeviceFlowSession(_flow, resp);
+  }
+}
+
+class _GitHubDeviceFlowSession implements DeviceFlowSession {
+  _GitHubDeviceFlowSession(this._flow, this._resp);
+  final GitHubDeviceFlow _flow;
+  final DeviceCodeResponse _resp;
+
+  @override
+  String get userCode => _resp.userCode;
+
+  @override
+  String get verificationUri => _resp.verificationUri;
+
+  @override
+  Future<String> pollForToken() => _flow.pollForToken(_resp);
 }
 
 /// Response from the initial device-code request.

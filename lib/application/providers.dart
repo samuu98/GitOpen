@@ -3,6 +3,7 @@ import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_profile_store.dart';
 import 'package:gitopen/application/auth/auth_resolver.dart';
 import 'package:gitopen/application/auth/credential_tester.dart';
+import 'package:gitopen/application/auth/device_flow_controller.dart';
 import 'package:gitopen/application/git/git_action_ports.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
@@ -21,6 +22,7 @@ import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
 import 'package:gitopen/infrastructure/auth/git_credential_tester.dart';
+import 'package:gitopen/infrastructure/auth/github_device_flow.dart';
 import 'package:gitopen/infrastructure/auth/github_user_service.dart';
 import 'package:gitopen/infrastructure/auth/secure_auth_profile_store.dart';
 import 'package:gitopen/infrastructure/git/git_cli_read_operations.dart';
@@ -206,6 +208,15 @@ final credentialTesterProvider = Provider<CredentialTester>((ref) {
 
 final gitHubUserServiceProvider = Provider<GitHubUserService>((ref) {
   return const GitHubUserService();
+});
+
+/// Builds the [DeviceFlowPort] for a GitHub OAuth device-flow sign-in with
+/// the given OAuth app client id (composition root for the infrastructure
+/// HTTP client, so the auth dialog never imports infrastructure).
+final deviceFlowPortProvider =
+    Provider<DeviceFlowPort Function(String clientId)>((ref) {
+  return (clientId) =>
+      GitHubDeviceFlowPort(GitHubDeviceFlow(clientId: clientId));
 });
 
 final availableEditorsProvider = FutureProvider<List<EditorTarget>>((ref) {
