@@ -16,8 +16,12 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 /// current-branch marker, per-ref visibility toggles and the branch context
 /// menu (checkout / merge / rebase / rename / upstream / delete).
 class BranchTreeView extends ConsumerStatefulWidget {
-  const BranchTreeView(
-      {required this.nodes, required this.repo, super.key, this.depth = 0});
+  const BranchTreeView({
+    required this.nodes,
+    required this.repo,
+    super.key,
+    this.depth = 0,
+  });
   final List<BranchTreeNode> nodes;
   final int depth;
   final RepoLocation repo;
@@ -46,7 +50,10 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
   }
 
   Future<void> _handleContextMenu(
-      BuildContext context, BranchTreeNode n, Offset globalPos) async {
+    BuildContext context,
+    BranchTreeNode n,
+    Offset globalPos,
+  ) async {
     final branch = n.branch;
     if (branch == null) return;
     final branchName = branch.name;
@@ -130,7 +137,8 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         final confirmed = await ConfirmDialog.show(
           context,
           title: 'Rebase current branch',
-          body: 'Rebase the current branch onto "$branchName"? '
+          body:
+              'Rebase the current branch onto "$branchName"? '
               'This rewrites commits on the current branch.',
           confirmLabel: 'Rebase',
         );
@@ -141,8 +149,12 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         _refresh();
 
       case 'rename':
-        final newName = await _promptText(context, 'Rename branch',
-            label: 'New name', initial: branchName);
+        final newName = await _promptText(
+          context,
+          'Rename branch',
+          label: 'New name',
+          initial: branchName,
+        );
         if (newName == null || newName.trim().isEmpty) return;
         if (!context.mounted) return;
         await actions.renameBranch(
@@ -167,8 +179,11 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         _refresh();
 
       case 'upstream':
-        final upstream = await _promptText(context, 'Set upstream',
-            label: 'Upstream ref (e.g. origin/main)');
+        final upstream = await _promptText(
+          context,
+          'Set upstream',
+          label: 'Upstream ref (e.g. origin/main)',
+        );
         if (upstream == null || upstream.trim().isEmpty) return;
         if (!context.mounted) return;
         await actions.setUpstream(
@@ -183,8 +198,12 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
 
   /// Shows a simple single-TextField dialog and returns the entered text,
   /// or null if the user cancelled.
-  Future<String?> _promptText(BuildContext context, String title,
-      {required String label, String? initial}) async {
+  Future<String?> _promptText(
+    BuildContext context,
+    String title, {
+    required String label,
+    String? initial,
+  }) async {
     final ctl = TextEditingController(text: initial);
     final result = await showDialog<String>(
       context: context,
@@ -223,8 +242,8 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
       final branch = n.branch;
       final current = branch?.isCurrent ?? false;
       final fullName = branch?.fullName;
-      final isHidden = fullName != null &&
-          ref.read(hiddenRefsProvider).contains(fullName);
+      final isHidden =
+          fullName != null && ref.read(hiddenRefsProvider).contains(fullName);
       return Opacity(
         opacity: isHidden ? 0.5 : 1.0,
         child: GestureDetector(
@@ -247,7 +266,11 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                   },
             child: Padding(
               padding: EdgeInsets.only(
-                  left: indent + 18, right: 6, top: 3, bottom: 3),
+                left: indent + 18,
+                right: 6,
+                top: 3,
+                bottom: 3,
+              ),
               child: Row(
                 children: [
                   SizedBox(
@@ -280,20 +303,24 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                   ),
                   // Visibility eye icon — always visible, click toggles.
                   if (fullName != null)
-                    GestureDetector(
-                      onTap: () => ref
-                          .read(hiddenRefsProvider.notifier)
-                          .toggle(fullName),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: Icon(
-                          isHidden
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          size: 13,
-                          color: isHidden
-                              ? AppPalette.of(context).fg3
-                              : AppPalette.of(context).fg2,
+                    Semantics(
+                      button: true,
+                      label: isHidden
+                          ? 'Show ${n.name} in the graph'
+                          : 'Hide ${n.name} from the graph',
+                      child: GestureDetector(
+                        onTap: () => ref
+                            .read(hiddenRefsProvider.notifier)
+                            .toggle(fullName),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Icon(
+                            isHidden ? Icons.visibility_off : Icons.visibility,
+                            size: 13,
+                            color: isHidden
+                                ? AppPalette.of(context).fg3
+                                : AppPalette.of(context).fg2,
+                          ),
                         ),
                       ),
                     ),
@@ -318,24 +345,32 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           },
           child: Padding(
             padding: EdgeInsets.only(
-                left: indent, right: 12, top: 3, bottom: 3),
-            child: Row(children: [
-              Icon(
-                open ? Icons.expand_more : Icons.chevron_right,
-                size: 14,
-                color: AppPalette.of(context).fg3,
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(n.name,
+              left: indent,
+              right: 12,
+              top: 3,
+              bottom: 3,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  open ? Icons.expand_more : Icons.chevron_right,
+                  size: 14,
+                  color: AppPalette.of(context).fg3,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    n.name,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: AppPalette.of(context).fg1,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w500,
-                    )),
-              ),
-            ]),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         if (open)

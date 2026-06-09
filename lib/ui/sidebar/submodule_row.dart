@@ -27,39 +27,43 @@ class SubmoduleRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
-    return GestureDetector(
-      onSecondaryTapDown: (details) =>
-          _showContextMenu(context, ref, details.globalPosition),
-      child: InkWell(
-        // Initialized submodules point at a real commit; reveal it in the
-        // graph. Uninitialized ones still record the expected SHA, but it may
-        // not be present locally yet, so tapping is a no-op there.
-        onTap: _isUninitialized
-            ? null
-            : () => revealCommit(ref, submodule.sha),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  submodule.path,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: palette.fg1, fontSize: 12.5),
+    return Semantics(
+      button: true,
+      label: 'Submodule ${submodule.path}, ${submodule.status.name}',
+      child: GestureDetector(
+        onSecondaryTapDown: (details) =>
+            _showContextMenu(context, ref, details.globalPosition),
+        child: InkWell(
+          // Initialized submodules point at a real commit; reveal it in the
+          // graph. Uninitialized ones still record the expected SHA, but it may
+          // not be present locally yet, so tapping is a no-op there.
+          onTap: _isUninitialized
+              ? null
+              : () => revealCommit(ref, submodule.sha),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    submodule.path,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: palette.fg1, fontSize: 12.5),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                submodule.sha.short(),
-                style: TextStyle(
-                  color: palette.fg3,
-                  fontSize: 11,
-                  fontFamily: 'monospace',
+                const SizedBox(width: 6),
+                Text(
+                  submodule.sha.short(),
+                  style: TextStyle(
+                    color: palette.fg3,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              _SubmoduleStatusBadge(status: submodule.status),
-            ],
+                const SizedBox(width: 6),
+                _SubmoduleStatusBadge(status: submodule.status),
+              ],
+            ),
           ),
         ),
       ),
@@ -67,7 +71,10 @@ class SubmoduleRow extends ConsumerWidget {
   }
 
   Future<void> _showContextMenu(
-      BuildContext context, WidgetRef ref, Offset globalPos) async {
+    BuildContext context,
+    WidgetRef ref,
+    Offset globalPos,
+  ) async {
     final selected = await AppContextMenu.show<String>(
       context,
       globalPosition: globalPos,
@@ -100,10 +107,12 @@ class SubmoduleRow extends ConsumerWidget {
     onRefresh();
     if (!context.mounted) return;
     if (result case GitFailure(:final message)) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Submodule update failed: $message'),
-        backgroundColor: palette.accentErr,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Submodule update failed: $message'),
+          backgroundColor: palette.accentErr,
+        ),
+      );
     }
   }
 }
