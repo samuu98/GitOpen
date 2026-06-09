@@ -24,6 +24,22 @@ class GitToolbar extends ConsumerStatefulWidget {
 }
 
 class _GitToolbarState extends ConsumerState<GitToolbar> {
+  /// Human-readable form of the configured shortcut for [action] (e.g.
+  /// "F5"), or null when unbound — surfaced in tooltips so the bindings
+  /// are discoverable outside the settings page.
+  String? _shortcutLabel(String action) {
+    final binding = ref.watch(appSettingsProvider).keybindings[action];
+    if (binding == null) return null;
+    return binding.keys
+        .map((k) => k.keyLabel.isNotEmpty ? k.keyLabel : k.debugName ?? '?')
+        .join(' + ');
+  }
+
+  String _tooltip(String base, String action) {
+    final shortcut = _shortcutLabel(action);
+    return shortcut == null ? base : '$base ($shortcut)';
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeId = ref.watch(activeWorkspaceIdProvider);
@@ -42,18 +58,21 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
           icon: Icons.cloud_download_outlined,
           label: 'Fetch',
           enabled: enabled,
+          tooltip: _tooltip('Fetch from origin', 'fetch'),
           onTap: () => _fetch(repo!),
         ),
         ToolbarButton(
           icon: Icons.south,
           label: 'Pull',
           enabled: enabled,
+          tooltip: 'Pull from origin',
           onTap: () => _pull(repo!),
         ),
         ToolbarButton(
           icon: Icons.north,
           label: 'Push',
           enabled: enabled,
+          tooltip: 'Push to origin',
           onTap: () => _push(repo!),
         ),
         const SizedBox(width: 4),

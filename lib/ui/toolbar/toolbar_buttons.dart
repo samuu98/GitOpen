@@ -9,15 +9,32 @@ class ToolbarButton extends StatelessWidget {
     required this.enabled,
     required this.onTap,
     super.key,
+    this.tooltip,
   });
   final IconData icon;
   final String label;
   final bool enabled;
   final VoidCallback onTap;
 
+  /// Hover hint — used to surface the action's keyboard shortcut. Also
+  /// becomes the button's semantics label for screen readers.
+  final String? tooltip;
+
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final tip = tooltip;
+    if (tip != null) {
+      return Tooltip(
+        message: tip,
+        waitDuration: const Duration(milliseconds: 500),
+        child: _body(palette),
+      );
+    }
+    return _body(palette);
+  }
+
+  Widget _body(AppPalette palette) {
     return Opacity(
       opacity: enabled ? 1.0 : 0.4,
       child: InkWell(

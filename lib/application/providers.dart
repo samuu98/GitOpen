@@ -84,16 +84,22 @@ final gitWriteOperationsProvider = Provider<GitWriteOperations>((ref) {
   return GitCliWriteOperations(runner: ref.watch(gitProcessRunnerProvider));
 });
 
+/// Extracts user-presentable text from a thrown git transport error — the
+/// composition root is the one place allowed to know how to read git's
+/// stderr off a `GitProcessException` (UI gets the function, not the type).
+final gitErrorTextProvider = Provider<String Function(Object error)>(
+  (ref) => (e) => e is GitProcessException ? e.stderr : e.toString(),
+);
+
 /// Pure orchestrator for git actions (progress + auth-retry + declarative
 /// invalidation). The UI's `GitActionsController` drives it with concrete
-/// ports. `errorText` is wired here — the composition root is the one place
-/// allowed to know how to read git's stderr off a `GitProcessException`.
+/// ports.
 final gitActionsServiceProvider = Provider<GitActionsService>((ref) {
   return GitActionsService(
     write: ref.watch(gitWriteOperationsProvider),
     resolveProfile: (repo) =>
         ref.read(authResolverProvider).resolveForRepo(repo),
-    errorText: (e) => e is GitProcessException ? e.stderr : e.toString(),
+    errorText: ref.watch(gitErrorTextProvider),
   );
 });
 

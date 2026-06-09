@@ -24,28 +24,32 @@ class TagRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
-      onSecondaryTapDown: (details) =>
-          _showContextMenu(context, ref, details.globalPosition),
-      child: InkWell(
-        onTap: () => revealCommit(ref, tag.targetSha),
-        onDoubleTap: () async {
-          final ok = await safeCheckout(
-            context: context,
-            ref: ref,
-            repo: repo,
-            targetRef: tag.name,
-          );
-          if (ok) onRefresh();
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
-          child: Text(
-            tag.name,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppPalette.of(context).fg1,
-              fontSize: 12.5,
+    return Semantics(
+      button: true,
+      label: 'Tag ${tag.name}',
+      child: GestureDetector(
+        onSecondaryTapDown: (details) =>
+            _showContextMenu(context, ref, details.globalPosition),
+        child: InkWell(
+          onTap: () => revealCommit(ref, tag.targetSha),
+          onDoubleTap: () async {
+            final ok = await safeCheckout(
+              context: context,
+              ref: ref,
+              repo: repo,
+              targetRef: tag.name,
+            );
+            if (ok) onRefresh();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
+            child: Text(
+              tag.name,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppPalette.of(context).fg1,
+                fontSize: 12.5,
+              ),
             ),
           ),
         ),
@@ -54,7 +58,10 @@ class TagRow extends ConsumerWidget {
   }
 
   Future<void> _showContextMenu(
-      BuildContext context, WidgetRef ref, Offset globalPos) async {
+    BuildContext context,
+    WidgetRef ref,
+    Offset globalPos,
+  ) async {
     final selected = await AppContextMenu.show<String>(
       context,
       globalPosition: globalPos,

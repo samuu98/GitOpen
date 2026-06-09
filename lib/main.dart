@@ -17,6 +17,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
 import 'package:gitopen/ui/bottom_panel/bottom_panel.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_panel.dart';
+import 'package:gitopen/ui/commit_graph/detached_head_banner.dart';
 import 'package:gitopen/ui/common/vertical_splitter.dart';
 import 'package:gitopen/ui/conflicts/conflict_resolution_panel.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
@@ -290,12 +291,15 @@ class _RepoBody extends ConsumerWidget {
     final view = ref.watch(mainViewProvider);
     final repoStateAsync = ref.watch(repoStateProvider(repo));
     final inProgressOp = repoStateAsync.valueOrNull;
-    final hasConflict = inProgressOp == InProgressOp.merge ||
-        inProgressOp == InProgressOp.cherryPick ||
-        inProgressOp == InProgressOp.revert;
+    // Every in-progress sequencer op (merge, cherry-pick, revert AND rebase)
+    // routes to the conflict panel — a paused `git rebase` previously left
+    // the user with no continue/abort UI at all.
+    final hasConflict =
+        inProgressOp != null && inProgressOp != InProgressOp.none;
     return Column(
       children: [
         const ViewSelector(),
+        DetachedHeadBanner(repo: repo),
         Expanded(
           child: hasConflict
               ? ConflictResolutionPanel(repo: repo)
