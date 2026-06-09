@@ -8,6 +8,9 @@ class AppLoggerPort implements LoggerPort {
   const AppLoggerPort();
 
   @override
+  void d(String message) => appLog.d(message);
+
+  @override
   void i(String message) => appLog.i(message);
 
   @override

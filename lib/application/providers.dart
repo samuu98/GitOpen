@@ -6,8 +6,10 @@ import 'package:gitopen/application/auth/credential_tester.dart';
 import 'package:gitopen/application/auth/device_flow_controller.dart';
 import 'package:gitopen/application/git/git_action_ports.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
+import 'package:gitopen/application/git/git_dir_probe.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
+import 'package:gitopen/application/launcher/folder_picker.dart';
 import 'package:gitopen/application/launcher/repo_launcher.dart';
 import 'package:gitopen/application/operations/operations_notifier.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
@@ -29,6 +31,8 @@ import 'package:gitopen/infrastructure/git/git_cli_read_operations.dart';
 import 'package:gitopen/infrastructure/git/git_cli_write_operations.dart';
 import 'package:gitopen/infrastructure/git/git_identity_service.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
+import 'package:gitopen/infrastructure/git/git_remote_url_reader.dart';
+import 'package:gitopen/infrastructure/git/io_git_dir_probe.dart';
 import 'package:gitopen/infrastructure/launcher/system_repo_launcher.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
 import 'package:gitopen/infrastructure/logging/app_logger_port.dart';
@@ -69,7 +73,12 @@ final workspaceManagerProvider =
   return WorkspaceManager(ref.watch(repositoryRegistryProvider));
 });
 
-final folderPickerProvider = Provider<FolderPicker>((ref) => FolderPicker());
+final folderPickerProvider =
+    Provider<FolderPicker>((ref) => const SystemFolderPicker());
+
+/// Probes `.git` for in-progress-operation markers (file-system backed).
+final gitDirProbeProvider =
+    Provider<GitDirProbe>((ref) => const IoGitDirProbe());
 
 final gitWriteOperationsProvider = Provider<GitWriteOperations>((ref) {
   return GitCliWriteOperations(runner: ref.watch(gitProcessRunnerProvider));
@@ -105,10 +114,12 @@ final authResolverProvider = Provider<AuthResolver>((ref) {
   final store = ref.watch(authProfileStoreProvider);
   return AuthResolver(
     store,
+    remoteUrl: GitRemoteUrlReader(runner: ref.watch(gitProcessRunnerProvider)),
     // Always reads the current binding map from settings — closure runs once
     // per resolve, so the provider does not need to rebuild on settings change.
     bindingLookup: (repoId) =>
         ref.read(appSettingsProvider).authRepoBindings[repoId],
+    log: ref.watch(loggerProvider),
   );
 });
 

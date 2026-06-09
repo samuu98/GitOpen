@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:equatable/equatable.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 
@@ -30,7 +29,7 @@ class RunningOperation extends Equatable {
     this.phase = '',
     this.stderrTail = const [],
     this.finishedAt,
-    this.process,
+    this.onCancel,
     this.errorMessage,
   });
   final String id;
@@ -43,7 +42,10 @@ class RunningOperation extends Equatable {
   final List<String> stderrTail;
   final DateTime startedAt;
   final DateTime? finishedAt;
-  final Process? process;
+
+  /// Aborts the underlying work when the user cancels the operation (e.g.
+  /// kills the spawned process). Null for operations that can't be cancelled.
+  final void Function()? onCancel;
   final String? errorMessage;
 
   RunningOperation copyWith({
@@ -52,7 +54,7 @@ class RunningOperation extends Equatable {
     String? phase,
     List<String>? stderrTail,
     DateTime? finishedAt,
-    Process? process,
+    void Function()? onCancel,
     String? errorMessage,
   }) {
     return RunningOperation(
@@ -62,7 +64,7 @@ class RunningOperation extends Equatable {
       phase: phase ?? this.phase,
       stderrTail: stderrTail ?? this.stderrTail,
       finishedAt: finishedAt ?? this.finishedAt,
-      process: process ?? this.process,
+      onCancel: onCancel ?? this.onCancel,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

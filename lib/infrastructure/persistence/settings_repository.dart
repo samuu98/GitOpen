@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'package:gitopen/application/settings/settings_store.dart';
 import 'package:gitopen/infrastructure/persistence/database.dart';
 
-class SettingsRepository {
+class SettingsRepository implements SettingsStore {
   SettingsRepository(this._db);
   final AppDatabase _db;
 
+  @override
   Future<Map<String, dynamic>> readAll() async {
     final rows = await _db.select(_db.settings).get();
     final result = <String, dynamic>{};
@@ -19,6 +21,7 @@ class SettingsRepository {
     return result;
   }
 
+  @override
   Future<void> put(String key, dynamic value) async {
     final json = jsonEncode(value);
     await _db.into(_db.settings).insertOnConflictUpdate(
