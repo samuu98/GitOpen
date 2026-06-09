@@ -515,3 +515,6 @@ macos/Flutter/GeneratedPluginRegistrant.swift
 # by pubspec.yaml and msix_config — and leave a fresh clone failing analyze.
 !assets/icon/
 !assets/icon/**
+
+# Flutter test coverage output
+coverage/
