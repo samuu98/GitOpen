@@ -20,7 +20,6 @@ import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
-import 'package:gitopen/infrastructure/logging/app_logger.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
 import 'package:gitopen/ui/commit_graph/local_changes_row.dart';
@@ -64,13 +63,14 @@ final FutureProviderFamily<_GraphData, RepoLocation> _commitGraphDataProvider =
   // Watch the search terms so the provider re-runs when the query changes.
   // When empty, the CommitQuery below carries null search fields and the
   // graph behaves exactly as before search existed.
+  final logger = ref.read(loggerProvider);
   final search = ref.watch(commitSearchProvider);
 
-  appLog.i('graph: start load for ${repo.displayName}');
+  logger.i('graph: start load for ${repo.displayName}');
   // Share the branch fetch with the sidebar — same repo, same data, no
   // need to spawn a second `git for-each-ref`.
   final branches = await ref.watch(branchesProvider(repo).future);
-  appLog.i('graph: branches=${branches.length}');
+  logger.i('graph: branches=${branches.length}');
 
   // Compute the set of visible branch fullNames to pass to git log.
   final visibleBranches =
@@ -92,7 +92,7 @@ final FutureProviderFamily<_GraphData, RepoLocation> _commitGraphDataProvider =
     touchingContent: search.touchingContent,
   );
 
-  appLog.i(
+  logger.i(
     'graph: running git log '
     '(max=$takeCommits, refs=${refsForLog.length}, '
     'search=${search.isEmpty ? 'none' : 'active'})',
@@ -108,15 +108,15 @@ final FutureProviderFamily<_GraphData, RepoLocation> _commitGraphDataProvider =
               _gitLogTimeout),
         );
   } on TimeoutException catch (e) {
-    appLog.w('graph: git log timeout — ${e.message}');
+    logger.w('graph: git log timeout — ${e.message}');
     rethrow;
   }
-  appLog.i('graph: commits=${commits.length} — computing layout (isolate)');
+  logger.i('graph: commits=${commits.length} — computing layout (isolate)');
   // Run the layout in a background isolate so a big graph cannot pin the
   // UI thread.  The overhead of [compute] (~tens of ms to spawn) is
   // dwarfed by the layout cost on any non-trivial history.
   final nodes = await compute(_layoutInIsolate, commits);
-  appLog.i('graph: layout done (${nodes.length} nodes)');
+  logger.i('graph: layout done (${nodes.length} nodes)');
 
   // Bucket all branches by tip sha, splitting locals from remotes.
   final localsBySha = <String, List<Branch>>{};

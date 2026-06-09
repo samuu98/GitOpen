@@ -15,7 +15,6 @@ import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
-import 'package:gitopen/infrastructure/logging/app_logger.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
@@ -51,18 +50,19 @@ class _SidebarData {
 
 final FutureProviderFamily<_SidebarData, RepoLocation> _sidebarDataProvider =
     FutureProvider.family<_SidebarData, RepoLocation>((ref, repo) async {
+  final logger = ref.read(loggerProvider);
   final git = ref.watch(gitReadOperationsProvider);
-  appLog.i('sidebar: awaiting shared branches for ${repo.displayName}');
+  logger.i('sidebar: awaiting shared branches for ${repo.displayName}');
   final branches = await ref.watch(branchesProvider(repo).future);
-  appLog.i('sidebar: ${branches.length} branches — loading tags');
+  logger.i('sidebar: ${branches.length} branches — loading tags');
   final tags = await git.getTags(repo);
-  appLog.i('sidebar: ${tags.length} tags — loading remotes');
+  logger.i('sidebar: ${tags.length} tags — loading remotes');
   final remotes = await git.getRemotes(repo);
-  appLog.i('sidebar: ${remotes.length} remotes — loading stashes');
+  logger.i('sidebar: ${remotes.length} remotes — loading stashes');
   final stashes = await git.getStashes(repo);
-  appLog.i('sidebar: ${stashes.length} stashes — loading submodules');
+  logger.i('sidebar: ${stashes.length} stashes — loading submodules');
   final submodules = await git.getSubmodules(repo);
-  appLog.i('sidebar: ${submodules.length} submodules — done');
+  logger.i('sidebar: ${submodules.length} submodules — done');
   return _SidebarData(branches, tags, remotes, stashes, submodules);
 });
 

@@ -3,6 +3,7 @@ import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_profile_store.dart';
 import 'package:gitopen/application/auth/auth_resolver.dart';
 import 'package:gitopen/application/auth/credential_tester.dart';
+import 'package:gitopen/application/git/git_action_ports.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
@@ -28,6 +29,7 @@ import 'package:gitopen/infrastructure/git/git_identity_service.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
 import 'package:gitopen/infrastructure/launcher/system_repo_launcher.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
+import 'package:gitopen/infrastructure/logging/app_logger_port.dart';
 import 'package:gitopen/infrastructure/operations/activity_log_repository.dart';
 import 'package:gitopen/infrastructure/persistence/database.dart';
 import 'package:gitopen/infrastructure/persistence/repository_registry_impl.dart';
@@ -45,6 +47,8 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
 final gitProcessRunnerProvider = Provider<GitProcessRunner>((ref) {
   return GitProcessRunner();
 });
+
+final loggerProvider = Provider<LoggerPort>((ref) => const AppLoggerPort());
 
 final gitReadOperationsProvider = Provider<GitReadOperations>((ref) {
   return GitCliReadOperations(runner: ref.watch(gitProcessRunnerProvider));
