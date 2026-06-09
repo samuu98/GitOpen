@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
+import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 class BranchCreateDialog extends ConsumerStatefulWidget {
@@ -84,9 +85,15 @@ class _State extends ConsumerState<BranchCreateDialog> {
 
   Future<void> _create() async {
     if (_ctl.text.trim().isEmpty) return;
-    final write = ref.read(gitWriteOperationsProvider);
-    await write.createBranch(widget.repo, _ctl.text.trim(),
-        at: widget.at, checkout: _checkout);
-    if (mounted) Navigator.pop(context, true);
+    final result = await ref.read(gitActionsControllerProvider).createBranch(
+          context,
+          widget.repo,
+          _ctl.text.trim(),
+          at: widget.at,
+          checkout: _checkout,
+        );
+    if (mounted) {
+      Navigator.pop(context, result.outcome == ActionOutcome.success);
+    }
   }
 }

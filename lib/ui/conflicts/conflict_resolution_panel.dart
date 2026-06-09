@@ -5,6 +5,7 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/conflicts/merge_editor_dialog.dart';
+import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -107,13 +108,14 @@ class ConflictResolutionPanel extends ConsumerWidget {
                   padding: const EdgeInsets.all(8),
                   child: Row(children: [
                     OutlinedButton(
-                      onPressed: () => _abort(ref, op),
+                      onPressed: () => _abort(context, ref, op),
                       child: const Text('Abort'),
                     ),
                     const Spacer(),
                     ElevatedButton(
-                      onPressed:
-                          files.isEmpty ? () => _continue(ref, op) : null,
+                      onPressed: files.isEmpty
+                          ? () => _continue(context, ref, op)
+                          : null,
                       child: const Text('Continue'),
                     ),
                   ]),
@@ -167,21 +169,43 @@ class ConflictResolutionPanel extends ConsumerWidget {
     }
   }
 
-  Future<void> _abort(WidgetRef ref, InProgressOp op) async {
-    final write = ref.read(gitWriteOperationsProvider);
-    if (op == InProgressOp.merge) await write.mergeAbort(repo);
-    if (op == InProgressOp.cherryPick) await write.cherryPickAbort(repo);
-    if (op == InProgressOp.revert) await write.revertAbort(repo);
-    if (op == InProgressOp.rebase) await write.rebaseAbort(repo);
-    ref.invalidate(repoStateProvider(repo));
+  Future<void> _abort(
+    BuildContext context,
+    WidgetRef ref,
+    InProgressOp op,
+  ) async {
+    final actions = ref.read(gitActionsControllerProvider);
+    switch (op) {
+      case InProgressOp.merge:
+        await actions.mergeAbort(context, repo);
+      case InProgressOp.cherryPick:
+        await actions.cherryPickAbort(context, repo);
+      case InProgressOp.revert:
+        await actions.revertAbort(context, repo);
+      case InProgressOp.rebase:
+        await actions.rebaseAbort(context, repo);
+      case InProgressOp.none:
+        break;
+    }
   }
 
-  Future<void> _continue(WidgetRef ref, InProgressOp op) async {
-    final write = ref.read(gitWriteOperationsProvider);
-    if (op == InProgressOp.merge) await write.mergeContinue(repo);
-    if (op == InProgressOp.cherryPick) await write.cherryPickContinue(repo);
-    if (op == InProgressOp.revert) await write.revertContinue(repo);
-    if (op == InProgressOp.rebase) await write.rebaseContinue(repo);
-    ref.invalidate(repoStateProvider(repo));
+  Future<void> _continue(
+    BuildContext context,
+    WidgetRef ref,
+    InProgressOp op,
+  ) async {
+    final actions = ref.read(gitActionsControllerProvider);
+    switch (op) {
+      case InProgressOp.merge:
+        await actions.mergeContinue(context, repo);
+      case InProgressOp.cherryPick:
+        await actions.cherryPickContinue(context, repo);
+      case InProgressOp.revert:
+        await actions.revertContinue(context, repo);
+      case InProgressOp.rebase:
+        await actions.rebaseContinue(context, repo);
+      case InProgressOp.none:
+        break;
+    }
   }
 }

@@ -134,6 +134,254 @@ class GitActionsController {
         () => _ref.read(gitActionsServiceProvider).reset(repo, to, mode),
       );
 
+  /// `git rebase -i` driven by a scripted [plan].
+  Future<ActionResult> interactiveRebase(
+    BuildContext context,
+    RepoLocation repo,
+    CommitSha onto,
+    List<RebaseTodoEntry> plan,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref
+            .read(gitActionsServiceProvider)
+            .interactiveRebase(repo, onto, plan),
+      );
+
+  /// `git checkout <ref>`.
+  Future<ActionResult> checkout(
+    BuildContext context,
+    RepoLocation repo,
+    String ref,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).checkout(repo, ref),
+      );
+
+  /// `git branch <name>` (optionally at [at], optionally checked out).
+  Future<ActionResult> createBranch(
+    BuildContext context,
+    RepoLocation repo,
+    String name, {
+    CommitSha? at,
+    bool checkout = false,
+  }) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref
+            .read(gitActionsServiceProvider)
+            .createBranch(repo, name, at: at, checkout: checkout),
+      );
+
+  /// `git branch -m <old> <new>`.
+  Future<ActionResult> renameBranch(
+    BuildContext context,
+    RepoLocation repo,
+    String oldName,
+    String newName,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref
+            .read(gitActionsServiceProvider)
+            .renameBranch(repo, oldName, newName),
+      );
+
+  /// `git branch -d/-D <name>`.
+  Future<ActionResult> deleteBranch(
+    BuildContext context,
+    RepoLocation repo,
+    String name, {
+    bool force = false,
+  }) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref
+            .read(gitActionsServiceProvider)
+            .deleteBranch(repo, name, force: force),
+      );
+
+  /// `git branch --set-upstream-to=<upstream> <branch>`.
+  Future<ActionResult> setUpstream(
+    BuildContext context,
+    RepoLocation repo,
+    String branch,
+    String upstream,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref
+            .read(gitActionsServiceProvider)
+            .setUpstream(repo, branch, upstream),
+      );
+
+  /// `git tag <name>` (optionally at [at]).
+  Future<ActionResult> createTag(
+    BuildContext context,
+    RepoLocation repo,
+    String name, {
+    CommitSha? at,
+    String? message,
+  }) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref
+            .read(gitActionsServiceProvider)
+            .createTag(repo, name, at: at, message: message),
+      );
+
+  /// `git tag -d <name>`.
+  Future<ActionResult> deleteTag(
+    BuildContext context,
+    RepoLocation repo,
+    String name,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).deleteTag(repo, name),
+      );
+
+  /// `git stash push`.
+  Future<ActionResult> stashSave(
+    BuildContext context,
+    RepoLocation repo,
+    String message, {
+    bool includeUntracked = false,
+  }) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).stashSave(
+              repo,
+              message,
+              includeUntracked: includeUntracked,
+            ),
+      );
+
+  /// `git stash apply stash@{index}`.
+  Future<ActionResult> stashApply(
+    BuildContext context,
+    RepoLocation repo,
+    int index,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).stashApply(repo, index),
+      );
+
+  /// `git stash pop stash@{index}`.
+  Future<ActionResult> stashPop(
+    BuildContext context,
+    RepoLocation repo,
+    int index,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).stashPop(repo, index),
+      );
+
+  /// `git stash drop stash@{index}`.
+  Future<ActionResult> stashDrop(
+    BuildContext context,
+    RepoLocation repo,
+    int index,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).stashDrop(repo, index),
+      );
+
+  /// `git merge --abort`.
+  Future<ActionResult> mergeAbort(BuildContext context, RepoLocation repo) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).mergeAbort(repo),
+      );
+
+  /// `git merge --continue`.
+  Future<ActionResult> mergeContinue(
+    BuildContext context,
+    RepoLocation repo,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).mergeContinue(repo),
+      );
+
+  /// `git cherry-pick --abort`.
+  Future<ActionResult> cherryPickAbort(
+    BuildContext context,
+    RepoLocation repo,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).cherryPickAbort(repo),
+      );
+
+  /// `git cherry-pick --continue`.
+  Future<ActionResult> cherryPickContinue(
+    BuildContext context,
+    RepoLocation repo,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).cherryPickContinue(repo),
+      );
+
+  /// `git revert --abort`.
+  Future<ActionResult> revertAbort(BuildContext context, RepoLocation repo) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).revertAbort(repo),
+      );
+
+  /// `git revert --continue`.
+  Future<ActionResult> revertContinue(
+    BuildContext context,
+    RepoLocation repo,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).revertContinue(repo),
+      );
+
+  /// `git rebase --abort`.
+  Future<ActionResult> rebaseAbort(BuildContext context, RepoLocation repo) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).rebaseAbort(repo),
+      );
+
+  /// `git rebase --continue`.
+  Future<ActionResult> rebaseContinue(
+    BuildContext context,
+    RepoLocation repo,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).rebaseContinue(repo),
+      );
+
   Future<ActionResult> _run(
     BuildContext context,
     RepoLocation repo,

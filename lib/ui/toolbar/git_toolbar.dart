@@ -129,7 +129,6 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
           _menuController.close();
           if (!mounted) return;
           await BranchCreateDialog.show(context, repo);
-          ref.invalidate(gitReadOperationsProvider);
         },
       ),
       AppMenuButton(
@@ -175,8 +174,11 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
       branches: locals.map((b) => b.name).toList(),
     );
     if (selected == null || !mounted) return;
-    await ref.read(gitWriteOperationsProvider).checkout(repo, selected);
-    ref.invalidate(gitReadOperationsProvider);
+    await ref.read(gitActionsControllerProvider).checkout(
+          context,
+          repo,
+          selected,
+        );
   }
 
   Future<void> _renameBranch(RepoLocation repo) async {
@@ -188,9 +190,8 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
         label: 'New name', initial: current.name);
     if (newName == null || newName.trim().isEmpty || !mounted) return;
     await ref
-        .read(gitWriteOperationsProvider)
-        .renameBranch(repo, current.name, newName.trim());
-    ref.invalidate(gitReadOperationsProvider);
+        .read(gitActionsControllerProvider)
+        .renameBranch(context, repo, current.name, newName.trim());
   }
 
   Future<void> _deleteBranch(RepoLocation repo) async {
@@ -213,9 +214,8 @@ class _BranchDropdownState extends ConsumerState<_BranchDropdown> {
     );
     if (!confirmed || !mounted) return;
     await ref
-        .read(gitWriteOperationsProvider)
-        .deleteBranch(repo, selected, force: true);
-    ref.invalidate(gitReadOperationsProvider);
+        .read(gitActionsControllerProvider)
+        .deleteBranch(context, repo, selected, force: true);
   }
 
   Future<String?> _showBranchPickerDialog(
@@ -287,8 +287,11 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
         label: 'Apply latest',
         onPressed: () async {
           _menuController.close();
-          await ref.read(gitWriteOperationsProvider).stashApply(repo, 0);
-          ref.invalidate(gitReadOperationsProvider);
+          await ref.read(gitActionsControllerProvider).stashApply(
+                context,
+                repo,
+                0,
+              );
         },
       ),
       AppMenuButton(
@@ -296,8 +299,11 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
         label: 'Pop latest',
         onPressed: () async {
           _menuController.close();
-          await ref.read(gitWriteOperationsProvider).stashPop(repo, 0);
-          ref.invalidate(gitReadOperationsProvider);
+          await ref.read(gitActionsControllerProvider).stashPop(
+                context,
+                repo,
+                0,
+              );
         },
       ),
       const AppMenuAnchorDivider(),
@@ -318,9 +324,8 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
         label: 'Message (optional)');
     if (!mounted) return;
     await ref
-        .read(gitWriteOperationsProvider)
-        .stashSave(repo, msg?.trim() ?? '');
-    ref.invalidate(gitReadOperationsProvider);
+        .read(gitActionsControllerProvider)
+        .stashSave(context, repo, msg?.trim() ?? '');
   }
 
   Future<void> _viewStashes(RepoLocation repo) async {

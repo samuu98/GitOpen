@@ -280,7 +280,9 @@ class _TagRow extends ConsumerWidget {
 
     switch (selected) {
       case 'checkout':
-        await write.checkout(repo, tag.name);
+        await ref
+            .read(gitActionsControllerProvider)
+            .checkout(context, repo, tag.name);
         onRefresh();
 
       case 'push_tag':
@@ -300,7 +302,10 @@ class _TagRow extends ConsumerWidget {
           dangerous: true,
         );
         if (!confirmed) return;
-        await write.deleteTag(repo, tag.name);
+        if (!context.mounted) return;
+        await ref
+            .read(gitActionsControllerProvider)
+            .deleteTag(context, repo, tag.name);
         onRefresh();
     }
   }
@@ -366,15 +371,15 @@ class _StashRow extends ConsumerWidget {
     );
 
     if (selected == null || !context.mounted) return;
-    final write = ref.read(gitWriteOperationsProvider);
+    final actions = ref.read(gitActionsControllerProvider);
 
     switch (selected) {
       case 'apply':
-        await write.stashApply(repo, stash.index);
+        await actions.stashApply(context, repo, stash.index);
         onRefresh();
 
       case 'pop':
-        await write.stashPop(repo, stash.index);
+        await actions.stashPop(context, repo, stash.index);
         onRefresh();
 
       case 'drop':
@@ -386,8 +391,8 @@ class _StashRow extends ConsumerWidget {
           confirmLabel: 'Drop',
           dangerous: true,
         );
-        if (!confirmed) return;
-        await write.stashDrop(repo, stash.index);
+        if (!confirmed || !context.mounted) return;
+        await actions.stashDrop(context, repo, stash.index);
         onRefresh();
     }
   }
@@ -919,11 +924,11 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     );
 
     if (selected == null || !context.mounted) return;
-    final write = ref.read(gitWriteOperationsProvider);
+    final actions = ref.read(gitActionsControllerProvider);
 
     switch (selected) {
       case 'checkout':
-        await write.checkout(widget.repo, branchName);
+        await actions.checkout(context, widget.repo, branchName);
         _refresh();
 
       case 'merge':
@@ -960,7 +965,13 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         final newName = await _promptText(context, 'Rename branch',
             label: 'New name', initial: branchName);
         if (newName == null || newName.trim().isEmpty) return;
-        await write.renameBranch(widget.repo, branchName, newName.trim());
+        if (!context.mounted) return;
+        await actions.renameBranch(
+          context,
+          widget.repo,
+          branchName,
+          newName.trim(),
+        );
         _refresh();
 
       case 'delete':
@@ -972,15 +983,21 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           confirmLabel: 'Delete',
           dangerous: true,
         );
-        if (!confirmed) return;
-        await write.deleteBranch(widget.repo, branchName);
+        if (!confirmed || !context.mounted) return;
+        await actions.deleteBranch(context, widget.repo, branchName);
         _refresh();
 
       case 'upstream':
         final upstream = await _promptText(context, 'Set upstream',
             label: 'Upstream ref (e.g. origin/main)');
         if (upstream == null || upstream.trim().isEmpty) return;
-        await write.setUpstream(widget.repo, branchName, upstream.trim());
+        if (!context.mounted) return;
+        await actions.setUpstream(
+          context,
+          widget.repo,
+          branchName,
+          upstream.trim(),
+        );
         _refresh();
     }
   }

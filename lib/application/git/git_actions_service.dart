@@ -204,15 +204,160 @@ final class GitActionsService {
     RepoLocation repo,
     CommitSha to,
     ResetMode mode,
-  ) async {
-    final result = await _write.reset(repo, to, mode);
+  ) =>
+      _simple('Reset', _write.reset(repo, to, mode), invalidate: _localScope);
+
+  /// `git rebase -i` driven by a scripted [plan] (no editor). Conflict-bearing,
+  /// like [rebase].
+  Future<ActionResult> interactiveRebase(
+    RepoLocation repo,
+    CommitSha onto,
+    List<RebaseTodoEntry> plan,
+  ) async =>
+      _conflictable(
+        await _write.interactiveRebase(repo, onto, plan),
+        'Rebase',
+        (o) => o is RebaseConflict ? o.conflictedPaths : null,
+      );
+
+  // ---- Ref / stash CRUD ---------------------------------------------------
+  // Pure bookkeeping ops: success refreshes reads; failure surfaces the git
+  // error (these call sites used to ignore it).
+
+  /// `git checkout <ref>`.
+  Future<ActionResult> checkout(RepoLocation repo, String ref) =>
+      _simple('Checkout', _write.checkout(repo, ref));
+
+  /// `git branch <name>` (optionally at [at], optionally checked out).
+  Future<ActionResult> createBranch(
+    RepoLocation repo,
+    String name, {
+    CommitSha? at,
+    bool checkout = false,
+  }) =>
+      _simple(
+        'Create branch',
+        _write.createBranch(repo, name, at: at, checkout: checkout),
+      );
+
+  /// `git branch -m <old> <new>`.
+  Future<ActionResult> renameBranch(
+    RepoLocation repo,
+    String oldName,
+    String newName,
+  ) =>
+      _simple('Rename branch', _write.renameBranch(repo, oldName, newName));
+
+  /// `git branch -d/-D <name>`.
+  Future<ActionResult> deleteBranch(
+    RepoLocation repo,
+    String name, {
+    bool force = false,
+  }) =>
+      _simple('Delete branch', _write.deleteBranch(repo, name, force: force));
+
+  /// `git branch --set-upstream-to=<upstream> <branch>`.
+  Future<ActionResult> setUpstream(
+    RepoLocation repo,
+    String branch,
+    String upstream,
+  ) =>
+      _simple('Set upstream', _write.setUpstream(repo, branch, upstream));
+
+  /// `git tag <name>` (optionally annotated, optionally at [at]).
+  Future<ActionResult> createTag(
+    RepoLocation repo,
+    String name, {
+    CommitSha? at,
+    String? message,
+  }) =>
+      _simple(
+        'Create tag',
+        _write.createTag(repo, name, at: at, message: message),
+      );
+
+  /// `git tag -d <name>`.
+  Future<ActionResult> deleteTag(RepoLocation repo, String name) =>
+      _simple('Delete tag', _write.deleteTag(repo, name));
+
+  /// `git stash push`.
+  Future<ActionResult> stashSave(
+    RepoLocation repo,
+    String message, {
+    bool includeUntracked = false,
+  }) =>
+      _simple(
+        'Stash',
+        _write.stashSave(repo, message, includeUntracked: includeUntracked),
+      );
+
+  /// `git stash apply stash@{index}`.
+  Future<ActionResult> stashApply(RepoLocation repo, int index) =>
+      _simple('Stash apply', _write.stashApply(repo, index));
+
+  /// `git stash pop stash@{index}`.
+  Future<ActionResult> stashPop(RepoLocation repo, int index) =>
+      _simple('Stash pop', _write.stashPop(repo, index));
+
+  /// `git stash drop stash@{index}`.
+  Future<ActionResult> stashDrop(RepoLocation repo, int index) =>
+      _simple('Stash drop', _write.stashDrop(repo, index));
+
+  // ---- In-progress-op flow control ---------------------------------------
+  // Abort/continue for merge/cherry-pick/revert/rebase. These end (or advance)
+  // an in-progress op, so they refresh the repo state too — and, on continue,
+  // the reads cache, since a continue creates a commit.
+
+  /// `git merge --abort`.
+  Future<ActionResult> mergeAbort(RepoLocation repo) => _simple(
+      'Abort merge', _write.mergeAbort(repo), invalidate: _localScope);
+
+  /// `git merge --continue`.
+  Future<ActionResult> mergeContinue(RepoLocation repo) => _simple(
+      'Continue merge', _write.mergeContinue(repo), invalidate: _localScope);
+
+  /// `git cherry-pick --abort`.
+  Future<ActionResult> cherryPickAbort(RepoLocation repo) => _simple(
+      'Abort cherry-pick', _write.cherryPickAbort(repo),
+      invalidate: _localScope);
+
+  /// `git cherry-pick --continue`.
+  Future<ActionResult> cherryPickContinue(RepoLocation repo) => _simple(
+      'Continue cherry-pick', _write.cherryPickContinue(repo),
+      invalidate: _localScope);
+
+  /// `git revert --abort`.
+  Future<ActionResult> revertAbort(RepoLocation repo) => _simple(
+      'Abort revert', _write.revertAbort(repo), invalidate: _localScope);
+
+  /// `git revert --continue`.
+  Future<ActionResult> revertContinue(RepoLocation repo) => _simple(
+      'Continue revert', _write.revertContinue(repo), invalidate: _localScope);
+
+  /// `git rebase --abort`.
+  Future<ActionResult> rebaseAbort(RepoLocation repo) => _simple(
+      'Abort rebase', _write.rebaseAbort(repo), invalidate: _localScope);
+
+  /// `git rebase --continue`.
+  Future<ActionResult> rebaseContinue(RepoLocation repo) => _simple(
+      'Continue rebase', _write.rebaseContinue(repo), invalidate: _localScope);
+
+  /// Maps a plain write result to an [ActionResult]: success invalidates
+  /// [invalidate]; failure adds a '`label` failed: …' error message (so call
+  /// sites can never silently swallow a git error).
+  Future<ActionResult> _simple<T>(
+    String label,
+    Future<GitResult<T>> op, {
+    Set<RepoDataScope> invalidate = const {RepoDataScope.reads},
+  }) async {
+    final result = await op;
     return switch (result) {
       GitSuccess() =>
-        const ActionResult(ActionOutcome.success, invalidate: _localScope),
+        ActionResult(ActionOutcome.success, invalidate: invalidate),
       GitFailure(:final message) => ActionResult(
           ActionOutcome.failed,
-          invalidate: _localScope,
-          message: 'Reset failed: $message',
+          invalidate: invalidate,
+          message: '$label failed: $message',
           severity: MessageSeverity.error,
         ),
     };

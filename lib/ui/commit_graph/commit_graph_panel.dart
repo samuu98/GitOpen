@@ -11,8 +11,6 @@ import 'package:gitopen/application/commit_graph/commit_node.dart';
 import 'package:gitopen/application/commit_search_provider.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
-import 'package:gitopen/application/git/merge_outcome.dart';
-import 'package:gitopen/application/git/repo_state_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/scroll_request_provider.dart';
 import 'package:gitopen/domain/commits/commit_info.dart';
@@ -507,9 +505,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
     if (selected == null || !context.mounted) return;
 
-    final write = ref.read(gitWriteOperationsProvider);
     final repo = widget.repo;
-    final palette = AppPalette.of(context);
     switch (selected) {
       case 'merge':
         final current = await currentBranchName(ref, repo);
@@ -541,30 +537,17 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
       case 'interactive_rebase':
         if (!context.mounted) return;
-        final outcome = await InteractiveRebaseDialog.show(
+        final plan = await InteractiveRebaseDialog.show(
           context,
           repo: repo,
           onto: sha,
         );
-        if (outcome == null) return;
-        // Refresh the graph + in-progress detection regardless of outcome.
-        ref.invalidate(gitReadOperationsProvider);
-        ref.invalidate(repoStateProvider(repo));
-        if (!context.mounted) return;
-        if (outcome is RebaseConflict) {
-          // The dialog already closed; the ConflictResolutionPanel /
-          // repoStateProvider flow takes over from here.
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Rebase paused on conflict in '
-                '${outcome.conflictedPaths.length} file(s). '
-                'Resolve in the conflicts panel below.',
-              ),
-              backgroundColor: palette.accentErr,
-            ),
-          );
-        }
+        if (plan == null || !context.mounted) return;
+        // On conflict the controller surfaces the snackbar and the
+        // ConflictResolutionPanel / repoStateProvider flow takes over.
+        await ref
+            .read(gitActionsControllerProvider)
+            .interactiveRebase(context, repo, sha, plan);
 
       case 'cherry_pick':
         await ref
@@ -578,15 +561,16 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
       case 'branch_here':
         await BranchCreateDialog.show(context, repo, at: sha);
-        ref.invalidate(gitReadOperationsProvider);
 
       case 'tag_here':
         if (!context.mounted) return;
         final tagName =
             await _promptText(context, 'Tag here', label: 'Tag name');
         if (tagName == null || tagName.trim().isEmpty) return;
-        await write.createTag(repo, tagName.trim(), at: sha);
-        ref.invalidate(gitReadOperationsProvider);
+        if (!context.mounted) return;
+        await ref
+            .read(gitActionsControllerProvider)
+            .createTag(context, repo, tagName.trim(), at: sha);
 
       case 'copy_sha':
         await Clipboard.setData(ClipboardData(text: sha.value));

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
-import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
-import 'package:gitopen/application/git/merge_outcome.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
@@ -21,7 +19,8 @@ class _PlanRow {
 }
 
 /// Lets the user reorder / squash / fixup / drop the commits on top of a base
-/// commit, then runs a scripted (non-interactive) `git rebase -i`.
+/// commit. Pure plan-builder: it returns the todo entries and the caller runs
+/// the rebase through the git-actions controller.
 ///
 /// [onto] is the base commit the plan is replayed onto (the commit the user
 /// right-clicked). The plan is every commit in `onto..HEAD`.
@@ -34,14 +33,15 @@ class InteractiveRebaseDialog extends ConsumerStatefulWidget {
   final RepoLocation repo;
   final CommitSha onto;
 
-  /// Shows the dialog. Returns the [RebaseOutcome] on a started rebase, or
-  /// `null` if the user cancelled (or there was nothing to rebase).
-  static Future<RebaseOutcome?> show(
+  /// Shows the dialog. Returns the confirmed plan in git's todo order
+  /// (oldest-first), or `null` if the user cancelled (or there was nothing
+  /// to rebase).
+  static Future<List<RebaseTodoEntry>?> show(
     BuildContext context, {
     required RepoLocation repo,
     required CommitSha onto,
   }) {
-    return showDialog<RebaseOutcome>(
+    return showDialog<List<RebaseTodoEntry>>(
       context: context,
       builder: (_) => InteractiveRebaseDialog(repo: repo, onto: onto),
     );
@@ -56,8 +56,6 @@ class _InteractiveRebaseDialogState
     extends ConsumerState<InteractiveRebaseDialog> {
   late final Future<List<CommitInfo>> _commitsFuture;
   List<_PlanRow>? _plan;
-  bool _busy = false;
-  String? _error;
 
   @override
   void initState() {
@@ -93,31 +91,15 @@ class _InteractiveRebaseDialogState
     });
   }
 
-  Future<void> _start() async {
+  void _confirm() {
     final plan = _plan;
     if (plan == null || plan.isEmpty) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
     // Dialog list is newest-first; git's todo list is oldest-first, so reverse.
     final entries = [
       for (final row in plan.reversed)
         RebaseTodoEntry(row.commit.sha, row.action),
     ];
-    final write = ref.read(gitWriteOperationsProvider);
-    final result =
-        await write.interactiveRebase(widget.repo, widget.onto, entries);
-    if (!mounted) return;
-    switch (result) {
-      case GitSuccess(:final value):
-        Navigator.pop(context, value);
-      case GitFailure(:final message):
-        setState(() {
-          _busy = false;
-          _error = message;
-        });
-    }
+    Navigator.pop(context, entries);
   }
 
   @override
@@ -128,7 +110,6 @@ class _InteractiveRebaseDialogState
       subtitle: 'Reorder, squash, fixup or drop commits on top of '
           '${widget.onto.short()}',
       width: 600,
-      busy: _busy,
       content: FutureBuilder<List<CommitInfo>>(
         future: _commitsFuture,
         builder: (context, snap) {
@@ -185,30 +166,12 @@ class _InteractiveRebaseDialogState
                     palette: palette,
                     isFirst: i == 0,
                     isLast: i == plan.length - 1,
-                    enabled: !_busy,
                     onActionChanged: (a) => setState(() => plan[i].action = a),
                     onUp: () => _move(i, -1),
                     onDown: () => _move(i, 1),
                   ),
                 ),
               ),
-              if (_error != null) ...[
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Icon(Icons.error_outline,
-                        size: 16, color: palette.accentErr),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        _error!,
-                        style:
-                            TextStyle(color: palette.accentErr, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ],
           );
         },
@@ -216,12 +179,12 @@ class _InteractiveRebaseDialogState
       actions: [
         AppButton.secondary(
           label: 'Cancel',
-          onPressed: _busy ? null : () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context),
         ),
         AppButton.primary(
           label: 'Start rebase',
           icon: Icons.playlist_play,
-          onPressed: (_busy || _plan == null || _plan!.isEmpty) ? null : _start,
+          onPressed: (_plan == null || _plan!.isEmpty) ? null : _confirm,
         ),
       ],
     );
@@ -234,7 +197,6 @@ class _PlanRowTile extends StatelessWidget {
     required this.palette,
     required this.isFirst,
     required this.isLast,
-    required this.enabled,
     required this.onActionChanged,
     required this.onUp,
     required this.onDown,
@@ -243,7 +205,6 @@ class _PlanRowTile extends StatelessWidget {
   final AppPalette palette;
   final bool isFirst;
   final bool isLast;
-  final bool enabled;
   final ValueChanged<RebaseTodoAction> onActionChanged;
   final VoidCallback onUp;
   final VoidCallback onDown;
@@ -278,11 +239,9 @@ class _PlanRowTile extends StatelessWidget {
                             child: Text(_actionLabel(a)),
                           ))
                       .toList(),
-                  onChanged: enabled
-                      ? (a) {
-                          if (a != null) onActionChanged(a);
-                        }
-                      : null,
+                  onChanged: (a) {
+                    if (a != null) onActionChanged(a);
+                  },
                 ),
               ),
             ),
@@ -314,14 +273,14 @@ class _PlanRowTile extends StatelessWidget {
             color: palette.fg2,
             splashRadius: 14,
             tooltip: 'Move up',
-            onPressed: (enabled && !isFirst) ? onUp : null,
+            onPressed: isFirst ? null : onUp,
           ),
           IconButton(
             icon: const Icon(Icons.keyboard_arrow_down, size: 18),
             color: palette.fg2,
             splashRadius: 14,
             tooltip: 'Move down',
-            onPressed: (enabled && !isLast) ? onDown : null,
+            onPressed: isLast ? null : onDown,
           ),
         ],
       ),
