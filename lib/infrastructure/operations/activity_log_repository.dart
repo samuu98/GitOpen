@@ -1,11 +1,13 @@
 import 'package:drift/drift.dart';
+import 'package:gitopen/application/operations/activity_log_store.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/infrastructure/persistence/database.dart';
 
-class ActivityLogRepository {
+class ActivityLogRepository implements ActivityLogStore {
   ActivityLogRepository(this._db);
   final AppDatabase _db;
 
+  @override
   Future<void> upsert(RunningOperation op) async {
     final existing = await (_db.select(_db.activityLog)
           ..where((t) => t.opId.equals(op.id)))
@@ -30,6 +32,7 @@ class ActivityLogRepository {
     }
   }
 
+  @override
   Future<List<RunningOperation>> recent({int limit = 50}) async {
     final rows = await (_db.select(_db.activityLog)
           ..orderBy([(t) => OrderingTerm.desc(t.startedAt)])
@@ -38,6 +41,7 @@ class ActivityLogRepository {
     return rows.map(_toOp).toList();
   }
 
+  @override
   Future<void> clearCompleted() async {
     await (_db.delete(_db.activityLog)
           ..where((t) => t.status.isNotIn(['running', 'pending'])))

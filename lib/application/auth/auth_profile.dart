@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import 'package:gitopen/application/git/auth_spec.dart';
+import 'package:gitopen/application/auth/auth_spec.dart';
 
 /// A saved credential entry: which host it authenticates against, which
 /// identity (username) it represents, and the actual auth material.

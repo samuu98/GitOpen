@@ -4,9 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_profile_store.dart';
 import 'package:gitopen/application/auth/auth_resolver.dart';
-import 'package:gitopen/application/git/auth_spec.dart';
+import 'package:gitopen/application/auth/auth_spec.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/infrastructure/git/git_remote_url_reader.dart';
 import '../../_helpers/repo_fixture.dart';
 
 /// Minimal in-memory [AuthProfileStore] for resolver tests. Keyed by id;
@@ -59,6 +60,18 @@ AuthProfile profile(String id, String host, String username) => AuthProfile(
       spec: AuthHttpsPat(username: username, token: 'tok-$id'),
     );
 
+/// Builds a resolver with the real git-CLI remote reader — these are
+/// integration tests that exercise host extraction against real repos.
+AuthResolver resolver(
+  AuthProfileStore store, {
+  String? Function(String repoId)? bindingLookup,
+}) =>
+    AuthResolver(
+      store,
+      remoteUrl: GitRemoteUrlReader(),
+      bindingLookup: bindingLookup,
+    );
+
 void main() {
   const repoId = RepoId('repo-1');
   RepoLocation locAt(String path) => RepoLocation(repoId, path, 'test');
@@ -67,12 +80,12 @@ void main() {
     test('bound profile id wins and is returned', () async {
       final p = profile('p1', 'github.com', 'alice');
       final store = FakeAuthProfileStore([p]);
-      final resolver = AuthResolver(
+      final r = resolver(
         store,
         bindingLookup: (id) => id == 'repo-1' ? 'p1' : null,
       );
       // Path need not be a real repo: the binding short-circuits before git.
-      final resolved = await resolver.resolveForRepo(locAt('/nonexistent'));
+      final resolved = await r.resolveForRepo(locAt('/nonexistent'));
       expect(resolved, p);
     });
 
@@ -82,7 +95,7 @@ void main() {
       // at an id that does not exist -> falls through, then resolves by host.
       final p = profile('real', 'github.com', 'alice');
       final store = FakeAuthProfileStore([p]);
-      final resolver = AuthResolver(
+      final r = resolver(
         store,
         bindingLookup: (_) => 'ghost',
       );
@@ -93,7 +106,7 @@ void main() {
           ['remote', 'add', 'origin', 'https://github.com/alice/repo.git'],
           workingDirectory: f.path,
         );
-        final resolved = await resolver.resolveForRepo(locAt(f.path));
+        final resolved = await r.resolveForRepo(locAt(f.path));
         expect(resolved, p);
       } finally {
         await f.dispose();
@@ -105,7 +118,7 @@ void main() {
     test('single profile for the host is chosen implicitly', () async {
       final p = profile('p1', 'github.com', 'alice');
       final store = FakeAuthProfileStore([p]);
-      final resolver = AuthResolver(store); // default binding -> null
+      final r = resolver(store); // default binding -> null
       final f = await RepoFixture.empty();
       try {
         await Process.run(
@@ -113,7 +126,7 @@ void main() {
           ['remote', 'add', 'origin', 'https://github.com/alice/repo.git'],
           workingDirectory: f.path,
         );
-        final resolved = await resolver.resolveForRepo(locAt(f.path));
+        final resolved = await r.resolveForRepo(locAt(f.path));
         expect(resolved, p);
       } finally {
         await f.dispose();
@@ -123,7 +136,7 @@ void main() {
     test('extracts host from an ssh-style remote url', () async {
       final p = profile('p1', 'github.com', 'alice');
       final store = FakeAuthProfileStore([p]);
-      final resolver = AuthResolver(store);
+      final r = resolver(store);
       final f = await RepoFixture.empty();
       try {
         await Process.run(
@@ -131,7 +144,7 @@ void main() {
           ['remote', 'add', 'origin', 'git@github.com:alice/repo.git'],
           workingDirectory: f.path,
         );
-        final resolved = await resolver.resolveForRepo(locAt(f.path));
+        final resolved = await r.resolveForRepo(locAt(f.path));
         expect(resolved, p);
       } finally {
         await f.dispose();
@@ -143,7 +156,7 @@ void main() {
         profile('p1', 'github.com', 'alice'),
         profile('p2', 'github.com', 'bob'),
       ]);
-      final resolver = AuthResolver(store);
+      final r = resolver(store);
       final f = await RepoFixture.empty();
       try {
         await Process.run(
@@ -151,7 +164,7 @@ void main() {
           ['remote', 'add', 'origin', 'https://github.com/alice/repo.git'],
           workingDirectory: f.path,
         );
-        final resolved = await resolver.resolveForRepo(locAt(f.path));
+        final resolved = await r.resolveForRepo(locAt(f.path));
         expect(resolved, isNull);
       } finally {
         await f.dispose();
@@ -162,7 +175,7 @@ void main() {
       final store = FakeAuthProfileStore([
         profile('p1', 'gitlab.com', 'alice'),
       ]);
-      final resolver = AuthResolver(store);
+      final r = resolver(store);
       final f = await RepoFixture.empty();
       try {
         await Process.run(
@@ -170,7 +183,7 @@ void main() {
           ['remote', 'add', 'origin', 'https://github.com/alice/repo.git'],
           workingDirectory: f.path,
         );
-        final resolved = await resolver.resolveForRepo(locAt(f.path));
+        final resolved = await r.resolveForRepo(locAt(f.path));
         expect(resolved, isNull);
       } finally {
         await f.dispose();
@@ -181,10 +194,10 @@ void main() {
       final store = FakeAuthProfileStore([
         profile('p1', 'github.com', 'alice'),
       ]);
-      final resolver = AuthResolver(store);
+      final r = resolver(store);
       final f = await RepoFixture.empty();
       try {
-        final resolved = await resolver.resolveForRepo(locAt(f.path));
+        final resolved = await r.resolveForRepo(locAt(f.path));
         expect(resolved, isNull);
       } finally {
         await f.dispose();
@@ -194,7 +207,7 @@ void main() {
 
   group('AuthResolver.hostFromRepo', () {
     test('returns host for https remote', () async {
-      final resolver = AuthResolver(FakeAuthProfileStore());
+      final r = resolver(FakeAuthProfileStore());
       final f = await RepoFixture.empty();
       try {
         await Process.run(
@@ -202,7 +215,7 @@ void main() {
           ['remote', 'add', 'origin', 'https://example.org/x/y.git'],
           workingDirectory: f.path,
         );
-        final host = await resolver.hostFromRepo(locAt(f.path), 'origin');
+        final host = await r.hostFromRepo(locAt(f.path), 'origin');
         expect(host, 'example.org');
       } finally {
         await f.dispose();
@@ -210,10 +223,10 @@ void main() {
     });
 
     test('returns null when the remote does not exist', () async {
-      final resolver = AuthResolver(FakeAuthProfileStore());
+      final r = resolver(FakeAuthProfileStore());
       final f = await RepoFixture.empty();
       try {
-        final host = await resolver.hostFromRepo(locAt(f.path), 'origin');
+        final host = await r.hostFromRepo(locAt(f.path), 'origin');
         expect(host, isNull);
       } finally {
         await f.dispose();

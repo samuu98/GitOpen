@@ -54,7 +54,7 @@ void main() {
       expect(op.phase, '');
       expect(op.stderrTail, isEmpty);
       expect(op.finishedAt, isNull);
-      expect(op.process, isNull);
+      expect(op.onCancel, isNull);
       expect(op.errorMessage, isNull);
     });
 

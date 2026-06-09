@@ -1,17 +1,16 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/operations/activity_log_store.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
-import 'package:gitopen/infrastructure/operations/activity_log_repository.dart';
 
 class OperationsNotifier extends StateNotifier<List<RunningOperation>> {
   OperationsNotifier(this._log) : super(const []) {
     unawaited(_hydrate());
   }
-  final ActivityLogRepository _log;
+  final ActivityLogStore _log;
   static const _stderrMax = 50;
 
   Future<void> _hydrate() async {
@@ -35,7 +34,7 @@ class OperationsNotifier extends StateNotifier<List<RunningOperation>> {
     OpKind kind,
     String label, {
     RepoLocation? repo,
-    Process? process,
+    void Function()? onCancel,
   }) {
     final id = _id();
     final op = RunningOperation(
@@ -45,7 +44,7 @@ class OperationsNotifier extends StateNotifier<List<RunningOperation>> {
       repo: repo,
       status: OperationStatus.running,
       startedAt: DateTime.now(),
-      process: process,
+      onCancel: onCancel,
     );
     state = [op, ...state];
     unawaited(_log.upsert(op));
@@ -90,7 +89,7 @@ class OperationsNotifier extends StateNotifier<List<RunningOperation>> {
       (o) => o.id == id,
       orElse: () => throw StateError('no op $id'),
     );
-    op.process?.kill();
+    op.onCancel?.call();
     _update(
       id,
       (o) => o.copyWith(

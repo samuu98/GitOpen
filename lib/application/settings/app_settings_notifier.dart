@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/git_identity/git_identity.dart';
 import 'package:gitopen/application/settings/app_settings.dart';
-import 'package:gitopen/infrastructure/persistence/settings_repository.dart';
+import 'package:gitopen/application/settings/settings_store.dart';
 
 const _defaultBindings = <String, List<LogicalKeyboardKey>>{
   'commit': [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.enter],
@@ -24,7 +24,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
   AppSettingsNotifier(this._repo) : super(_defaults()) {
     unawaited(_load());
   }
-  final SettingsRepository _repo;
+  final SettingsStore _repo;
 
   static AppSettingsState _defaults() {
     final defaults = <String, LogicalKeySet>{};

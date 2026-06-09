@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:gitopen/application/git/auth_spec.dart';
+import 'package:gitopen/application/auth/auth_spec.dart';
 import 'package:gitopen/application/git/git_progress.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';

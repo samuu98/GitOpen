@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
-import 'package:gitopen/application/git/auth_spec.dart';
+import 'package:gitopen/application/auth/auth_spec.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/github_oauth_tab.dart';

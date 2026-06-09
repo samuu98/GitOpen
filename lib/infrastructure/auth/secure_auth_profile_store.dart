@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_profile_store.dart';
-import 'package:gitopen/application/git/auth_spec.dart';
+import 'package:gitopen/application/auth/auth_spec.dart';
 import 'package:gitopen/infrastructure/auth/dpapi_storage.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
 

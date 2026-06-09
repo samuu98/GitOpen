@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gitopen/application/git/auth_spec.dart';
+import 'package:gitopen/application/auth/auth_spec.dart';
 import 'package:gitopen/infrastructure/auth/dpapi_storage.dart';
 import 'package:gitopen/infrastructure/auth/secure_auth_profile_store.dart';
 

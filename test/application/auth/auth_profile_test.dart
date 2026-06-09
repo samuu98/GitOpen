@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
-import 'package:gitopen/application/git/auth_spec.dart';
+import 'package:gitopen/application/auth/auth_spec.dart';
 
 void main() {
   const baseSpec = AuthHttpsPat(username: 'octocat', token: 'ghp_x');

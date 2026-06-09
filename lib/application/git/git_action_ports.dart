@@ -33,6 +33,9 @@ abstract interface class ProgressSink {
 /// Minimal logging port so application code logs without importing the
 /// infrastructure logger directly (keeps the layering one-directional).
 abstract interface class LoggerPort {
+  /// Logs a debug/trace message.
+  void d(String message);
+
   /// Logs an informational message.
   void i(String message);
 
