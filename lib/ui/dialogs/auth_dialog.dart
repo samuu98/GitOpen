@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +7,6 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/infrastructure/auth/github_device_flow.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
-import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 /// Dialog that lets the user sign in with one of three methods:
@@ -269,24 +266,8 @@ class _AuthDialogState extends ConsumerState<AuthDialog>
   /// returns the authenticated user's `login`.  Falls back to a sentinel
   /// label on failure rather than blocking the sign-in flow.
   Future<String> _fetchGitHubUsername(String token) async {
-    try {
-      final r = await http.get(
-        Uri.parse('https://api.github.com/user'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      );
-      if (r.statusCode == 200) {
-        final m = jsonDecode(r.body) as Map<String, dynamic>;
-        final login = m['login'];
-        if (login is String && login.isNotEmpty) return login;
-      }
-    } on Object catch (_) {
-      // fall through
-    }
-    return '(github user)';
+    final login = await ref.read(gitHubUserServiceProvider).fetchLogin(token);
+    return login ?? '(github user)';
   }
 }
 

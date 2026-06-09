@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/git/repo_state_provider.dart';
@@ -159,12 +157,13 @@ class ConflictResolutionPanel extends ConsumerWidget {
     String filePath,
   ) async {
     final settingsPath = ref.read(appSettingsProvider).externalEditorPath;
+    final fullPath = '$repoPath/$filePath';
     if (settingsPath != null && settingsPath.isNotEmpty) {
-      final fullPath = '$repoPath/$filePath';
-      await Process.run(settingsPath, [fullPath]);
+      await ref
+          .read(repoLauncherProvider)
+          .openFileInEditor(settingsPath, fullPath);
     } else {
-      final url = Uri.file('$repoPath/$filePath');
-      await launchUrl(url);
+      await launchUrl(Uri.file(fullPath));
     }
   }
 

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
@@ -202,16 +200,13 @@ class _ProfileRow extends StatelessWidget {
           AppButton.secondary(
             label: 'Test',
             onPressed: () async {
-              final result = await Process.run(
-                  'git', ['ls-remote', 'https://${profile.host}'],
-                  runInShell: true);
-              final ok = result.exitCode == 0;
+              final result = await refreshKey
+                  .read(credentialTesterProvider)
+                  .test(profile.host);
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(ok
-                      ? 'OK: ${profile.host} reachable'
-                      : 'Failed: ${result.stderr}'),
-                ));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(result.message)),
+                );
               }
             },
           ),

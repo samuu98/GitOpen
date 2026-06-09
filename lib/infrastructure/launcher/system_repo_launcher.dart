@@ -97,6 +97,17 @@ class SystemRepoLauncher implements RepoLauncher {
     }
   }
 
+  @override
+  Future<void> openFileInEditor(
+    String editorExecutable,
+    String absolutePath,
+  ) async {
+    final ok = await _runner.startDetached(editorExecutable, [absolutePath]);
+    if (!ok) {
+      throw LauncherException('Could not open $editorExecutable.');
+    }
+  }
+
   List<EditorTarget>? _editorCache;
 
   static const List<

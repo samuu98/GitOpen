@@ -33,5 +33,11 @@ abstract interface class RepoLauncher {
   Future<void> revealInFiles(RepoLocation repo);
   Future<void> openInTerminal(RepoLocation repo);
   Future<void> openInEditor(RepoLocation repo, EditorTarget editor);
+
+  /// Opens a single [absolutePath] in the user's configured external editor
+  /// ([editorExecutable]). Lets the conflict resolver hand a file to the editor
+  /// without the UI shelling out to a process.
+  Future<void> openFileInEditor(String editorExecutable, String absolutePath);
+
   Future<List<EditorTarget>> detectAvailableEditors();
 }
