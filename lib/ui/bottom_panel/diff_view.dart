@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
-import 'package:gitopen/domain/diff/diff_line.dart';
 import 'package:gitopen/domain/diff/diff_result.dart';
 import 'package:gitopen/domain/diff/diff_spec.dart';
 import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
+import 'package:gitopen/ui/common/diff_line_row.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final AutoDisposeFutureProviderFamily<DiffResult,
@@ -125,92 +125,8 @@ class _FileDiffBlock extends StatelessWidget {
                   fontFamily: 'monospace')),
         ),
         for (final line in h.lines)
-          _DiffLineRow(line: line, language: language),
+          DiffLineRow(line: line, language: language),
       ],
-    );
-  }
-}
-
-class _DiffLineRow extends StatelessWidget {
-  const _DiffLineRow({required this.line, this.language});
-  final DiffLine line;
-  final String? language;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    Color bg;
-    String prefix;
-    switch (line.kind) {
-      case DiffLineKind.addition:
-        bg = palette.accentCurrent.withValues(alpha: 0.10); prefix = '+';
-      case DiffLineKind.deletion:
-        bg = palette.accentErr.withValues(alpha: 0.12); prefix = '-';
-      case DiffLineKind.context:
-        bg = Colors.transparent; prefix = ' ';
-    }
-    return Container(
-      color: bg,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 40,
-            child: Text(
-              line.oldLine?.toString() ?? '',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: palette.fg3,
-                fontSize: 11,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 40,
-            child: Text(
-              line.newLine?.toString() ?? '',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: palette.fg3,
-                fontSize: 11,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 14,
-            child: Text(
-              prefix,
-              style: TextStyle(
-                color: palette.fg3,
-                fontSize: 12,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: buildHighlightedSpans(
-                  line.content,
-                  language,
-                  baseColor: palette.fg0,
-                ),
-              ),
-              style: const TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-              ),
-              softWrap: false,
-              overflow: TextOverflow.clip,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

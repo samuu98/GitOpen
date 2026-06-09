@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
-import 'package:gitopen/domain/diff/diff_line.dart';
 import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
+import 'package:gitopen/ui/common/diff_line_row.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
@@ -143,79 +143,12 @@ class HunkBlock extends StatelessWidget {
                 )),
           ),
           for (final line in hunk.lines)
-            _DiffLine(line: line, language: language),
-        ],
-      ),
-    );
-  }
-}
-
-class _DiffLine extends StatelessWidget {
-  const _DiffLine({required this.line, this.language});
-  final DiffLine line;
-  final String? language;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    final Color bg;
-    final String prefix;
-    switch (line.kind) {
-      case DiffLineKind.addition:
-        bg = palette.accentCurrent.withValues(alpha: 0.10);
-        prefix = '+';
-      case DiffLineKind.deletion:
-        bg = palette.accentErr.withValues(alpha: 0.12);
-        prefix = '-';
-      case DiffLineKind.context:
-        bg = Colors.transparent;
-        prefix = ' ';
-    }
-    return Container(
-      color: bg,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 34,
-            child: Text(line.oldLine?.toString() ?? '',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                    color: palette.fg3, fontSize: 11, fontFamily: 'monospace')),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 34,
-            child: Text(line.newLine?.toString() ?? '',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                    color: palette.fg3, fontSize: 11, fontFamily: 'monospace')),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 12,
-            child: Text(prefix,
-                style: TextStyle(
-                    color: palette.fg3, fontSize: 12, fontFamily: 'monospace')),
-          ),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: buildHighlightedSpans(
-                  line.content,
-                  language,
-                  baseColor: palette.fg0,
-                ),
-              ),
-              style: const TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-              ),
-              softWrap: false,
-              overflow: TextOverflow.clip,
+            DiffLineRow(
+              line: line,
+              language: language,
+              gutterWidth: 34,
+              prefixWidth: 12,
             ),
-          ),
         ],
       ),
     );
