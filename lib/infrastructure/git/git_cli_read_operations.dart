@@ -9,6 +9,7 @@ import 'package:gitopen/domain/diff/diff_result.dart';
 import 'package:gitopen/domain/diff/diff_spec.dart';
 import 'package:gitopen/domain/files/file_tree_entry.dart';
 import 'package:gitopen/domain/refs/branch.dart';
+import 'package:gitopen/domain/refs/reflog_entry.dart';
 import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
@@ -112,6 +113,10 @@ final class GitCliReadOperations implements GitReadOperations {
   @override
   Future<List<Stash>> getStashes(RepoLocation repo) =>
       _guard(() => _refs.getStashes(repo));
+
+  @override
+  Future<List<ReflogEntry>> getReflog(RepoLocation repo, {int limit = 100}) =>
+      _guard(() => _refs.getReflog(repo, limit: limit));
 
   @override
   Future<List<Submodule>> getSubmodules(RepoLocation repo) =>

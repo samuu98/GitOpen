@@ -14,6 +14,17 @@ final class GitCliWorktreeWriter {
   GitCliWorktreeWriter(this._git);
   final GitResultRunner _git;
 
+  Future<GitResult<void>> initRepo(String directory) async {
+    try {
+      // Run from the system temp dir: the target may not exist yet (git
+      // creates it), but Process.start needs an existing working directory.
+      await _git.runner.run(Directory.systemTemp.path, ['init', directory]);
+      return const GitSuccess(null);
+    } on GitProcessException catch (e) {
+      return GitFailure(_git.classify(e), e.stderr, e.stderr);
+    }
+  }
+
   Future<GitResult<void>> writeWorkingFile(
     RepoLocation r,
     String relativePath,

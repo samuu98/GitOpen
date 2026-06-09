@@ -25,6 +25,10 @@ final class RebaseTodoEntry {
 }
 
 abstract interface class GitWriteOperations {
+  /// Initialises a new repository at [directory] (`git init <dir>`), creating
+  /// the directory (and parents) when missing.
+  Future<GitResult<void>> initRepo(String directory);
+
   /// Overwrites the working-tree file at [relativePath] (relative to `r.path`)
   /// with [content], creating it if absent.  Used by the in-app merge editor
   /// to write a resolved file back before staging it.  Writes the string's

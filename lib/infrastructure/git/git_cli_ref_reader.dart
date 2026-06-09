@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/refs/branch.dart';
+import 'package:gitopen/domain/refs/reflog_entry.dart';
 import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
@@ -366,6 +367,42 @@ final class GitCliRefReader {
     }
 
     return stashes;
+  }
+
+  Future<List<ReflogEntry>> getReflog(
+    RepoLocation repo, {
+    int limit = 100,
+  }) async {
+    final String stdout;
+    try {
+      stdout = await _runner.run(repo.path, [
+        'reflog',
+        '--format=%H%x00%gd%x00%gs',
+        '-n',
+        '$limit',
+      ]);
+    } on GitProcessException catch (e) {
+      // An unborn HEAD (fresh `git init`) has no reflog yet.
+      if (e.stderr.contains('does not have any commits yet') ||
+          e.stderr.contains('unknown revision')) {
+        return const [];
+      }
+      rethrow;
+    }
+    if (stdout.trim().isEmpty) return const [];
+
+    final entries = <ReflogEntry>[];
+    for (final line in stdout.split('\n')) {
+      if (line.isEmpty) continue;
+      final fields = _nulFields(line, 3);
+      if (fields == null) continue;
+      entries.add(ReflogEntry(
+        sha: CommitSha(fields[0]),
+        selector: fields[1],
+        message: fields[2],
+      ));
+    }
+    return entries;
   }
 
   Future<List<Submodule>> getSubmodules(RepoLocation repo) async {

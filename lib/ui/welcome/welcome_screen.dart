@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
+import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/ui/dialogs/clone_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -43,6 +44,12 @@ class WelcomeScreen extends ConsumerWidget {
               icon: const Icon(Icons.download, size: 16),
               label: const Text('Clone'),
             ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: () => _initRepo(context, ref),
+              icon: const Icon(Icons.fiber_new_outlined, size: 16),
+              label: const Text('Init'),
+            ),
           ]),
         ],
       ),
@@ -53,6 +60,25 @@ class WelcomeScreen extends ConsumerWidget {
     final picker = ref.read(folderPickerProvider);
     final path = await picker.pickFolder('Open repository');
     if (path == null) return;
+    final manager = ref.read(workspaceManagerProvider.notifier);
+    final ws = await manager.open(path);
+    ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
+  }
+
+  /// `git init` in a picked folder, then open it as a workspace.
+  Future<void> _initRepo(BuildContext context, WidgetRef ref) async {
+    final picker = ref.read(folderPickerProvider);
+    final path = await picker.pickFolder('Initialize repository');
+    if (path == null) return;
+    final result = await ref.read(gitWriteOperationsProvider).initRepo(path);
+    if (result case GitFailure(:final message)) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Init failed: $message'),
+        backgroundColor: AppPalette.of(context).accentErr,
+      ));
+      return;
+    }
     final manager = ref.read(workspaceManagerProvider.notifier);
     final ws = await manager.open(path);
     ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;

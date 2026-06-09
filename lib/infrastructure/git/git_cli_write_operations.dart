@@ -40,6 +40,10 @@ final class GitCliWriteOperations implements GitWriteOperations {
   // ---- Working tree / index ----------------------------------------------
 
   @override
+  Future<GitResult<void>> initRepo(String directory) =>
+      _worktree.initRepo(directory);
+
+  @override
   Future<GitResult<void>> writeWorkingFile(
     RepoLocation r,
     String relativePath,

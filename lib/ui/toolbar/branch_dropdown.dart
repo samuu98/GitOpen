@@ -5,6 +5,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/branch_create_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/dialogs/reflog_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/toolbar/branch_picker_dialog.dart';
 import 'package:gitopen/ui/toolbar/toolbar_buttons.dart';
@@ -69,6 +70,16 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
           _menuController.close();
           if (!mounted) return;
           await _renameBranch(repo);
+        },
+      ),
+      const AppMenuAnchorDivider(),
+      AppMenuButton(
+        icon: Icons.history,
+        label: 'View reflog…',
+        onPressed: () async {
+          _menuController.close();
+          if (!mounted) return;
+          await ReflogDialog.show(context, repo);
         },
       ),
       const AppMenuAnchorDivider(),

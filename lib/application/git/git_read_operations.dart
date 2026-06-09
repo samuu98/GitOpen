@@ -6,6 +6,7 @@ import 'package:gitopen/domain/diff/diff_result.dart';
 import 'package:gitopen/domain/diff/diff_spec.dart';
 import 'package:gitopen/domain/files/file_tree_entry.dart';
 import 'package:gitopen/domain/refs/branch.dart';
+import 'package:gitopen/domain/refs/reflog_entry.dart';
 import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
@@ -78,6 +79,10 @@ abstract interface class GitReadOperations {
   Future<List<Tag>> getTags(RepoLocation repo);
   Future<List<Remote>> getRemotes(RepoLocation repo);
   Future<List<Stash>> getStashes(RepoLocation repo);
+
+  /// HEAD's reflog, newest first (`git reflog`), capped at [limit] entries.
+  /// An empty/unborn repository yields an empty list.
+  Future<List<ReflogEntry>> getReflog(RepoLocation repo, {int limit = 100});
 
   /// Submodules registered in the superproject (`git submodule status`).
   /// Empty output (no submodules) yields an empty list.
