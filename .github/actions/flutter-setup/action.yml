@@ -24,7 +24,7 @@ runs:
     # restore-key gives a warm incremental base. build_runner re-checks inputs,
     # so a partial restore can never produce stale generated code.
     - name: Cache codegen output
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: .dart_tool/build
         key: codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-${{ hashFiles('lib/**/*.dart') }}
