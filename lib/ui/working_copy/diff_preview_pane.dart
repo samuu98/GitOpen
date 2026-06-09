@@ -5,6 +5,7 @@ import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
 import 'package:gitopen/ui/common/diff_line_row.dart';
+import 'package:gitopen/ui/common/diff_prefs.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
@@ -108,6 +109,8 @@ class DiffHeader extends StatelessWidget {
             '+${fileDiff.linesAdded} -${fileDiff.linesDeleted}',
             style: TextStyle(color: palette.fg2, fontSize: 11),
           ),
+          const SizedBox(width: 8),
+          const WordDiffToggle(),
         ],
       ),
     );
@@ -142,13 +145,12 @@ class HunkBlock extends StatelessWidget {
                   fontFamily: 'monospace',
                 )),
           ),
-          for (final line in hunk.lines)
-            DiffLineRow(
-              line: line,
-              language: language,
-              gutterWidth: 34,
-              prefixWidth: 12,
-            ),
+          HunkLines(
+            lines: hunk.lines,
+            language: language,
+            gutterWidth: 34,
+            prefixWidth: 12,
+          ),
         ],
       ),
     );
