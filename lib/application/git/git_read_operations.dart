@@ -1,3 +1,4 @@
+import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/domain/blame/blame_line.dart';
 import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
@@ -11,6 +12,19 @@ import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
+
+/// Typed failure surfaced by [GitReadOperations]: a classified [kind] plus
+/// git's own message. Implementations translate their transport errors into
+/// this so infrastructure exception types (and the spawned argv) never reach
+/// application or UI code — `toString` is safe to show to the user as-is.
+final class GitReadException implements Exception {
+  const GitReadException(this.kind, this.message);
+  final GitErrorKind kind;
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 class CommitQuery {
   const CommitQuery({

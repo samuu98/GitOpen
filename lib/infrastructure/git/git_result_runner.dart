@@ -98,7 +98,10 @@ final class GitResultRunner {
     if (s.contains('would be overwritten')) {
       return GitErrorKind.dirtyWorkingTree;
     }
-    if (s.contains('unknown revision') || s.contains('not a valid ref')) {
+    if (s.contains('unknown revision') ||
+        s.contains('not a valid ref') ||
+        s.contains('not a tree object') ||
+        s.contains('bad revision')) {
       return GitErrorKind.unknownRef;
     }
     return GitErrorKind.other;
