@@ -72,6 +72,21 @@ class _FakeWrite implements GitWriteOperations {
       voidResult;
 
   @override
+  Future<GitResult<void>> takeConflictSide(
+    RepoLocation r,
+    String path, {
+    required bool ours,
+  }) async =>
+      voidResult;
+
+  @override
+  Future<GitResult<void>> discardPatch(
+    RepoLocation r,
+    String unifiedDiff,
+  ) async =>
+      voidResult;
+
+  @override
   Future<GitResult<void>> rebaseAbort(RepoLocation r) async => voidResult;
 
   @override
@@ -303,5 +318,46 @@ void main() {
     final r = await service(write).editAtCommit(repo, sha);
     expect(r.outcome, ActionOutcome.conflict);
     expect(r.message, contains('1 file(s)'));
+  });
+
+  test('takeConflictSide success → success and invalidates local scope',
+      () async {
+    final write = _FakeWrite()..voidResult = const GitSuccess<void>(null);
+
+    final r = await service(write).takeConflictSide(
+      repo,
+      'clash.txt',
+      ours: true,
+    );
+
+    expect(r.outcome, ActionOutcome.success);
+    expect(
+      r.invalidate,
+      unorderedEquals({RepoDataScope.reads, RepoDataScope.repoState}),
+    );
+  });
+
+  test('takeConflictSide failure → labelled Resolve error', () async {
+    final write = _FakeWrite()
+      ..voidResult =
+          const GitFailure<void>(GitErrorKind.other, 'no side', 'no side');
+
+    final r = await service(write).takeConflictSide(
+      repo,
+      'clash.txt',
+      ours: false,
+    );
+
+    expect(r.outcome, ActionOutcome.failed);
+    expect(r.message, contains('Resolve failed: no side'));
+  });
+
+  test('discardHunk success → success and invalidates reads only', () async {
+    final write = _FakeWrite()..voidResult = const GitSuccess<void>(null);
+
+    final r = await service(write).discardHunk(repo, 'patch');
+
+    expect(r.outcome, ActionOutcome.success);
+    expect(r.invalidate, {RepoDataScope.reads});
   });
 }
