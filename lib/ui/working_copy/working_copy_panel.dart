@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/git/git_result.dart';
 import '../../application/providers.dart';
@@ -12,6 +13,7 @@ import '../../domain/repositories/repo_location.dart';
 import '../../domain/status/working_file_entry.dart';
 import '../common/app_context_menu.dart';
 import '../dialogs/confirm_dialog.dart';
+import '../dialogs/file_history_dialog.dart';
 import '../theme/app_palette.dart';
 import 'commit_compose.dart';
 
@@ -366,6 +368,19 @@ class _FileRowState extends ConsumerState<_FileRow> {
           label: isStaged ? 'Unstage' : 'Stage',
           icon: isStaged ? Icons.remove_circle_outline : Icons.add_circle_outline,
         ),
+        const AppMenuDivider<String>(),
+        AppMenuItem(
+          value: 'history',
+          label: 'File history…',
+          icon: Icons.history,
+          // An untracked file has no commits yet — nothing to show.
+          enabled: !isUntracked,
+        ),
+        AppMenuItem(
+          value: 'copy_path',
+          label: 'Copy path',
+          icon: Icons.copy_outlined,
+        ),
         if (!isStaged) ...[
           const AppMenuDivider<String>(),
           AppMenuItem(
@@ -381,6 +396,10 @@ class _FileRowState extends ConsumerState<_FileRow> {
     switch (selected) {
       case 'toggle':
         await _toggleStage();
+      case 'history':
+        await FileHistoryDialog.show(context, widget.repo, entry.path);
+      case 'copy_path':
+        await Clipboard.setData(ClipboardData(text: entry.path));
       case 'discard':
         await _discard();
     }

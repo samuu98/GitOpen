@@ -21,7 +21,13 @@ final _diffProvider = FutureProvider.family
 class DiffView extends ConsumerWidget {
   final RepoLocation repo;
   final CommitSha sha;
-  const DiffView({super.key, required this.repo, required this.sha});
+
+  /// When set, only files whose path matches (old or new path) are shown —
+  /// used by the file-history view to scope a commit's diff to one file.
+  final String? pathFilter;
+
+  const DiffView(
+      {super.key, required this.repo, required this.sha, this.pathFilter});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,11 +37,23 @@ class DiffView extends ConsumerWidget {
       loading: () => const SkeletonList(rows: 14, rowHeight: 10, gap: 10),
       error: (e, _) => Center(child: Text('Error: $e',
           style: TextStyle(color: palette.accentErr))),
-      data: (d) => ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: d.files.length,
-        itemBuilder: (_, i) => _FileDiffBlock(file: d.files[i]),
-      ),
+      data: (d) {
+        final files = pathFilter == null
+            ? d.files
+            : d.files
+                .where((f) => f.path == pathFilter || f.oldPath == pathFilter)
+                .toList();
+        if (files.isEmpty) {
+          return Center(
+              child: Text('No changes',
+                  style: TextStyle(color: palette.fg2, fontSize: 12.5)));
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: files.length,
+          itemBuilder: (_, i) => _FileDiffBlock(file: files[i]),
+        );
+      },
     );
   }
 }

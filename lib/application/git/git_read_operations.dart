@@ -44,4 +44,9 @@ abstract interface class GitReadOperations {
   Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec);
   Future<List<FileTreeEntry>> getFileTree(
       RepoLocation repo, CommitSha sha, String path);
+
+  /// Commits that touched [path], newest first (`git log --follow`).
+  /// [limit] caps the walk so a hot file in a huge repo stays fast.
+  Future<List<CommitInfo>> getFileHistory(RepoLocation repo, String path,
+      {int limit = 200});
 }

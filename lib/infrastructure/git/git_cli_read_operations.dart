@@ -941,6 +941,25 @@ final class GitCliReadOperations implements GitReadOperations {
     return entries;
   }
 
+  @override
+  Future<List<CommitInfo>> getFileHistory(RepoLocation repo, String path,
+      {int limit = 200}) async {
+    // Same 9-field NUL format as [getCommits]; file histories are small
+    // enough (capped by [limit]) that buffering the output is fine.
+    final stdout = await _runner.run(repo.path, [
+      'log', '-z', '--follow', '--max-count=$limit',
+      '--format=%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s',
+      '--', path,
+    ]);
+    final fields = stdout.split('\x00');
+    if (fields.isNotEmpty && fields.last.isEmpty) fields.removeLast();
+    final commits = <CommitInfo>[];
+    for (var i = 0; i + 9 <= fields.length; i += 9) {
+      commits.add(_parseCommitFields(fields.sublist(i, i + 9)));
+    }
+    return commits;
+  }
+
   FileTreeKind _mapTreeKind(String type, String mode) {
     if (type == 'tree') return FileTreeKind.tree;
     if (type == 'commit') return FileTreeKind.submodule;
