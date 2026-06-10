@@ -36,6 +36,21 @@ void main() {
       } finally { await f.dispose(); }
     });
 
+    test('getDiffForFile returns only the named file, untruncated', () async {
+      final f = await RepoFixture.withMergeCommit();
+      try {
+        final sut = GitCliReadOperations();
+        final result = await sut.getDiffForFile(
+          loc(f),
+          DiffSpecCommitVsParent(CommitSha(f.headSha)),
+          'feature.txt',
+        );
+        expect(result.files, hasLength(1));
+        expect(result.files.single.path, 'feature.txt');
+        expect(result.files.single.truncated, isFalse);
+      } finally { await f.dispose(); }
+    });
+
     test('merge commit diffs against first parent (not empty)', () async {
       final f = await RepoFixture.withMergeCommit();
       try {

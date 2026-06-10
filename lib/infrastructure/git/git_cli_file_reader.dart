@@ -18,7 +18,11 @@ final class GitCliFileReader {
   GitCliFileReader(this._runner);
   final GitProcessRunner _runner;
 
-  Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec) async {
+  Future<DiffResult> getDiff(
+    RepoLocation repo,
+    DiffSpec spec, {
+    String? path,
+  }) async {
     // `core.quotepath=false` makes git print non-ASCII paths raw (UTF-8)
     // instead of C-quote-escaping them ("caf\303\250.txt") — the quoted form
     // doesn't match the parser's `diff --git a/<path> b/<path>` regex and the
@@ -48,7 +52,10 @@ final class GitCliFileReader {
           'diff', '--raw', '-p', '--no-color',
         ],
     };
-    final stdout = await _runner.run(repo.path, args);
+    final stdout = await _runner.run(repo.path, [
+      ...args,
+      if (path != null) ...['--', path],
+    ]);
     return DiffParser(stdout).parse();
   }
 

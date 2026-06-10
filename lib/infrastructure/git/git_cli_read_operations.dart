@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:gitopen/application/diff/diff_cap.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/domain/blame/blame_line.dart';
@@ -129,7 +130,12 @@ final class GitCliReadOperations implements GitReadOperations {
 
   @override
   Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec) =>
-      _guard(() => _files.getDiff(repo, spec));
+      _guard(() async => capDiffResult(await _files.getDiff(repo, spec)));
+
+  @override
+  Future<DiffResult> getDiffForFile(
+          RepoLocation repo, DiffSpec spec, String path) =>
+      _guard(() => _files.getDiff(repo, spec, path: path));
 
   @override
   Future<List<FileTreeEntry>> getFileTree(

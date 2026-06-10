@@ -94,6 +94,12 @@ abstract interface class GitReadOperations {
   Future<List<Submodule>> getSubmodules(RepoLocation repo);
 
   Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec);
+
+  /// Like [getDiff] but restricted to a single [path] and NEVER capped —
+  /// backs the "Load full diff" action on a truncated file.
+  Future<DiffResult> getDiffForFile(
+      RepoLocation repo, DiffSpec spec, String path);
+
   Future<List<FileTreeEntry>> getFileTree(
       RepoLocation repo, CommitSha sha, String path);
 

@@ -22,6 +22,7 @@ final class FileDiff extends Equatable {
     required this.linesDeleted,
     required this.hunks,
     this.oldPath,
+    this.truncated = false,
   });
   final String path;
   final String? oldPath;
@@ -30,6 +31,10 @@ final class FileDiff extends Equatable {
   final int linesAdded;
   final int linesDeleted;
   final List<DiffHunk> hunks;
+
+  /// True when [hunks] were cut at the read-facade line cap; fetch the file
+  /// alone (`getDiffForFile`) for the full diff.
+  final bool truncated;
 
   @override
   List<Object?> get props => [
@@ -40,5 +45,6 @@ final class FileDiff extends Equatable {
         linesAdded,
         linesDeleted,
         hunks,
+        truncated,
       ];
 }
