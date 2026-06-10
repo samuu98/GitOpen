@@ -116,9 +116,9 @@ void main() {
       );
     });
 
-    test('props enumerates all twelve fields', () {
+    test('props enumerates all thirteen fields', () {
       const state = AppSettingsState();
-      expect(state.props, hasLength(12));
+      expect(state.props, hasLength(13));
     });
   });
 
