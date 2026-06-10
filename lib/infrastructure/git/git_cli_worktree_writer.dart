@@ -92,6 +92,27 @@ final class GitCliWorktreeWriter {
           ['apply', '--cached', '--reverse', '--whitespace=nowarn', '-'],
           unifiedDiff);
 
+  Future<GitResult<void>> takeConflictSide(
+    RepoLocation r,
+    String path, {
+    required bool ours,
+  }) async {
+    final side = ours ? '--ours' : '--theirs';
+    final checkout = await _git.runVoid(r, ['checkout', side, '--', path]);
+    if (checkout is GitFailure<void>) return checkout;
+    return stageFiles(r, [path]);
+  }
+
+  Future<GitResult<void>> discardPatch(
+    RepoLocation r,
+    String unifiedDiff,
+  ) =>
+      _applyPatch(
+        r,
+        ['apply', '--reverse', '--whitespace=nowarn', '-'],
+        unifiedDiff,
+      );
+
   /// Pipes [unifiedDiff] into `git apply` via stdin, mapping a failure to a
   /// classified [GitFailure] like [GitResultRunner.runVoid] does.
   Future<GitResult<void>> _applyPatch(

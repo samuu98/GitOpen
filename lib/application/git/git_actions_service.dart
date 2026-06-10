@@ -407,6 +407,22 @@ final class GitActionsService {
   Future<ActionResult> stashDrop(RepoLocation repo, int index) =>
       _simple('Stash drop', _write.stashDrop(repo, index));
 
+  /// Resolves a conflicted file by taking one side wholesale.
+  Future<ActionResult> takeConflictSide(
+    RepoLocation repo,
+    String path, {
+    required bool ours,
+  }) =>
+      _simple(
+        'Resolve',
+        _write.takeConflictSide(repo, path, ours: ours),
+        invalidate: _localScope,
+      );
+
+  /// Discards the hunks in [patch] from the working tree.
+  Future<ActionResult> discardHunk(RepoLocation repo, String patch) =>
+      _simple('Discard', _write.discardPatch(repo, patch));
+
   // ---- In-progress-op flow control ---------------------------------------
   // Abort/continue for merge/cherry-pick/revert/rebase. These end (or advance)
   // an in-progress op, so they refresh the repo state too — and, on continue,

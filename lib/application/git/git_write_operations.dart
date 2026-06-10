@@ -67,6 +67,18 @@ abstract interface class GitWriteOperations {
   /// remove them. Mirrors `git clean -f -- <paths>` (no `-d`).
   Future<GitResult<void>> cleanUntracked(RepoLocation r, List<String> paths);
 
+  /// Resolves a conflicted [path] wholesale with
+  /// `git checkout --ours|--theirs -- <path>`, followed by staging it.
+  Future<GitResult<void>> takeConflictSide(
+    RepoLocation r,
+    String path, {
+    required bool ours,
+  });
+
+  /// Reverses [unifiedDiff] in the working tree (`git apply --reverse`, no
+  /// `--cached`) — backs per-hunk discard.
+  Future<GitResult<void>> discardPatch(RepoLocation r, String unifiedDiff);
+
   Future<GitResult<CommitSha>> commit(RepoLocation r, CommitRequest req);
 
   Future<GitResult<void>> createBranch(RepoLocation r, String name,

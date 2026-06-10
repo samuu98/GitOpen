@@ -81,6 +81,34 @@ class ConflictResolutionPanel extends ConsumerWidget {
                           trailing:
                               Row(mainAxisSize: MainAxisSize.min, children: [
                             TextButton(
+                              onPressed: () async {
+                                await ref
+                                    .read(gitActionsControllerProvider)
+                                    .takeConflictSide(
+                                      context,
+                                      repo,
+                                      path,
+                                      ours: true,
+                                    );
+                                ref.invalidate(_conflictsProvider(repo));
+                              },
+                              child: const Text('Ours'),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                await ref
+                                    .read(gitActionsControllerProvider)
+                                    .takeConflictSide(
+                                      context,
+                                      repo,
+                                      path,
+                                      ours: false,
+                                    );
+                                ref.invalidate(_conflictsProvider(repo));
+                              },
+                              child: const Text('Theirs'),
+                            ),
+                            TextButton(
                               onPressed: () =>
                                   _resolveInApp(context, ref, path),
                               child: const Text('Resolve'),

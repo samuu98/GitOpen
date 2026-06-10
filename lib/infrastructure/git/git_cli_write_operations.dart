@@ -93,6 +93,21 @@ final class GitCliWriteOperations implements GitWriteOperations {
       _worktree.cleanUntracked(r, paths);
 
   @override
+  Future<GitResult<void>> takeConflictSide(
+    RepoLocation r,
+    String path, {
+    required bool ours,
+  }) =>
+      _worktree.takeConflictSide(r, path, ours: ours);
+
+  @override
+  Future<GitResult<void>> discardPatch(
+    RepoLocation r,
+    String unifiedDiff,
+  ) =>
+      _worktree.discardPatch(r, unifiedDiff);
+
+  @override
   Future<GitResult<CommitSha>> commit(RepoLocation r, CommitRequest req) =>
       _worktree.commit(r, req);
 

@@ -388,6 +388,33 @@ class GitActionsController {
         () => _ref.read(gitActionsServiceProvider).stashDrop(repo, index),
       );
 
+  /// Resolves a conflicted file by taking one side wholesale.
+  Future<ActionResult> takeConflictSide(
+    BuildContext context,
+    RepoLocation repo,
+    String path, {
+    required bool ours,
+  }) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref
+            .read(gitActionsServiceProvider)
+            .takeConflictSide(repo, path, ours: ours),
+      );
+
+  /// Discards a unified-diff patch from the working tree.
+  Future<ActionResult> discardHunk(
+    BuildContext context,
+    RepoLocation repo,
+    String patch,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).discardHunk(repo, patch),
+      );
+
   /// `git merge --abort`.
   Future<ActionResult> mergeAbort(BuildContext context, RepoLocation repo) =>
       _runLocal(
