@@ -454,6 +454,16 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
           label: 'Interactive rebase from here…',
           icon: Icons.format_list_numbered,
         ),
+        AppMenuItem(
+          value: 'reword',
+          label: 'Reword message…',
+          icon: Icons.edit_note,
+        ),
+        AppMenuItem(
+          value: 'edit_commit',
+          label: 'Edit (amend) here…',
+          icon: Icons.build_outlined,
+        ),
         AppMenuDivider(),
         AppMenuItem(
           value: 'cherry_pick',
@@ -549,6 +559,38 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
             .read(gitActionsControllerProvider)
             .interactiveRebase(context, repo, sha, plan);
 
+      case 'reword':
+        final current = await ref
+            .read(gitReadOperationsProvider)
+            .getCommitFullMessage(repo, sha);
+        if (!context.mounted) return;
+        final message = await _promptMultiline(
+          context,
+          'Reword commit ${sha.short()}',
+          label: 'Commit message',
+          initial: current ?? '',
+        );
+        if (message == null || message.trim().isEmpty) return;
+        if (!context.mounted) return;
+        await ref
+            .read(gitActionsControllerProvider)
+            .rewordCommit(context, repo, sha, message.trim());
+
+      case 'edit_commit':
+        if (!context.mounted) return;
+        final confirmed = await ConfirmDialog.show(
+          context,
+          title: 'Edit commit',
+          body: 'Pause a rebase at ${sha.short()} so you can amend it? '
+              'Commits after it will be replayed when you continue. '
+              'This rewrites history.',
+          confirmLabel: 'Pause here',
+        );
+        if (!confirmed || !context.mounted) return;
+        await ref
+            .read(gitActionsControllerProvider)
+            .editAtCommit(context, repo, sha);
+
       case 'cherry_pick':
         await ref
             .read(gitActionsControllerProvider)
@@ -629,6 +671,46 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
             style: TextStyle(color: palette.fg0, fontSize: 13),
             decoration: appInputDecoration(ctx, label: label),
             onSubmitted: (_) => Navigator.pop(ctx, ctl.text),
+          ),
+          actions: [
+            AppButton.secondary(
+              label: 'Cancel',
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            AppButton.primary(
+              label: 'OK',
+              onPressed: () => Navigator.pop(ctx, ctl.text),
+            ),
+          ],
+        );
+      },
+    );
+    ctl.dispose();
+    return result;
+  }
+
+  /// Like [_promptText] but multiline — used for commit messages.
+  Future<String?> _promptMultiline(BuildContext context, String title,
+      {required String label, String? initial}) async {
+    final ctl = TextEditingController(text: initial);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final palette = AppPalette.of(ctx);
+        return AppDialog(
+          title: title,
+          width: 520,
+          content: TextField(
+            controller: ctl,
+            autofocus: true,
+            minLines: 4,
+            maxLines: 10,
+            style: TextStyle(
+              color: palette.fg0,
+              fontSize: 13,
+              fontFamily: 'monospace',
+            ),
+            decoration: appInputDecoration(ctx, label: label),
           ),
           actions: [
             AppButton.secondary(

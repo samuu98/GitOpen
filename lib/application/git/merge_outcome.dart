@@ -98,3 +98,9 @@ final class RebaseConflict extends RebaseOutcome {
   const RebaseConflict(this.conflictedPaths);
   final List<String> conflictedPaths;
 }
+
+/// The rebase intentionally paused at a commit marked `edit` — the user can
+/// now amend it and then continue (or abort) the rebase.
+final class RebaseStoppedForEdit extends RebaseOutcome {
+  const RebaseStoppedForEdit();
+}

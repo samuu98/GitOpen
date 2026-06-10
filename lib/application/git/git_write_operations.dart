@@ -170,6 +170,20 @@ abstract interface class GitWriteOperations {
   Future<GitResult<CommitSha>> rebaseContinue(RepoLocation r);
   Future<GitResult<void>> rebaseSkip(RepoLocation r);
 
+  /// Rewrites the message of [sha] (which must be reachable from HEAD and
+  /// not the root commit) via a scripted `rebase -i`, replaying the commits
+  /// after it. Conflict-bearing like [rebase].
+  Future<GitResult<RebaseOutcome>> rewordCommit(
+    RepoLocation r,
+    CommitSha sha,
+    String message,
+  );
+
+  /// Starts a scripted `rebase -i` that pauses at [sha] (todo `edit`) so the
+  /// user can amend it; returns [RebaseStoppedForEdit] once paused. Finish
+  /// with [rebaseContinue] or back out with [rebaseAbort].
+  Future<GitResult<RebaseOutcome>> editAtCommit(RepoLocation r, CommitSha sha);
+
   Stream<GitProgress> clone(String url, String destination, {AuthSpec? auth});
 
   /// Updates a single submodule at [path] (`git submodule update`). When

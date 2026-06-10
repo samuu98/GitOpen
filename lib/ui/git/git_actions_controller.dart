@@ -149,6 +149,33 @@ class GitActionsController {
             .interactiveRebase(repo, onto, plan),
       );
 
+  /// Rewrites [sha]'s commit message via a scripted rebase.
+  Future<ActionResult> rewordCommit(
+    BuildContext context,
+    RepoLocation repo,
+    CommitSha sha,
+    String message,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref
+            .read(gitActionsServiceProvider)
+            .rewordCommit(repo, sha, message),
+      );
+
+  /// Starts a rebase paused at [sha] for amending.
+  Future<ActionResult> editAtCommit(
+    BuildContext context,
+    RepoLocation repo,
+    CommitSha sha,
+  ) =>
+      _runLocal(
+        context,
+        repo,
+        () => _ref.read(gitActionsServiceProvider).editAtCommit(repo, sha),
+      );
+
   /// `git checkout <ref>`.
   Future<ActionResult> checkout(
     BuildContext context,

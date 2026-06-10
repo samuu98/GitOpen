@@ -220,6 +220,49 @@ final class GitActionsService {
         (o) => o is RebaseConflict ? o.conflictedPaths : null,
       );
 
+  /// Rewrites [sha]'s commit message via a scripted `rebase -i` (reword).
+  /// Conflict-bearing like [rebase].
+  Future<ActionResult> rewordCommit(
+    RepoLocation repo,
+    CommitSha sha,
+    String message,
+  ) async =>
+      _conflictable(
+        await _write.rewordCommit(repo, sha, message),
+        'Reword',
+        (o) => o is RebaseConflict ? o.conflictedPaths : null,
+      );
+
+  /// Starts a rebase paused at [sha] so the user can amend it; the in-progress
+  /// panel then offers Continue/Abort.
+  Future<ActionResult> editAtCommit(RepoLocation repo, CommitSha sha) async {
+    final result = await _write.editAtCommit(repo, sha);
+    return switch (result) {
+      GitSuccess(value: RebaseStoppedForEdit()) => const ActionResult(
+          ActionOutcome.success,
+          invalidate: _localScope,
+          message: 'Rebase paused at the commit — amend it, then Continue '
+              'in the panel below.',
+          severity: MessageSeverity.info,
+        ),
+      GitSuccess(value: final RebaseConflict c) => ActionResult(
+          ActionOutcome.conflict,
+          invalidate: _localScope,
+          message: 'Edit conflict in ${c.conflictedPaths.length} file(s). '
+              'Resolve in the conflicts panel below.',
+          severity: MessageSeverity.error,
+        ),
+      GitSuccess() =>
+        const ActionResult(ActionOutcome.success, invalidate: _localScope),
+      GitFailure(:final message) => ActionResult(
+          ActionOutcome.failed,
+          invalidate: _localScope,
+          message: 'Edit failed: $message',
+          severity: MessageSeverity.error,
+        ),
+    };
+  }
+
   // ---- Ref / stash CRUD ---------------------------------------------------
   // Pure bookkeeping ops: success refreshes reads; failure surfaces the git
   // error (these call sites used to ignore it).

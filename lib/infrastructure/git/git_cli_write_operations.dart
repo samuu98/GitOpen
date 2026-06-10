@@ -260,6 +260,21 @@ final class GitCliWriteOperations implements GitWriteOperations {
       _sequencer.rebaseSkip(r);
 
   @override
+  Future<GitResult<RebaseOutcome>> rewordCommit(
+    RepoLocation r,
+    CommitSha sha,
+    String message,
+  ) =>
+      _sequencer.rewordCommit(r, sha, message);
+
+  @override
+  Future<GitResult<RebaseOutcome>> editAtCommit(
+    RepoLocation r,
+    CommitSha sha,
+  ) =>
+      _sequencer.editAtCommit(r, sha);
+
+  @override
   Future<GitResult<CherryPickOutcome>> cherryPick(
     RepoLocation r,
     CommitSha sha,

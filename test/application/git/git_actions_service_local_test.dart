@@ -80,6 +80,21 @@ class _FakeWrite implements GitWriteOperations {
       interactiveResult;
 
   @override
+  Future<GitResult<RebaseOutcome>> rewordCommit(
+    RepoLocation r,
+    CommitSha sha,
+    String message,
+  ) async =>
+      interactiveResult;
+
+  @override
+  Future<GitResult<RebaseOutcome>> editAtCommit(
+    RepoLocation r,
+    CommitSha sha,
+  ) async =>
+      interactiveResult;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError('${invocation.memberName} not faked');
 }
@@ -233,5 +248,38 @@ void main() {
         .interactiveRebase(repo, sha, const <RebaseTodoEntry>[]);
     expect(r.outcome, ActionOutcome.failed);
     expect(r.message, contains('Rebase failed'));
+  });
+
+  test('rewordCommit failure → failed + "Reword failed:" message', () async {
+    final write = _FakeWrite()
+      ..interactiveResult = const GitFailure<RebaseOutcome>(
+          GitErrorKind.unknownRef, 'no parent', 'no parent');
+    final r = await service(write).rewordCommit(repo, sha, 'msg');
+    expect(r.outcome, ActionOutcome.failed);
+    expect(r.message, contains('Reword failed'));
+  });
+
+  test('editAtCommit stopped-for-edit → success + guidance message',
+      () async {
+    final write = _FakeWrite()
+      ..interactiveResult =
+          const GitSuccess<RebaseOutcome>(RebaseStoppedForEdit());
+    final r = await service(write).editAtCommit(repo, sha);
+    expect(r.outcome, ActionOutcome.success);
+    expect(r.message, contains('Continue'));
+    expect(r.severity, MessageSeverity.info);
+    expect(
+      r.invalidate,
+      unorderedEquals({RepoDataScope.reads, RepoDataScope.repoState}),
+    );
+  });
+
+  test('editAtCommit conflict → conflict outcome + count message', () async {
+    final write = _FakeWrite()
+      ..interactiveResult =
+          const GitSuccess<RebaseOutcome>(RebaseConflict(['a.txt']));
+    final r = await service(write).editAtCommit(repo, sha);
+    expect(r.outcome, ActionOutcome.conflict);
+    expect(r.message, contains('1 file(s)'));
   });
 }

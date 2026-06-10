@@ -173,6 +173,7 @@ void main() {
         RebaseApplied(CommitSha('11223344')),
         const RebaseUpToDate(),
         const RebaseConflict(['x']),
+        const RebaseStoppedForEdit(),
       ];
       final labels = outcomes
           .map(
@@ -180,10 +181,11 @@ void main() {
               RebaseApplied() => 'applied',
               RebaseUpToDate() => 'uptodate',
               RebaseConflict() => 'conflict',
+              RebaseStoppedForEdit() => 'stopped',
             },
           )
           .toList();
-      expect(labels, ['applied', 'uptodate', 'conflict']);
+      expect(labels, ['applied', 'uptodate', 'conflict', 'stopped']);
     });
   });
 }
