@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/diff/build_patch_for_hunks.dart';
+import 'package:gitopen/application/diff/build_patch_for_lines.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
+import 'package:gitopen/domain/diff/diff_line.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/discard_changes.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
@@ -40,11 +43,18 @@ class _FileRowState extends ConsumerState<FileRow> {
   bool _expanded = false;
   bool _hover = false;
   final Set<int> _checkedHunks = {};
+  final Map<int, Set<int>> _checkedLines = {};
+
+  bool get _hasCheckedLines =>
+      _checkedLines.values.any((selected) => selected.isNotEmpty);
 
   void _toggleExpanded() {
     setState(() {
       _expanded = !_expanded;
-      if (!_expanded) _checkedHunks.clear();
+      if (!_expanded) {
+        _checkedHunks.clear();
+        _checkedLines.clear();
+      }
     });
   }
 
@@ -108,6 +118,18 @@ class _FileRowState extends ConsumerState<FileRow> {
       } else {
         _checkedHunks.add(index);
       }
+      _checkedLines.remove(index);
+    });
+  }
+
+  void _toggleLine(int hunkIndex, int lineIndex) {
+    setState(() {
+      _checkedHunks.remove(hunkIndex);
+      final selected = _checkedLines.putIfAbsent(hunkIndex, () => <int>{});
+      if (!selected.add(lineIndex)) {
+        selected.remove(lineIndex);
+      }
+      if (selected.isEmpty) _checkedLines.remove(hunkIndex);
     });
   }
 
@@ -128,7 +150,56 @@ class _FileRowState extends ConsumerState<FileRow> {
     final write = ref.read(gitWriteOperationsProvider);
     await write.stagePatch(widget.repo, patch);
     setState(_checkedHunks.clear);
-    ref.invalidate(workingCopyStatusProvider(widget.repo));
+    ref
+      ..invalidate(workingCopyStatusProvider(widget.repo))
+      ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)));
+  }
+
+  Future<void> _stageSelectedLines(List<DiffHunk> allHunks) async {
+    final patches = <String>[];
+    for (final entry in _checkedLines.entries) {
+      if (entry.value.isEmpty) continue;
+      final patch = buildPatchForLines(
+        widget.entry.path,
+        allHunks[entry.key],
+        entry.value,
+      );
+      if (patch.isNotEmpty) patches.add(patch);
+    }
+    if (patches.isEmpty) return;
+
+    final write = ref.read(gitWriteOperationsProvider);
+    for (final patch in patches) {
+      await write.stagePatch(widget.repo, patch);
+    }
+    setState(_checkedLines.clear);
+    ref
+      ..invalidate(workingCopyStatusProvider(widget.repo))
+      ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)));
+  }
+
+  Future<void> _discardHunk(DiffHunk hunk, int index) async {
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: 'Discard hunk',
+      body: 'Discard this hunk from "${widget.entry.path}"? Local edits in '
+          'the hunk will be lost.',
+      confirmLabel: 'Discard hunk',
+      dangerous: true,
+    );
+    if (!confirmed || !mounted) return;
+    final patch = buildPatchForHunks(widget.entry.path, [hunk]);
+    await ref
+        .read(gitActionsControllerProvider)
+        .discardHunk(context, widget.repo, patch);
+    if (!mounted) return;
+    setState(() {
+      _checkedHunks.remove(index);
+      _checkedLines.remove(index);
+    });
+    ref
+      ..invalidate(workingCopyStatusProvider(widget.repo))
+      ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)));
   }
 
   bool get _canExpand =>
@@ -207,9 +278,12 @@ class _FileRowState extends ConsumerState<FileRow> {
                 style: TextStyle(
                     color: isSelected ? Colors.white : palette.fg0,
                     fontSize: 12.5))),
-            if (_checkedHunks.isNotEmpty)
+            if (_checkedHunks.isNotEmpty || _hasCheckedLines)
               _buildStageSelectedButton(),
-            if (!widget.isStaged && _hover && _checkedHunks.isEmpty)
+            if (!widget.isStaged &&
+                _hover &&
+                _checkedHunks.isEmpty &&
+                !_hasCheckedLines)
               DiscardIconButton(
                 isSelected: isSelected,
                 onPressed: _discard,
@@ -238,8 +312,14 @@ class _FileRowState extends ConsumerState<FileRow> {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               textStyle: const TextStyle(fontSize: 11),
             ),
-            onPressed: () => _stageSelectedHunks(fileDiff.hunks),
-            child: const Text('Stage selected hunks'),
+            onPressed: _hasCheckedLines
+                ? () => _stageSelectedLines(fileDiff.hunks)
+                : () => _stageSelectedHunks(fileDiff.hunks),
+            child: Text(
+              _hasCheckedLines
+                  ? 'Stage selected lines'
+                  : 'Stage selected hunks',
+            ),
           ),
         );
       },
@@ -283,6 +363,9 @@ class _FileRowState extends ConsumerState<FileRow> {
                 index: i,
                 isChecked: _checkedHunks.contains(i),
                 onToggle: () => _toggleHunk(i),
+                selectedLines: _checkedLines[i] ?? const <int>{},
+                onToggleLine: (lineIndex) => _toggleLine(i, lineIndex),
+                onDiscard: () => _discardHunk(fileDiff.hunks[i], i),
               ),
           ],
         );
@@ -335,40 +418,151 @@ class HunkRow extends StatelessWidget {
     required this.index,
     required this.isChecked,
     required this.onToggle,
+    required this.selectedLines,
+    required this.onToggleLine,
+    required this.onDiscard,
     super.key,
   });
   final DiffHunk hunk;
   final int index;
   final bool isChecked;
   final VoidCallback onToggle;
+  final Set<int> selectedLines;
+  final ValueChanged<int> onToggleLine;
+  final VoidCallback onDiscard;
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    return InkWell(
-      onTap: onToggle,
-      child: Container(
-        color: palette.bg0,
-        padding: const EdgeInsets.only(left: 32, right: 12, top: 3, bottom: 3),
-        child: Row(children: [
-          Icon(
-            isChecked ? Icons.check_box : Icons.check_box_outline_blank,
-            size: 13,
-            color: palette.fg2,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              hunk.header,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.accentRemote,
-                fontSize: 11,
-                fontFamily: 'monospace',
+    return ColoredBox(
+      color: palette.bg0,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.only(
+                left: 32,
+                right: 8,
+                top: 3,
+                bottom: 3,
               ),
+              child: Row(children: [
+                Icon(
+                  isChecked ? Icons.check_box : Icons.check_box_outline_blank,
+                  size: 13,
+                  color: palette.fg2,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hunk.header,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.accentRemote,
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                Tooltip(
+                  message: 'Discard hunk',
+                  waitDuration: const Duration(milliseconds: 400),
+                  child: InkWell(
+                    onTap: onDiscard,
+                    borderRadius: BorderRadius.circular(3),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        Icons.undo,
+                        size: 13,
+                        color: palette.accentErr,
+                      ),
+                    ),
+                  ),
+                ),
+              ]),
             ),
           ),
-        ]),
+          for (final (lineIndex, line) in hunk.lines.indexed)
+            _HunkLineRow(
+              line: line,
+              isChecked: selectedLines.contains(lineIndex),
+              onToggle: () => onToggleLine(lineIndex),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HunkLineRow extends StatelessWidget {
+  const _HunkLineRow({
+    required this.line,
+    required this.isChecked,
+    required this.onToggle,
+  });
+  final DiffLine line;
+  final bool isChecked;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    final selectable = line.kind != DiffLineKind.context;
+    final (prefix, bg) = switch (line.kind) {
+      DiffLineKind.addition => (
+          '+',
+          palette.accentCurrent.withValues(alpha: 0.08),
+        ),
+      DiffLineKind.deletion => ('-', palette.accentErr.withValues(alpha: 0.10)),
+      DiffLineKind.context => (' ', Colors.transparent),
+    };
+    return InkWell(
+      onTap: selectable ? onToggle : null,
+      child: Container(
+        color: bg,
+        padding: const EdgeInsets.only(left: 50, right: 12, top: 1, bottom: 1),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 14,
+              child: selectable
+                  ? Icon(
+                      isChecked
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank,
+                      size: 12,
+                      color: palette.fg2,
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 12,
+              child: Text(
+                prefix,
+                style: TextStyle(
+                  color: palette.fg3,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                line.content,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.fg1,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
