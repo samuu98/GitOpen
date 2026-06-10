@@ -18,6 +18,7 @@ import 'application/settings/settings_open_provider.dart';
 import 'application/workspaces/workspace.dart';
 import 'infrastructure/logging/app_logger.dart';
 import 'ui/theme/app_palette.dart';
+import 'ui/theme/app_typography.dart';
 import 'ui/command_palette/command_palette.dart';
 import 'ui/bottom_panel/bottom_panel.dart';
 import 'ui/commit_graph/commit_graph_panel.dart';
@@ -146,7 +147,12 @@ class GitOpenApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(appSettingsProvider.select((s) => s.theme));
+    final fontFamily =
+        ref.watch(appSettingsProvider.select((s) => s.fontFamily));
+    final fontSize = ref.watch(appSettingsProvider.select((s) => s.fontSize));
     final palette = theme == AppTheme.dark ? AppPalette.dark() : AppPalette.light();
+    final typography =
+        AppTypography.fromSettings(fontFamily: fontFamily, baseSize: fontSize);
     return MaterialApp(
       title: 'GitOpen',
       debugShowCheckedModeBanner: false,
@@ -154,7 +160,17 @@ class GitOpenApp extends ConsumerWidget {
         useMaterial3: true,
         brightness: theme == AppTheme.dark ? Brightness.dark : Brightness.light,
         scaffoldBackgroundColor: palette.bg1,
-        extensions: [palette],
+        fontFamily: fontFamily,
+        tooltipTheme: TooltipThemeData(
+          waitDuration: const Duration(milliseconds: 500),
+          decoration: BoxDecoration(
+            color: palette.bg5,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: palette.borderStrong),
+          ),
+          textStyle: typography.bodySmall.copyWith(color: palette.fg0),
+        ),
+        extensions: [palette, typography],
       ),
       home: const Shell(),
     );

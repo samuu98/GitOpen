@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_palette.dart';
+import '../theme/app_typography.dart';
 
 /// Palette-aware modal frame used across the app. Replaces bare
 /// [AlertDialog]/[Dialog] usages so every modal has matching chrome —
@@ -27,6 +28,7 @@ class AppDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final typo = AppTypography.of(context);
     return Dialog(
       backgroundColor: palette.bg2,
       elevation: 12,
@@ -48,17 +50,13 @@ class AppDialog extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      color: palette.fg0,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: typo.title.copyWith(color: palette.fg0),
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 4),
                     Text(
                       subtitle!,
-                      style: TextStyle(color: palette.fg2, fontSize: 11.5),
+                      style: typo.bodySmall.copyWith(color: palette.fg2),
                     ),
                   ],
                 ],
@@ -209,11 +207,10 @@ class _AppButtonState extends State<AppButton> {
                 ],
                 Text(
                   widget.label,
-                  style: TextStyle(
-                    color: disabled ? palette.fg3 : fg,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: AppTypography.of(context).body.copyWith(
+                        color: disabled ? palette.fg3 : fg,
+                        fontWeight: FontWeight.w500,
+                      ),
                 ),
               ],
             ),

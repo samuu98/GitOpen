@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_palette.dart';
+import '../theme/app_typography.dart';
 
 /// Spec for a single entry in [AppContextMenu]. Either a normal item or a
 /// divider.
@@ -13,12 +14,17 @@ class AppMenuItem<T> extends AppContextMenuEntry<T> {
   final IconData? icon;
   final bool danger;
   final bool enabled;
+
+  /// Right-aligned hint, e.g. a keyboard shortcut ("Ctrl+P").
+  final String? hint;
+
   const AppMenuItem({
     required this.value,
     required this.label,
     this.icon,
     this.danger = false,
     this.enabled = true,
+    this.hint,
   });
 }
 
@@ -64,6 +70,7 @@ class AppContextMenu {
                 icon: e.icon,
                 danger: e.danger,
                 enabled: e.enabled,
+                hint: e.hint,
               ),
             )
           else
@@ -98,21 +105,22 @@ class AppMenuButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool danger;
 
+  /// Right-aligned hint, e.g. a keyboard shortcut.
+  final String? hint;
+
   const AppMenuButton({
     super.key,
     required this.label,
     required this.onPressed,
     this.icon,
     this.danger = false,
+    this.hint,
   });
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final enabled = onPressed != null;
-    final fg = !enabled
-        ? palette.fg3
-        : (danger ? palette.accentErr : palette.fg0);
     return MenuItemButton(
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith((states) {
@@ -128,28 +136,12 @@ class AppMenuButton extends StatelessWidget {
       onPressed: onPressed,
       child: SizedBox(
         width: 220,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 18,
-                child: icon == null
-                    ? null
-                    : Icon(icon,
-                        size: 14,
-                        color: enabled ? palette.fg2 : palette.fg3),
-              ),
-              const SizedBox(width: 2),
-              Expanded(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: fg, fontSize: 12.5),
-                ),
-              ),
-            ],
-          ),
+        child: _MenuRow(
+          label: label,
+          icon: icon,
+          danger: danger,
+          enabled: enabled,
+          hint: hint,
         ),
       ),
     );
@@ -170,16 +162,19 @@ class _MenuRow extends StatelessWidget {
   final IconData? icon;
   final bool danger;
   final bool enabled;
+  final String? hint;
   const _MenuRow({
     required this.label,
     required this.icon,
     required this.danger,
     required this.enabled,
+    this.hint,
   });
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final typo = AppTypography.of(context);
     final fg = !enabled
         ? palette.fg3
         : (danger ? palette.accentErr : palette.fg0);
@@ -194,10 +189,20 @@ class _MenuRow extends StatelessWidget {
                 : Icon(icon, size: 14, color: enabled ? palette.fg2 : palette.fg3),
           ),
           const SizedBox(width: 2),
-          Text(
-            label,
-            style: TextStyle(color: fg, fontSize: 12.5),
+          Expanded(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: typo.body.copyWith(color: fg),
+            ),
           ),
+          if (hint != null) ...[
+            const SizedBox(width: 12),
+            Text(
+              hint!,
+              style: typo.bodySmall.copyWith(color: palette.fg3),
+            ),
+          ],
         ],
       ),
     );
