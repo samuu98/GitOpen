@@ -29,12 +29,23 @@ Stream<GitProgress> _ok() => Stream<GitProgress>.fromIterable(
 Stream<GitProgress> _err(String stderr) =>
     Stream<GitProgress>.error(StateError(stderr));
 
-/// Fake write op: `fetch` returns the next queued stream per call (initial,
-/// then retry), so a test can script "fail, then succeed".
+/// Fake write op: `fetch`/`push` return the next queued stream per call
+/// (initial, then retry), so a test can script "fail, then succeed".
+/// Arguments are recorded so routing (remote/branch/tags) can be asserted.
 class _FakeWrite implements GitWriteOperations {
   _FakeWrite(this._streams);
   final List<Stream<GitProgress> Function()> _streams;
   int calls = 0;
+  String? lastFetchRemote;
+  String? lastPushRemote;
+  String? lastPushBranch;
+  bool? lastPushTags;
+
+  Stream<GitProgress> _next() {
+    final s = _streams[calls < _streams.length ? calls : _streams.length - 1];
+    calls++;
+    return s();
+  }
 
   @override
   Stream<GitProgress> fetch(
@@ -43,9 +54,23 @@ class _FakeWrite implements GitWriteOperations {
     bool all = false,
     AuthSpec? auth,
   }) {
-    final s = _streams[calls < _streams.length ? calls : _streams.length - 1];
-    calls++;
-    return s();
+    lastFetchRemote = remote;
+    return _next();
+  }
+
+  @override
+  Stream<GitProgress> push(
+    RepoLocation r, {
+    String? remote,
+    String? branch,
+    bool forceWithLease = false,
+    bool pushTags = false,
+    AuthSpec? auth,
+  }) {
+    lastPushRemote = remote;
+    lastPushBranch = branch;
+    lastPushTags = pushTags;
+    return _next();
   }
 
   @override
@@ -167,5 +192,34 @@ void main() {
     expect(result.outcome, ActionOutcome.failed);
     expect(prompt.calls, 0);
     expect(progress.events.any((e) => e.startsWith('failure')), isTrue);
+  });
+
+  test('pushTag pushes the single tag ref to the named remote', () async {
+    final write = _FakeWrite([_ok]);
+    final prompt = _FakePrompt(null);
+    final progress = _FakeProgress();
+
+    final result = await service(write)
+        .pushTag(repo, 'v1.2.3', prompt: prompt, progress: progress);
+
+    expect(result.outcome, ActionOutcome.success);
+    expect(write.lastPushRemote, 'origin');
+    expect(write.lastPushBranch, 'v1.2.3');
+    expect(write.lastPushTags, isFalse); // --tags would push EVERY tag
+    expect(prompt.calls, 0);
+  });
+
+  test('fetchRemote fetches the named remote with auth-retry', () async {
+    final write = _FakeWrite([() => _err('fatal: Authentication failed'), _ok]);
+    final prompt = _FakePrompt(_chosen);
+    final progress = _FakeProgress();
+
+    final result = await service(write)
+        .fetchRemote(repo, 'upstream', prompt: prompt, progress: progress);
+
+    expect(result.outcome, ActionOutcome.success);
+    expect(write.lastFetchRemote, 'upstream');
+    expect(prompt.calls, 1);
+    expect(write.calls, 2); // initial + retry
   });
 }

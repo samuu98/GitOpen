@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
@@ -83,7 +82,6 @@ class TagRow extends ConsumerWidget {
     );
 
     if (selected == null || !context.mounted) return;
-    final write = ref.read(gitWriteOperationsProvider);
 
     switch (selected) {
       case 'checkout':
@@ -96,10 +94,9 @@ class TagRow extends ConsumerWidget {
         if (ok) onRefresh();
 
       case 'push_tag':
-        // Push the specific tag to origin using the push stream;
-        // fire-and-forget with no progress tracking for simplicity.
-        final stream = write.push(repo, branch: tag.name, pushTags: true);
-        await stream.drain<void>();
+        await ref
+            .read(gitActionsControllerProvider)
+            .pushTag(context, repo, tag.name);
         onRefresh();
 
       case 'delete_tag':

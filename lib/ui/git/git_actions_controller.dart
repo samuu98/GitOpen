@@ -72,6 +72,36 @@ class GitActionsController {
     );
   }
 
+  /// `git push <remote> <tag>` with progress + auth-retry.
+  Future<ActionResult> pushTag(
+    BuildContext context,
+    RepoLocation repo,
+    String tagName,
+  ) {
+    return _run(
+      context,
+      repo,
+      (prompt, progress) => _ref
+          .read(gitActionsServiceProvider)
+          .pushTag(repo, tagName, prompt: prompt, progress: progress),
+    );
+  }
+
+  /// `git fetch <remote>` with progress + auth-retry.
+  Future<ActionResult> fetchRemote(
+    BuildContext context,
+    RepoLocation repo,
+    String remoteName,
+  ) {
+    return _run(
+      context,
+      repo,
+      (prompt, progress) => _ref
+          .read(gitActionsServiceProvider)
+          .fetchRemote(repo, remoteName, prompt: prompt, progress: progress),
+    );
+  }
+
   /// `git merge <ref>` into the current branch.
   Future<ActionResult> merge(
     BuildContext context,

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/dialogs/remote_dialog.dart';
+import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/branch_tree_view.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -192,7 +192,9 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
 
     switch (selected) {
       case 'fetch':
-        await _fetchRemote(ref, repo, remote.name);
+        await ref
+            .read(gitActionsControllerProvider)
+            .fetchRemote(context, repo, remote.name);
         onChanged();
 
       case 'edit_url':
@@ -239,23 +241,3 @@ Future<void> _addRemote(
   onChanged();
 }
 
-/// Fetches a single remote, tracking the operation in the operations notifier.
-/// Uses the resolved auth profile but does not implement the wrong-account
-/// retry flow — that lives in the toolbar's full fetch button.
-Future<void> _fetchRemote(
-    WidgetRef ref, RepoLocation repo, String remoteName) async {
-  final ops = ref.read(operationsProvider.notifier);
-  final id = ops.start(OpKind.fetch, 'Fetching $remoteName', repo: repo);
-  try {
-    final profile = await ref.read(authResolverProvider).resolveForRepo(repo);
-    final write = ref.read(gitWriteOperationsProvider);
-    await for (final ev
-        in write.fetch(repo, remote: remoteName, auth: profile?.spec)) {
-      ops.updateProgress(id, ev.fraction, ev.phase);
-    }
-    ops.finishSuccess(id);
-    ref.invalidate(gitReadOperationsProvider);
-  } on Object catch (e) {
-    ops.finishFailure(id, e.toString());
-  }
-}

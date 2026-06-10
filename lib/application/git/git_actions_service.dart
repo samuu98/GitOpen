@@ -152,6 +152,42 @@ final class GitActionsService {
     );
   }
 
+  /// `git push <remote> <tag>` — pushes exactly one tag ref, with progress +
+  /// auth-retry.
+  Future<ActionResult> pushTag(
+    RepoLocation repo,
+    String tagName, {
+    String remote = 'origin',
+    required AuthPrompt prompt,
+    required ProgressSink progress,
+  }) {
+    return _runStream(
+      OpKind.push,
+      'Pushing tag $tagName',
+      repo,
+      (auth) => _write.push(repo, remote: remote, branch: tagName, auth: auth),
+      prompt: prompt,
+      progress: progress,
+    );
+  }
+
+  /// `git fetch <remote>` with progress + auth-retry.
+  Future<ActionResult> fetchRemote(
+    RepoLocation repo,
+    String remote, {
+    required AuthPrompt prompt,
+    required ProgressSink progress,
+  }) {
+    return _runStream(
+      OpKind.fetch,
+      'Fetching $remote',
+      repo,
+      (auth) => _write.fetch(repo, remote: remote, auth: auth),
+      prompt: prompt,
+      progress: progress,
+    );
+  }
+
   // ---- Local (non-streaming) actions ------------------------------------
   // No auth / progress streaming; each maps the write op's GitResult to a
   // declarative ActionResult. Conflict-bearing ops report
