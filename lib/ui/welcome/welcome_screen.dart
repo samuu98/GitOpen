@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/active_workspace_provider.dart';
 import '../../application/providers.dart';
+import '../dialogs/app_dialog.dart';
 import '../dialogs/clone_dialog.dart';
 import '../theme/app_palette.dart';
+import '../theme/app_typography.dart';
 
 class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
@@ -11,6 +13,7 @@ class WelcomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
+    final typo = AppTypography.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -24,31 +27,32 @@ class WelcomeScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Text(
             'Welcome to GitOpen',
-            style: TextStyle(
-              color: palette.fg0,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
+            style: typo.heading.copyWith(color: palette.fg0, fontSize: 18),
           ),
           const SizedBox(height: 8),
           Text(
             'Open or clone a repository to begin.',
-            style: TextStyle(color: palette.fg2),
+            style: typo.body.copyWith(color: palette.fg2),
           ),
           const SizedBox(height: 24),
           Row(mainAxisSize: MainAxisSize.min, children: [
-            ElevatedButton.icon(
+            AppButton.primary(
+              label: 'Open repository',
+              icon: Icons.folder_open,
               onPressed: () => _openRepo(context, ref),
-              icon: const Icon(Icons.folder_open, size: 16),
-              label: const Text('Open repository'),
             ),
             const SizedBox(width: 12),
-            OutlinedButton.icon(
+            AppButton.secondary(
+              label: 'Clone',
+              icon: Icons.download,
               onPressed: () => CloneDialog.show(context),
-              icon: const Icon(Icons.download, size: 16),
-              label: const Text('Clone'),
             ),
           ]),
+          const SizedBox(height: 28),
+          Text(
+            'Tip: press Ctrl+P anywhere for the command palette',
+            style: typo.bodySmall.copyWith(color: palette.fg3),
+          ),
         ],
       ),
     );

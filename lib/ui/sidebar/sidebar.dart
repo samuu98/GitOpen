@@ -1,5 +1,7 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../infrastructure/logging/app_logger.dart';
 import '../../application/active_workspace_provider.dart';
 import '../../application/branch_visibility_provider.dart';
@@ -14,6 +16,7 @@ import '../../domain/refs/stash.dart';
 import '../../domain/refs/tag.dart';
 import '../../application/git/git_result.dart';
 import '../../application/git/merge_outcome.dart';
+import '../../application/git/remote_web_url.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../../application/operations/running_operation.dart';
 import '../checkout/safe_checkout.dart';
@@ -24,6 +27,7 @@ import '../dialogs/confirm_dialog.dart';
 import '../dialogs/merge_dialog.dart';
 import '../dialogs/remote_dialog.dart';
 import '../theme/app_palette.dart';
+import '../theme/app_typography.dart';
 import 'branch_tree.dart';
 
 /// Selects [sha] in the graph and asks the graph panel to scroll it into
@@ -552,19 +556,24 @@ class _Section extends ConsumerWidget {
               const SizedBox(width: 4),
               Text(
                 title,
-                style: TextStyle(
-                  color: palette.fg2,
-                  fontSize: 10.5,
-                  letterSpacing: 0.5,
-                ),
+                style: AppTypography.of(context)
+                    .label
+                    .copyWith(color: palette.fg2),
               ),
               if (count != null && count! > 0) ...[
                 const SizedBox(width: 6),
-                Text(
-                  '$count',
-                  style: TextStyle(
-                    color: palette.fg3,
-                    fontSize: 10.5,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: palette.bg3,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: AppTypography.of(context)
+                        .label
+                        .copyWith(color: palette.fg2, letterSpacing: 0),
                   ),
                 ),
               ],
@@ -905,6 +914,11 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         AppMenuItem(value: 'upstream', label: 'Set upstream…', icon: Icons.link),
         AppMenuDivider(),
       ],
+      const AppMenuItem(
+          value: 'open_remote',
+          label: 'Open on remote…',
+          icon: Icons.open_in_browser),
+      const AppMenuDivider(),
       const AppMenuItem(value: 'delete', label: 'Delete', icon: Icons.delete_outline, danger: true),
     ];
 
@@ -1022,6 +1036,27 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         if (upstream == null || upstream.trim().isEmpty) return;
         await write.setUpstream(widget.repo, branchName, upstream.trim());
         _refresh();
+
+      case 'open_remote':
+        final remotes =
+            await ref.read(gitReadOperationsProvider).getRemotes(widget.repo);
+        final remote =
+            remotes.where((r) => r.name == 'origin').firstOrNull ??
+                remotes.firstOrNull;
+        final web = remote == null ? null : RemoteWebUrl.parse(remote.url);
+        if (web == null) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('No web-mappable remote configured.')));
+          }
+          return;
+        }
+        // origin/foo on the web is just branch foo of that remote.
+        final webBranch = branch.isRemote && branchName.contains('/')
+            ? branchName.substring(branchName.indexOf('/') + 1)
+            : branchName;
+        await launchUrl(Uri.parse(web.branch(webBranch)),
+            mode: LaunchMode.externalApplication);
     }
   }
 

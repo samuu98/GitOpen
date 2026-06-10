@@ -9,6 +9,7 @@ import '../../application/providers.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../dialogs/account_switcher_dialog.dart';
 import '../theme/app_palette.dart';
+import '../theme/app_typography.dart';
 import '../operations/activity_panel.dart';
 
 class StatusBar extends ConsumerWidget {
@@ -17,28 +18,34 @@ class StatusBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = AppPalette.of(context);
+    final typo = AppTypography.of(context);
     final activeId = ref.watch(activeWorkspaceIdProvider);
     final workspaces = ref.watch(workspaceManagerProvider);
     final active =
         workspaces.where((w) => w.location.id == activeId).cast<dynamic>().firstOrNull;
 
     if (active == null) {
-      return Container(height: 22, color: p.bg3);
+      return Container(height: 24, color: p.bg3);
     }
     final repo = active.location as RepoLocation;
     final branchesAsync = ref.watch(branchesProvider(repo));
     final statusAsync = ref.watch(repoStatusProvider(repo));
     final inProgressAsync = ref.watch(repoStateProvider(repo));
     final ops = ref.watch(operationsProvider);
-    final running = ops.where((o) => o.status == OperationStatus.running).length;
+    final running =
+        ops.where((o) => o.status == OperationStatus.running).toList();
 
     return Container(
-      height: 22,
-      color: p.bg3,
+      height: 24,
+      decoration: BoxDecoration(
+        color: p.bg3,
+        border: Border(top: BorderSide(color: p.border)),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(children: [
         branchesAsync.when(
-          loading: () => Text('loading...', style: TextStyle(color: p.fg2, fontSize: 11)),
+          loading: () =>
+              Text('loading…', style: typo.bodySmall.copyWith(color: p.fg2)),
           // ignore: avoid_types_on_closure_parameters
           error: (Object e, StackTrace s) => const SizedBox.shrink(),
           data: (branches) {
@@ -48,61 +55,118 @@ class StatusBar extends ConsumerWidget {
               orElse: () => branches.first,
             );
             return Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.fork_right, size: 11, color: p.accentCurrent),
+              Icon(Icons.fork_right, size: 12, color: p.accentCurrent),
               const SizedBox(width: 4),
-              Text(cur.name, style: TextStyle(color: p.fg0, fontSize: 11)),
+              Text(cur.name, style: typo.bodySmall.copyWith(color: p.fg0)),
               // ahead/behind for the current branch comes from RepoStatus
               // (cheap, single `git status` call), NOT from for-each-ref's
               // `upstream:track` atom which becomes O(N×commits) on repos
               // with many local branches that diverge a lot from upstream.
               if ((statusAsync.valueOrNull?.ahead ?? 0) > 0)
                 Text(' ↑${statusAsync.valueOrNull!.ahead}',
-                    style: TextStyle(color: p.accentCurrent, fontSize: 11)),
+                    style: typo.bodySmall.copyWith(color: p.accentCurrent)),
               if ((statusAsync.valueOrNull?.behind ?? 0) > 0)
                 Text(' ↓${statusAsync.valueOrNull!.behind}',
-                    style: TextStyle(color: p.accentTag, fontSize: 11)),
+                    style: typo.bodySmall.copyWith(color: p.accentTag)),
             ]);
           },
         ),
-        const SizedBox(width: 16),
+        const _Separator(),
         Expanded(
-          child: InkWell(
-            onTap: () => Clipboard.setData(ClipboardData(text: repo.path)),
-            child: Text(
-              repo.path,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: p.fg2, fontSize: 11),
+          child: Tooltip(
+            message: 'Click to copy path',
+            child: InkWell(
+              onTap: () => Clipboard.setData(ClipboardData(text: repo.path)),
+              child: Text(
+                repo.path,
+                overflow: TextOverflow.ellipsis,
+                style: typo.bodySmall.copyWith(color: p.fg2),
+              ),
             ),
           ),
         ),
         if (inProgressAsync.valueOrNull != null &&
             inProgressAsync.valueOrNull != InProgressOp.none) ...[
-          Icon(Icons.warning_amber, size: 12, color: p.accentTag),
+          Icon(Icons.warning_amber, size: 13, color: p.accentTag),
           const SizedBox(width: 4),
           Text(
-            inProgressAsync.valueOrNull!.name,
-            style: TextStyle(color: p.accentTag, fontSize: 11),
+            '${inProgressAsync.valueOrNull!.name} in progress',
+            style: typo.bodySmall.copyWith(color: p.accentTag),
           ),
-          const SizedBox(width: 12),
+          const _Separator(),
         ],
         _ActiveAccountChip(repo: repo),
-        const SizedBox(width: 12),
-        InkWell(
-          onTap: () => showDialog(
-            context: context,
-            builder: (_) => const ActivityPanel(),
-          ),
-          child: Row(children: [
-            Icon(Icons.workspaces_outline, size: 11, color: p.fg2),
-            const SizedBox(width: 4),
-            Text(
-              '$running op${running == 1 ? '' : 's'}',
-              style: TextStyle(color: p.fg2, fontSize: 11),
+        const _Separator(),
+        Tooltip(
+          message: 'Show activity log',
+          child: InkWell(
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => const ActivityPanel(),
             ),
-          ]),
+            child: running.isEmpty
+                ? Row(children: [
+                    Icon(Icons.workspaces_outline, size: 12, color: p.fg2),
+                    const SizedBox(width: 4),
+                    Text('idle', style: typo.bodySmall.copyWith(color: p.fg2)),
+                  ])
+                : _PrimaryOperation(operation: running.first,
+                    extraCount: running.length - 1),
+          ),
         ),
       ]),
     );
+  }
+}
+
+/// Thin vertical rule between status-bar sections (VS Code style).
+class _Separator extends StatelessWidget {
+  const _Separator();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppPalette.of(context);
+    return Container(
+      width: 1,
+      height: 12,
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      color: p.borderStrong,
+    );
+  }
+}
+
+/// Shows the most recent running operation by name (with progress when the
+/// stream reports it) instead of an opaque "2 ops" counter.
+class _PrimaryOperation extends StatelessWidget {
+  final RunningOperation operation;
+  final int extraCount;
+  const _PrimaryOperation(
+      {required this.operation, required this.extraCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppPalette.of(context);
+    final typo = AppTypography.of(context);
+    final fraction = operation.progress;
+    final label = StringBuffer(operation.label);
+    if (fraction != null && fraction > 0) {
+      label.write(' ${(fraction * 100).round()}%');
+    }
+    if (extraCount > 0) label.write('  (+$extraCount more)');
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      SizedBox(
+        width: 11,
+        height: 11,
+        child: CircularProgressIndicator(
+          strokeWidth: 1.5,
+          value: fraction != null && fraction > 0 ? fraction : null,
+          color: p.accentCurrent,
+        ),
+      ),
+      const SizedBox(width: 6),
+      Text(label.toString(),
+          style: typo.bodySmall.copyWith(color: p.fg1)),
+    ]);
   }
 }
 
@@ -121,17 +185,31 @@ class _ActiveAccountChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = AppPalette.of(context);
+    final typo = AppTypography.of(context);
     final async = ref.watch(repoActiveProfileProvider(repo));
     final current = async.valueOrNull;
-    final label = current?.username ?? 'no account';
-    final color = current == null ? p.fg2 : p.fg1;
-    return InkWell(
-      onTap: () => _switch(context, ref, current: current),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.account_circle_outlined, size: 11, color: color),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: color, fontSize: 11)),
-      ]),
+    final missing = current == null;
+    final color = missing ? p.accentTag : p.fg1;
+    return Tooltip(
+      message: missing
+          ? 'No account bound to this repo — pushes to private remotes '
+              'will fail. Click to pick one.'
+          : 'Acting as ${current.username} — click to switch account',
+      child: InkWell(
+        onTap: () => _switch(context, ref, current: current),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(
+            missing
+                ? Icons.no_accounts_outlined
+                : Icons.account_circle_outlined,
+            size: 12,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(current?.username ?? 'no account',
+              style: typo.bodySmall.copyWith(color: color)),
+        ]),
+      ),
     );
   }
 
@@ -157,4 +235,3 @@ class _ActiveAccountChip extends ConsumerWidget {
         .setAuthBinding(repo.id.value, chosen.id);
   }
 }
-
