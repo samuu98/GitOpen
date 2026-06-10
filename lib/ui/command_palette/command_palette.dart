@@ -1,8 +1,11 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../application/active_workspace_provider.dart';
+import '../../application/git/remote_web_url.dart';
 import '../../application/main_view_provider.dart';
 import '../../application/providers.dart';
 import '../../application/repo_revision.dart';
@@ -11,6 +14,7 @@ import '../../domain/refs/branch.dart';
 import '../../domain/repositories/repo_location.dart';
 import '../checkout/safe_checkout.dart';
 import '../dialogs/branch_create_dialog.dart';
+import '../dialogs/stash_dialogs.dart';
 import '../theme/app_palette.dart';
 
 /// A single palette entry.
@@ -81,11 +85,60 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
               ref.read(triggerFetchProvider.notifier).state++,
         ),
         _Command(
+          label: 'Pull',
+          category: 'Git',
+          icon: Icons.south,
+          run: () async => ref.read(triggerPullProvider.notifier).state++,
+        ),
+        _Command(
+          label: 'Push',
+          category: 'Git',
+          icon: Icons.north,
+          run: () async => ref.read(triggerPushProvider.notifier).state++,
+        ),
+        _Command(
           label: 'Commit',
           category: 'Git',
           icon: Icons.check,
           run: () async =>
               ref.read(triggerCommitProvider.notifier).state++,
+        ),
+        _Command(
+          label: 'Stash changes…',
+          category: 'Git',
+          icon: Icons.inventory_2_outlined,
+          run: () async {
+            final result = await StashSaveDialog.show(context);
+            if (result == null) return;
+            final (msg, includeUntracked) = result;
+            await ref
+                .read(gitWriteOperationsProvider)
+                .stashSave(repo, msg, includeUntracked: includeUntracked);
+            refreshRepo(ref, repo);
+          },
+        ),
+        _Command(
+          label: 'Manage stashes…',
+          category: 'Git',
+          icon: Icons.list_outlined,
+          run: () async => StashManagerDialog.show(context, repo),
+        ),
+        _Command(
+          label: 'Open repository on remote',
+          category: 'Git',
+          icon: Icons.open_in_browser,
+          run: () async {
+            final remotes =
+                await ref.read(gitReadOperationsProvider).getRemotes(repo);
+            final remote =
+                remotes.where((r) => r.name == 'origin').firstOrNull ??
+                    remotes.firstOrNull;
+            final web = remote == null ? null : RemoteWebUrl.parse(remote.url);
+            if (web != null) {
+              await launchUrl(Uri.parse(web.base),
+                  mode: LaunchMode.externalApplication);
+            }
+          },
         ),
         _Command(
           label: 'Refresh',

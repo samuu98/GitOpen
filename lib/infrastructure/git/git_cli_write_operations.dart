@@ -246,8 +246,9 @@ final class GitCliWriteOperations implements GitWriteOperations {
   }
   @override
   Stream<GitProgress> fetch(RepoLocation r,
-      {String? remote, bool all = false, AuthSpec? auth}) async* {
+      {String? remote, bool all = false, bool prune = false, AuthSpec? auth}) async* {
     final args = <String>['fetch', '--progress'];
+    if (prune) args.add('--prune');
     if (all) {
       args.add('--all');
     } else if (remote != null) {
@@ -654,6 +655,20 @@ final class GitCliWriteOperations implements GitWriteOperations {
     try { await _runner.run(r.path, ['reset', flag, to.value]); return const GitSuccess(null); }
     on GitProcessException catch (e) { return GitFailure(_classify(e), e.stderr, e.stderr); }
   }
+
+  @override
+  Future<GitResult<void>> restoreFileAt(
+      RepoLocation r, CommitSha sha, List<String> paths) async {
+    if (paths.isEmpty) return const GitSuccess(null);
+    try {
+      await _runner.run(
+          r.path, ['restore', '--source', sha.value, '--', ...paths]);
+      return const GitSuccess(null);
+    } on GitProcessException catch (e) {
+      return GitFailure(_classify(e), e.stderr, e.stderr);
+    }
+  }
+
   @override
   Stream<GitProgress> clone(String url, String destination, {AuthSpec? auth}) async* {
     final args = ['clone', '--progress', url, destination];

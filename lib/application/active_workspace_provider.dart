@@ -12,3 +12,11 @@ final triggerCommitProvider = StateProvider<int>((_) => 0);
 /// Incrementing counter — the Shell watches this and fetches the active repo
 /// whenever it changes (F5, or the command palette's "Fetch" command).
 final triggerFetchProvider = StateProvider<int>((_) => 0);
+
+/// Incrementing counter — GitToolbar listens and pulls the active repo with
+/// the default strategy (command palette's "Pull" command).
+final triggerPullProvider = StateProvider<int>((_) => 0);
+
+/// Incrementing counter — GitToolbar listens and pushes the current branch
+/// (command palette's "Push" command).
+final triggerPushProvider = StateProvider<int>((_) => 0);

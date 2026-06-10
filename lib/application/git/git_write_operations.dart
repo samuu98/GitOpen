@@ -39,7 +39,8 @@ abstract interface class GitWriteOperations {
       {CommitSha? at, String? message});
   Future<GitResult<void>> deleteTag(RepoLocation r, String name);
 
-  Stream<GitProgress> fetch(RepoLocation r, {String? remote, bool all = false, AuthSpec? auth});
+  Stream<GitProgress> fetch(RepoLocation r,
+      {String? remote, bool all = false, bool prune = false, AuthSpec? auth});
   Stream<GitProgress> pull(RepoLocation r, PullStrategy strategy, {AuthSpec? auth});
   Stream<GitProgress> push(RepoLocation r,
       {String? remote, String? branch, bool forceWithLease = false, bool pushTags = false, AuthSpec? auth});
@@ -67,6 +68,13 @@ abstract interface class GitWriteOperations {
   Future<GitResult<CommitSha>> revertContinue(RepoLocation r);
 
   Future<GitResult<void>> reset(RepoLocation r, CommitSha to, ResetMode mode);
+
+  /// Restores [paths] in the working tree to their content at [sha]
+  /// (`git restore --source <sha> -- <paths>`). The index is untouched, so
+  /// the restored content shows up as an unstaged change the user can
+  /// review before committing.
+  Future<GitResult<void>> restoreFileAt(
+      RepoLocation r, CommitSha sha, List<String> paths);
 
   Future<GitResult<RebaseOutcome>> rebase(RepoLocation r, String upstream);
   Future<GitResult<void>> rebaseAbort(RepoLocation r);

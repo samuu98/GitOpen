@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../infrastructure/logging/app_logger.dart';
 import '../../application/active_workspace_provider.dart';
 import '../../application/branch_visibility_provider.dart';
@@ -13,6 +15,7 @@ import '../../application/git/git_read_operations.dart';
 import '../../application/git/git_result.dart';
 import '../../application/git/git_write_operations.dart';
 import '../../application/git/merge_outcome.dart';
+import '../../application/git/remote_web_url.dart';
 import '../../application/git/repo_state_provider.dart';
 import '../../application/providers.dart';
 import '../../application/repo_revision.dart';
@@ -429,6 +432,8 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         AppMenuDivider(),
         AppMenuItem(value: 'copy_sha', label: 'Copy SHA', icon: Icons.copy),
         AppMenuItem(value: 'copy_short_sha', label: 'Copy short SHA', icon: Icons.copy_outlined),
+        AppMenuItem(value: 'copy_message', label: 'Copy commit message', icon: Icons.notes),
+        AppMenuItem(value: 'open_remote', label: 'Open on remote…', icon: Icons.open_in_browser),
         AppMenuDivider(),
         AppMenuItem(value: 'reset_soft', label: 'Reset (soft)', icon: Icons.restore),
         AppMenuItem(value: 'reset_mixed', label: 'Reset (mixed)', icon: Icons.restore),
@@ -548,6 +553,32 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
       case 'copy_short_sha':
         await Clipboard.setData(ClipboardData(text: sha.short()));
+
+      case 'copy_message':
+        final msg = await ref
+            .read(gitReadOperationsProvider)
+            .getCommitFullMessage(repo, sha);
+        if (msg != null && msg.isNotEmpty) {
+          await Clipboard.setData(ClipboardData(text: msg));
+        }
+
+      case 'open_remote':
+        final remotes =
+            await ref.read(gitReadOperationsProvider).getRemotes(repo);
+        final remote = remotes
+                .where((r) => r.name == 'origin')
+                .firstOrNull ??
+            remotes.firstOrNull;
+        final web = remote == null ? null : RemoteWebUrl.parse(remote.url);
+        if (web == null) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('No web-mappable remote configured.')));
+          }
+          return;
+        }
+        await launchUrl(Uri.parse(web.commit(sha.value)),
+            mode: LaunchMode.externalApplication);
 
       case 'reset_soft':
         await _doReset(context, ref, sha, ResetMode.soft);

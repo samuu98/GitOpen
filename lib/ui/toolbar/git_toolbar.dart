@@ -19,7 +19,9 @@ import '../dialogs/app_dialog.dart';
 import '../dialogs/auth_dialog.dart';
 import '../dialogs/branch_create_dialog.dart';
 import '../dialogs/confirm_dialog.dart';
+import '../dialogs/stash_dialogs.dart';
 import '../theme/app_palette.dart';
+import '../theme/app_typography.dart';
 
 /// Three-button toolbar for Fetch / Pull / Push, plus Branch and Stash dropdowns.
 ///
@@ -44,29 +46,102 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
     final enabled = active != null;
     final repo = enabled ? active!.location as RepoLocation : null;
 
+    // Command-palette routes: pull/push the active repo on trigger.
+    ref.listen<int>(triggerPullProvider, (_, _) {
+      if (repo != null) _pull(repo);
+    });
+    ref.listen<int>(triggerPushProvider, (_, _) {
+      if (repo != null) _push(repo);
+    });
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _ToolbarButton(
+        _SplitToolbarButton(
           icon: Icons.cloud_download_outlined,
           label: 'Fetch',
           enabled: enabled,
           tooltip: _withShortcut('Fetch from origin', 'fetch'),
           onTap: () => _fetch(repo!),
+          menuItems: enabled
+              ? [
+                  AppMenuButton(
+                    icon: Icons.cloud_download_outlined,
+                    label: 'Fetch origin',
+                    onPressed: () => _fetch(repo!),
+                  ),
+                  AppMenuButton(
+                    icon: Icons.cloud_sync_outlined,
+                    label: 'Fetch all remotes',
+                    onPressed: () => _fetch(repo!, all: true),
+                  ),
+                  AppMenuButton(
+                    icon: Icons.cleaning_services_outlined,
+                    label: 'Fetch and prune',
+                    onPressed: () => _fetch(repo!, prune: true),
+                  ),
+                ]
+              : const [],
         ),
-        _ToolbarButton(
+        _SplitToolbarButton(
           icon: Icons.south,
           label: 'Pull',
           enabled: enabled,
           tooltip: 'Pull from the upstream branch',
           onTap: () => _pull(repo!),
+          menuItems: enabled
+              ? [
+                  AppMenuButton(
+                    icon: Icons.south,
+                    label: 'Pull (default strategy)',
+                    onPressed: () => _pull(repo!),
+                  ),
+                  const AppMenuAnchorDivider(),
+                  AppMenuButton(
+                    icon: Icons.fast_forward_outlined,
+                    label: 'Pull — fast-forward only',
+                    onPressed: () => _pull(repo!, override: PullStrategy.ffOnly),
+                  ),
+                  AppMenuButton(
+                    icon: Icons.call_merge,
+                    label: 'Pull — merge',
+                    onPressed: () => _pull(repo!, override: PullStrategy.merge),
+                  ),
+                  AppMenuButton(
+                    icon: Icons.move_down,
+                    label: 'Pull — rebase',
+                    onPressed: () => _pull(repo!, override: PullStrategy.rebase),
+                  ),
+                ]
+              : const [],
         ),
-        _ToolbarButton(
+        _SplitToolbarButton(
           icon: Icons.north,
           label: 'Push',
           enabled: enabled,
           tooltip: 'Push the current branch',
           onTap: () => _push(repo!),
+          menuItems: enabled
+              ? [
+                  AppMenuButton(
+                    icon: Icons.north,
+                    label: 'Push',
+                    onPressed: () => _push(repo!),
+                  ),
+                  AppMenuButton(
+                    icon: Icons.sell_outlined,
+                    label: 'Push all tags',
+                    onPressed: () => _push(repo!, pushTags: true),
+                  ),
+                  const AppMenuAnchorDivider(),
+                  AppMenuButton(
+                    icon: Icons.warning_amber_outlined,
+                    label: 'Force push (with lease)…',
+                    danger: true,
+                    onPressed: () => _forcePush(repo!),
+                  ),
+                ]
+              : const [],
         ),
         const SizedBox(width: 4),
         _BranchDropdown(enabled: enabled, repo: repo),
@@ -89,33 +164,69 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
     return combo.isEmpty ? base : '$base ($combo)';
   }
 
-  Future<void> _fetch(RepoLocation repo) => _runStream(
+  Future<void> _fetch(RepoLocation repo, {bool all = false, bool prune = false}) =>
+      _runStream(
         OpKind.fetch,
-        'Fetching origin',
+        all
+            ? 'Fetching all remotes'
+            : prune
+                ? 'Fetching origin (prune)'
+                : 'Fetching origin',
         repo,
-        (auth) => ref.read(gitWriteOperationsProvider).fetch(repo, auth: auth),
+        (auth) => ref
+            .read(gitWriteOperationsProvider)
+            .fetch(repo, all: all, prune: prune, auth: auth),
       );
 
-  Future<void> _pull(RepoLocation repo) {
-    final strategy = switch (ref.read(appSettingsProvider).defaultPullStrategy) {
-      DefaultPullStrategy.ffOnly => PullStrategy.ffOnly,
-      DefaultPullStrategy.merge => PullStrategy.merge,
-      DefaultPullStrategy.rebase => PullStrategy.rebase,
-    };
+  Future<void> _pull(RepoLocation repo, {PullStrategy? override}) {
+    final strategy = override ??
+        switch (ref.read(appSettingsProvider).defaultPullStrategy) {
+          DefaultPullStrategy.ffOnly => PullStrategy.ffOnly,
+          DefaultPullStrategy.merge => PullStrategy.merge,
+          DefaultPullStrategy.rebase => PullStrategy.rebase,
+        };
     return _runStream(
       OpKind.pull,
-      'Pulling',
+      switch (strategy) {
+        PullStrategy.ffOnly => 'Pulling (ff-only)',
+        PullStrategy.merge => 'Pulling (merge)',
+        PullStrategy.rebase => 'Pulling (rebase)',
+      },
       repo,
       (auth) => ref.read(gitWriteOperationsProvider).pull(repo, strategy, auth: auth),
     );
   }
 
-  Future<void> _push(RepoLocation repo) => _runStream(
+  Future<void> _push(RepoLocation repo,
+          {bool forceWithLease = false, bool pushTags = false}) =>
+      _runStream(
         OpKind.push,
-        'Pushing',
+        forceWithLease
+            ? 'Force pushing'
+            : pushTags
+                ? 'Pushing tags'
+                : 'Pushing',
         repo,
-        (auth) => ref.read(gitWriteOperationsProvider).push(repo, auth: auth),
+        (auth) => ref.read(gitWriteOperationsProvider).push(repo,
+            forceWithLease: forceWithLease, pushTags: pushTags, auth: auth),
       );
+
+  /// Force push is destructive for collaborators — always confirm, and use
+  /// `--force-with-lease` so a push that would clobber unseen remote work
+  /// is rejected by git itself.
+  Future<void> _forcePush(RepoLocation repo) async {
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: 'Force push',
+      body: 'Overwrite the remote branch with your local history?\n\n'
+          'Uses --force-with-lease: the push is rejected if someone else '
+          'pushed in the meantime.',
+      confirmLabel: 'Force push',
+      dangerous: true,
+    );
+    if (!confirmed || !mounted) return;
+    await _push(repo, forceWithLease: true);
+  }
 
   /// Runs a streaming git operation, tracking it in [operationsProvider].
   ///
@@ -459,71 +570,17 @@ class _StashDropdownState extends ConsumerState<_StashDropdown> {
   }
 
   Future<void> _stashSave(RepoLocation repo) async {
-    final msg = await _appPromptText(context, 'Stash changes',
-        label: 'Message (optional)');
-    if (!mounted) return;
+    final result = await StashSaveDialog.show(context);
+    if (result == null || !mounted) return;
+    final (msg, includeUntracked) = result;
     await ref
         .read(gitWriteOperationsProvider)
-        .stashSave(repo, msg?.trim() ?? '');
+        .stashSave(repo, msg, includeUntracked: includeUntracked);
     refreshRepo(ref, repo);
   }
 
-  Future<void> _viewStashes(RepoLocation repo) async {
-    final stashes = await ref.read(gitReadOperationsProvider).getStashes(repo);
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        final palette = AppPalette.of(ctx);
-        return AppDialog(
-          title: 'Stashes',
-          width: 420,
-          content: stashes.isEmpty
-              ? Text('No stashes.',
-                  style: TextStyle(color: palette.fg2, fontSize: 12.5))
-              : SizedBox(
-                  height: 280,
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: stashes.length,
-                    itemBuilder: (_, i) {
-                      final s = stashes[i];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 6),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'stash@{${s.index}}',
-                              style: TextStyle(
-                                color: palette.fg0,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                            Text(
-                              s.message,
-                              style: TextStyle(
-                                  color: palette.fg2, fontSize: 11.5),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-          actions: [
-            AppButton.secondary(
-              label: 'Close',
-              onPressed: () => Navigator.pop(ctx),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  Future<void> _viewStashes(RepoLocation repo) =>
+      StashManagerDialog.show(context, repo);
 }
 
 /// Single-line text prompt shared between the toolbar dropdowns.
@@ -749,55 +806,123 @@ class _BranchPickerDialogState extends State<_BranchPickerDialog> {
 // Shared toolbar widgets
 // ---------------------------------------------------------------------------
 
-class _ToolbarButton extends StatelessWidget {
+/// Core visual for toolbar buttons. Disabled state dims icon and text via
+/// palette colors (NOT Opacity, which makes text illegible on dark themes).
+class _ToolbarButtonBody extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool enabled;
-  final VoidCallback onTap;
-  final String? tooltip;
+  final bool chevron;
 
-  const _ToolbarButton({
+  const _ToolbarButtonBody({
     required this.icon,
     required this.label,
     required this.enabled,
-    required this.onTap,
-    this.tooltip,
+    this.chevron = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final button = Opacity(
-      opacity: enabled ? 1.0 : 0.4,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: palette.fg1),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: TextStyle(
-                  color: palette.fg0,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+    final typo = AppTypography.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: enabled ? palette.fg1 : palette.fg3),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: typo.bodySmall
+                .copyWith(color: enabled ? palette.fg0 : palette.fg3),
           ),
-        ),
+          if (chevron) ...[
+            const SizedBox(width: 3),
+            Icon(Icons.expand_more,
+                size: 12, color: enabled ? palette.fg2 : palette.fg3),
+          ],
+        ],
       ),
     );
-    if (tooltip == null || tooltip!.isEmpty) return button;
-    return Tooltip(message: tooltip!, child: button);
   }
 }
 
-/// Dropdown trigger button — same visual style as [_ToolbarButton] but includes
-/// a small chevron to signal it opens a menu.
+/// Split button: clicking the body runs the default action, clicking the
+/// chevron opens a menu with variants (like Fork's Fetch/Pull/Push buttons).
+class _SplitToolbarButton extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+  final List<Widget> menuItems;
+  final String? tooltip;
+
+  const _SplitToolbarButton({
+    required this.icon,
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+    required this.menuItems,
+    this.tooltip,
+  });
+
+  @override
+  State<_SplitToolbarButton> createState() => _SplitToolbarButtonState();
+}
+
+class _SplitToolbarButtonState extends State<_SplitToolbarButton> {
+  final _menuController = MenuController();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    Widget body = InkWell(
+      onTap: widget.enabled ? widget.onTap : null,
+      hoverColor: palette.bg4,
+      borderRadius:
+          const BorderRadius.horizontal(left: Radius.circular(4)),
+      child: _ToolbarButtonBody(
+        icon: widget.icon,
+        label: widget.label,
+        enabled: widget.enabled,
+      ),
+    );
+    if (widget.tooltip != null && widget.tooltip!.isNotEmpty) {
+      body = Tooltip(message: widget.tooltip!, child: body);
+    }
+    return MenuAnchor(
+      controller: _menuController,
+      style: appMenuStyle(context),
+      menuChildren: widget.menuItems,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          body,
+          InkWell(
+            onTap: widget.enabled
+                ? () => _menuController.isOpen
+                    ? _menuController.close()
+                    : _menuController.open()
+                : null,
+            hoverColor: palette.bg4,
+            borderRadius:
+                const BorderRadius.horizontal(right: Radius.circular(4)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+              child: Icon(Icons.expand_more,
+                  size: 12,
+                  color: widget.enabled ? palette.fg2 : palette.fg3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dropdown trigger button — body and chevron are a single click target that
+/// toggles the menu.
 class _ToolbarDropdownButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -814,30 +939,15 @@ class _ToolbarDropdownButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    return Opacity(
-      opacity: enabled ? 1.0 : 0.4,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: palette.fg1),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: TextStyle(
-                  color: palette.fg0,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: 3),
-              Icon(Icons.expand_more, size: 12, color: palette.fg2),
-            ],
-          ),
-        ),
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      hoverColor: palette.bg4,
+      borderRadius: BorderRadius.circular(4),
+      child: _ToolbarButtonBody(
+        icon: icon,
+        label: label,
+        enabled: enabled,
+        chevron: true,
       ),
     );
   }
