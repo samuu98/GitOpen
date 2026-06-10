@@ -15,6 +15,7 @@ import 'package:gitopen/application/operations/operations_notifier.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/settings/app_settings.dart';
 import 'package:gitopen/application/settings/app_settings_notifier.dart';
+import 'package:gitopen/application/watch/repo_watcher.dart';
 import 'package:gitopen/application/workspaces/repository_registry.dart';
 import 'package:gitopen/application/workspaces/workspace.dart';
 import 'package:gitopen/application/workspaces/workspace_manager.dart';
@@ -42,6 +43,7 @@ import 'package:gitopen/infrastructure/persistence/repository_registry_impl.dart
 import 'package:gitopen/infrastructure/persistence/settings_repository.dart';
 import 'package:gitopen/infrastructure/persistence/workspace_persistence_impl.dart';
 import 'package:gitopen/infrastructure/updates/github_release_updater.dart';
+import 'package:gitopen/infrastructure/watch/io_repo_watcher.dart';
 import 'package:gitopen/ui/services/folder_picker.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -79,6 +81,9 @@ final folderPickerProvider =
 /// Probes `.git` for in-progress-operation markers (file-system backed).
 final gitDirProbeProvider =
     Provider<GitDirProbe>((ref) => const IoGitDirProbe());
+
+/// Watches a repo's `.git` bookkeeping for external changes (auto-refresh).
+final repoWatcherProvider = Provider<RepoWatcher>((ref) => IoRepoWatcher());
 
 final gitWriteOperationsProvider = Provider<GitWriteOperations>((ref) {
   return GitCliWriteOperations(runner: ref.watch(gitProcessRunnerProvider));
