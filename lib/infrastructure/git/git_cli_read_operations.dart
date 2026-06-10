@@ -129,13 +129,30 @@ final class GitCliReadOperations implements GitReadOperations {
       _guard(() => _refs.getSubmodules(repo));
 
   @override
-  Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec) =>
-      _guard(() async => capDiffResult(await _files.getDiff(repo, spec)));
+  Future<DiffResult> getDiff(
+    RepoLocation repo,
+    DiffSpec spec, {
+    bool ignoreWhitespace = false,
+  }) =>
+      _guard(() async => capDiffResult(await _files.getDiff(
+            repo,
+            spec,
+            ignoreWhitespace: ignoreWhitespace,
+          )));
 
   @override
   Future<DiffResult> getDiffForFile(
-          RepoLocation repo, DiffSpec spec, String path) =>
-      _guard(() => _files.getDiff(repo, spec, path: path));
+    RepoLocation repo,
+    DiffSpec spec,
+    String path, {
+    bool ignoreWhitespace = false,
+  }) =>
+      _guard(() => _files.getDiff(
+            repo,
+            spec,
+            path: path,
+            ignoreWhitespace: ignoreWhitespace,
+          ));
 
   @override
   Future<List<FileTreeEntry>> getFileTree(

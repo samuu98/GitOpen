@@ -93,12 +93,22 @@ abstract interface class GitReadOperations {
   /// Empty output (no submodules) yields an empty list.
   Future<List<Submodule>> getSubmodules(RepoLocation repo);
 
-  Future<DiffResult> getDiff(RepoLocation repo, DiffSpec spec);
+  /// Reads a diff for [spec]. [ignoreWhitespace] maps to git's `-w` and must
+  /// stay false for working-copy staging flows whose patches need exact lines.
+  Future<DiffResult> getDiff(
+    RepoLocation repo,
+    DiffSpec spec, {
+    bool ignoreWhitespace = false,
+  });
 
   /// Like [getDiff] but restricted to a single [path] and NEVER capped —
   /// backs the "Load full diff" action on a truncated file.
   Future<DiffResult> getDiffForFile(
-      RepoLocation repo, DiffSpec spec, String path);
+    RepoLocation repo,
+    DiffSpec spec,
+    String path, {
+    bool ignoreWhitespace = false,
+  });
 
   Future<List<FileTreeEntry>> getFileTree(
       RepoLocation repo, CommitSha sha, String path);

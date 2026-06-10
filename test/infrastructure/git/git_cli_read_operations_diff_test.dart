@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/diff/diff_spec.dart';
@@ -5,6 +7,8 @@ import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/git/git_cli_read_operations.dart';
+import 'package:path/path.dart' as p;
+
 import '../../_helpers/repo_fixture.dart';
 
 void main() {
@@ -61,6 +65,36 @@ void main() {
         expect(feature, hasLength(1));
         expect(feature.first.changeKind, FileChangeKind.added);
         expect(feature.first.hunks, isNotEmpty);
+      } finally {
+        await f.dispose();
+      }
+    });
+
+    test('ignoreWhitespace drops whitespace-only changes', () async {
+      final f = await RepoFixture.withLinearHistory(1);
+      try {
+        await File(p.join(f.path, 'file_0.txt'))
+            .writeAsString('  content 0\n');
+        await Process.run('git', ['add', '-A'], workingDirectory: f.path);
+        await Process.run(
+          'git',
+          ['commit', '-q', '-m', 'indent'],
+          workingDirectory: f.path,
+        );
+        final head = await Process.run(
+          'git',
+          ['rev-parse', 'HEAD'],
+          workingDirectory: f.path,
+        );
+        final sut = GitCliReadOperations();
+        final spec =
+            DiffSpecCommitVsParent(CommitSha(head.stdout.toString().trim()));
+
+        final normal = await sut.getDiff(loc(f), spec);
+        expect(normal.files.single.hunks, isNotEmpty);
+
+        final ws = await sut.getDiff(loc(f), spec, ignoreWhitespace: true);
+        expect(ws.files.isEmpty || ws.files.single.hunks.isEmpty, isTrue);
       } finally {
         await f.dispose();
       }

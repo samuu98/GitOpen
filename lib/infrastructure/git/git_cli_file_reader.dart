@@ -22,6 +22,7 @@ final class GitCliFileReader {
     RepoLocation repo,
     DiffSpec spec, {
     String? path,
+    bool ignoreWhitespace = false,
   }) async {
     // `core.quotepath=false` makes git print non-ASCII paths raw (UTF-8)
     // instead of C-quote-escaping them ("caf\303\250.txt") — the quoted form
@@ -54,6 +55,7 @@ final class GitCliFileReader {
     };
     final stdout = await _runner.run(repo.path, [
       ...args,
+      if (ignoreWhitespace) '-w',
       if (path != null) ...['--', path],
     ]);
     return DiffParser(stdout).parse();

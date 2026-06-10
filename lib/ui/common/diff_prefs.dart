@@ -12,6 +12,10 @@ enum DiffViewMode { unified, sideBySide }
 final diffViewModeProvider =
     StateProvider<DiffViewMode>((_) => DiffViewMode.unified);
 
+/// Whether the commit diff view passes `-w` to git. Deliberately not applied
+/// to the working-copy preview because its hunks feed patch operations.
+final ignoreWhitespaceProvider = StateProvider<bool>((_) => false);
+
 /// Small toggle for [wordDiffEnabledProvider], shown in diff headers.
 class WordDiffToggle extends ConsumerWidget {
   const WordDiffToggle({super.key});
@@ -66,6 +70,36 @@ class SplitDiffToggle extends ConsumerWidget {
             Icons.vertical_split,
             size: 14,
             color: split ? palette.accentCurrent : palette.fg3,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Toggle for [ignoreWhitespaceProvider], shown in the commit diff header.
+class IgnoreWhitespaceToggle extends ConsumerWidget {
+  const IgnoreWhitespaceToggle({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = AppPalette.of(context);
+    final enabled = ref.watch(ignoreWhitespaceProvider);
+    return Tooltip(
+      message: enabled
+          ? 'Whitespace ignored (-w) - click to include'
+          : 'Whitespace shown - click to ignore (-w)',
+      waitDuration: const Duration(milliseconds: 500),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(3),
+        onTap: () =>
+            ref.read(ignoreWhitespaceProvider.notifier).state = !enabled,
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: Icon(
+            Icons.space_bar,
+            size: 14,
+            color: enabled ? palette.accentCurrent : palette.fg3,
           ),
         ),
       ),

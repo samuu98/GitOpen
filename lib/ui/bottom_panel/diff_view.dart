@@ -14,22 +14,42 @@ import 'package:gitopen/ui/common/truncated_diff_banner.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final AutoDisposeFutureProviderFamily<DiffResult,
-        ({RepoLocation repo, CommitSha sha})> _diffProvider =
-    FutureProvider.family.autoDispose<DiffResult,
-        ({RepoLocation repo, CommitSha sha})>((ref, key) async {
+        ({RepoLocation repo, CommitSha sha, bool ignoreWhitespace})>
+    _diffProvider = FutureProvider.family.autoDispose<DiffResult,
+        ({RepoLocation repo, CommitSha sha, bool ignoreWhitespace})>(
+  (ref, key) async {
   final git = ref.watch(gitReadOperationsProvider);
-  return git.getDiff(key.repo, DiffSpecCommitVsParent(key.sha));
-});
+  return git.getDiff(
+    key.repo,
+    DiffSpecCommitVsParent(key.sha),
+    ignoreWhitespace: key.ignoreWhitespace,
+  );
+},
+);
 
 /// Uncapped single-file diff, fetched when the user asks for the full
 /// content of a truncated file.
 final AutoDisposeFutureProviderFamily<FileDiff?,
-        ({RepoLocation repo, CommitSha sha, String path})> _fullFileProvider =
+        ({
+          RepoLocation repo,
+          CommitSha sha,
+          String path,
+          bool ignoreWhitespace,
+        })> _fullFileProvider =
     FutureProvider.family.autoDispose<FileDiff?,
-        ({RepoLocation repo, CommitSha sha, String path})>((ref, key) async {
+        ({
+          RepoLocation repo,
+          CommitSha sha,
+          String path,
+          bool ignoreWhitespace,
+        })>((ref, key) async {
   final git = ref.watch(gitReadOperationsProvider);
   final result = await git.getDiffForFile(
-      key.repo, DiffSpecCommitVsParent(key.sha), key.path);
+    key.repo,
+    DiffSpecCommitVsParent(key.sha),
+    key.path,
+    ignoreWhitespace: key.ignoreWhitespace,
+  );
   return result.files.isEmpty ? null : result.files.first;
 });
 
@@ -41,7 +61,10 @@ class DiffView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
-    final async = ref.watch(_diffProvider((repo: repo, sha: sha)));
+    final ignoreWhitespace = ref.watch(ignoreWhitespaceProvider);
+    final async = ref.watch(_diffProvider(
+      (repo: repo, sha: sha, ignoreWhitespace: ignoreWhitespace),
+    ));
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Error: $e',
@@ -55,6 +78,8 @@ class DiffView extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 WordDiffToggle(),
+                SizedBox(width: 4),
+                IgnoreWhitespaceToggle(),
                 SizedBox(width: 4),
                 SplitDiffToggle(),
               ],
@@ -100,7 +125,13 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
     final language = languageForPath(file.path);
     final full = _full
         ? ref.watch(_fullFileProvider(
-            (repo: widget.repo, sha: widget.sha, path: file.path)))
+            (
+              repo: widget.repo,
+              sha: widget.sha,
+              path: file.path,
+              ignoreWhitespace: ref.watch(ignoreWhitespaceProvider),
+            ),
+          ))
         : null;
     final shown = full?.valueOrNull ?? file;
     return Container(
