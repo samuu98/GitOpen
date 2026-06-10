@@ -27,6 +27,27 @@ void main() {
     } finally { await f.dispose(); }
   });
 
+  test('createTag with message creates an annotated tag', () async {
+    final f = await RepoFixture.withLinearHistory(1);
+    try {
+      final sut = GitCliWriteOperations();
+      final res = await sut.createTag(
+        RepoLocation(RepoId.newId(), f.path, 't'),
+        'v9.9.9',
+        message: 'release notes',
+      );
+      expect(res, isA<GitSuccess<void>>());
+      final type = await Process.run(
+        'git',
+        ['cat-file', '-t', 'v9.9.9'],
+        workingDirectory: f.path,
+      );
+      // An annotated tag is its own 'tag' object; lightweight would be
+      // 'commit'.
+      expect(type.stdout.toString().trim(), 'tag');
+    } finally { await f.dispose(); }
+  });
+
   test('deleteTag', () async {
     final f = await RepoFixture.withLinearHistory(1);
     try {

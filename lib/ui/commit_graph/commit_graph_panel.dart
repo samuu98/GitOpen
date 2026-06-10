@@ -27,6 +27,7 @@ import 'package:gitopen/ui/dialogs/branch_create_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/dialogs/interactive_rebase_dialog.dart';
 import 'package:gitopen/ui/dialogs/merge_dialog.dart';
+import 'package:gitopen/ui/dialogs/tag_create_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -607,13 +608,12 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
       case 'tag_here':
         if (!context.mounted) return;
-        final tagName =
-            await _promptText(context, 'Tag here', label: 'Tag name');
-        if (tagName == null || tagName.trim().isEmpty) return;
+        final req = await TagCreateDialog.show(context);
+        if (req == null) return;
         if (!context.mounted) return;
         await ref
             .read(gitActionsControllerProvider)
-            .createTag(context, repo, tagName.trim(), at: sha);
+            .createTag(context, repo, req.name, at: sha, message: req.message);
 
       case 'copy_sha':
         await Clipboard.setData(ClipboardData(text: sha.value));
