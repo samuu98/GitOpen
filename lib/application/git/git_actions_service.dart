@@ -136,17 +136,37 @@ final class GitActionsService {
     );
   }
 
-  /// `git push` with progress + auth-retry.
+  /// `git push` with progress + auth-retry. The optional knobs map straight
+  /// onto the write op: [remote]+[branch] push one ref, [forceWithLease]
+  /// adds --force-with-lease, [pushTags] adds --tags.
   Future<ActionResult> push(
     RepoLocation repo, {
     required AuthPrompt prompt,
     required ProgressSink progress,
+    String? remote,
+    String? branch,
+    bool forceWithLease = false,
+    bool pushTags = false,
   }) {
+    final label = forceWithLease
+        ? 'Force-pushing'
+        : pushTags
+            ? 'Pushing tags'
+            : branch != null
+                ? 'Pushing $branch'
+                : 'Pushing';
     return _runStream(
       OpKind.push,
-      'Pushing',
+      label,
       repo,
-      (auth) => _write.push(repo, auth: auth),
+      (auth) => _write.push(
+        repo,
+        remote: remote,
+        branch: branch,
+        forceWithLease: forceWithLease,
+        pushTags: pushTags,
+        auth: auth,
+      ),
       prompt: prompt,
       progress: progress,
     );

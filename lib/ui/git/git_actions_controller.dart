@@ -61,14 +61,28 @@ class GitActionsController {
     );
   }
 
-  /// `git push` with progress + auth-retry.
-  Future<ActionResult> push(BuildContext context, RepoLocation repo) {
+  /// `git push` with progress + auth-retry; the optional knobs mirror
+  /// [GitActionsService.push] (single ref, --force-with-lease, --tags).
+  Future<ActionResult> push(
+    BuildContext context,
+    RepoLocation repo, {
+    String? remote,
+    String? branch,
+    bool forceWithLease = false,
+    bool pushTags = false,
+  }) {
     return _run(
       context,
       repo,
-      (prompt, progress) => _ref
-          .read(gitActionsServiceProvider)
-          .push(repo, prompt: prompt, progress: progress),
+      (prompt, progress) => _ref.read(gitActionsServiceProvider).push(
+            repo,
+            remote: remote,
+            branch: branch,
+            forceWithLease: forceWithLease,
+            pushTags: pushTags,
+            prompt: prompt,
+            progress: progress,
+          ),
     );
   }
 

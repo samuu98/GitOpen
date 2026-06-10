@@ -40,6 +40,7 @@ class _FakeWrite implements GitWriteOperations {
   String? lastPushRemote;
   String? lastPushBranch;
   bool? lastPushTags;
+  bool? lastPushForce;
 
   Stream<GitProgress> _next() {
     final s = _streams[calls < _streams.length ? calls : _streams.length - 1];
@@ -70,6 +71,7 @@ class _FakeWrite implements GitWriteOperations {
     lastPushRemote = remote;
     lastPushBranch = branch;
     lastPushTags = pushTags;
+    lastPushForce = forceWithLease;
     return _next();
   }
 
@@ -221,5 +223,38 @@ void main() {
     expect(write.lastFetchRemote, 'upstream');
     expect(prompt.calls, 1);
     expect(write.calls, 2); // initial + retry
+  });
+
+  test('push forwards forceWithLease / branch / remote', () async {
+    final write = _FakeWrite([_ok]);
+    final prompt = _FakePrompt(null);
+    final progress = _FakeProgress();
+
+    final result = await service(write).push(
+      repo,
+      remote: 'origin',
+      branch: 'feature/x',
+      forceWithLease: true,
+      prompt: prompt,
+      progress: progress,
+    );
+
+    expect(result.outcome, ActionOutcome.success);
+    expect(write.lastPushRemote, 'origin');
+    expect(write.lastPushBranch, 'feature/x');
+    expect(write.lastPushForce, isTrue);
+    expect(write.lastPushTags, isFalse);
+  });
+
+  test('push --tags only', () async {
+    final write = _FakeWrite([_ok]);
+    final prompt = _FakePrompt(null);
+    final progress = _FakeProgress();
+
+    await service(write)
+        .push(repo, pushTags: true, prompt: prompt, progress: progress);
+
+    expect(write.lastPushTags, isTrue);
+    expect(write.lastPushBranch, isNull);
   });
 }
