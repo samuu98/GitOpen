@@ -14,6 +14,7 @@ import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
+import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
 import 'package:gitopen/infrastructure/git/git_cli_file_reader.dart';
@@ -117,6 +118,10 @@ final class GitCliReadOperations implements GitReadOperations {
   @override
   Future<List<ReflogEntry>> getReflog(RepoLocation repo, {int limit = 100}) =>
       _guard(() => _refs.getReflog(repo, limit: limit));
+
+  @override
+  Future<List<Worktree>> getWorktrees(RepoLocation repo) =>
+      _guard(() => _refs.getWorktrees(repo));
 
   @override
   Future<List<Submodule>> getSubmodules(RepoLocation repo) =>

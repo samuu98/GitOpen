@@ -44,6 +44,23 @@ final class GitCliWriteOperations implements GitWriteOperations {
       _worktree.initRepo(directory);
 
   @override
+  Future<GitResult<void>> addWorktree(
+    RepoLocation r,
+    String path, {
+    String? newBranch,
+    String? ref,
+  }) =>
+      _worktree.addWorktree(r, path, newBranch: newBranch, ref: ref);
+
+  @override
+  Future<GitResult<void>> removeWorktree(
+    RepoLocation r,
+    String path, {
+    bool force = false,
+  }) =>
+      _worktree.removeWorktree(r, path, force: force);
+
+  @override
   Future<GitResult<void>> writeWorkingFile(
     RepoLocation r,
     String relativePath,

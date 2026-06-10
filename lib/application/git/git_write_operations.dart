@@ -29,6 +29,24 @@ abstract interface class GitWriteOperations {
   /// the directory (and parents) when missing.
   Future<GitResult<void>> initRepo(String directory);
 
+  /// Adds a linked worktree at [path]. With [newBranch] set, creates that
+  /// branch there (`-b`); otherwise checks out [ref] (a branch may only be
+  /// checked out in one worktree at a time).
+  Future<GitResult<void>> addWorktree(
+    RepoLocation r,
+    String path, {
+    String? newBranch,
+    String? ref,
+  });
+
+  /// Removes the linked worktree at [path] (`git worktree remove`); [force]
+  /// discards local modifications in it.
+  Future<GitResult<void>> removeWorktree(
+    RepoLocation r,
+    String path, {
+    bool force = false,
+  });
+
   /// Overwrites the working-tree file at [relativePath] (relative to `r.path`)
   /// with [content], creating it if absent.  Used by the in-app merge editor
   /// to write a resolved file back before staging it.  Writes the string's

@@ -9,6 +9,7 @@ import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
+import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
@@ -403,6 +404,54 @@ final class GitCliRefReader {
       ));
     }
     return entries;
+  }
+
+  Future<List<Worktree>> getWorktrees(RepoLocation repo) async {
+    // Porcelain output is blank-line-separated records of
+    //   worktree <path> / HEAD <sha> / branch refs/heads/x | detached | bare.
+    final stdout =
+        await _runner.run(repo.path, ['worktree', 'list', '--porcelain']);
+    final trees = <Worktree>[];
+    String? path;
+    String? sha;
+    String? branch;
+    var bare = false;
+    var detached = false;
+
+    void flush() {
+      if (path != null) {
+        trees.add(Worktree(
+          path: path!,
+          branch: branch,
+          headSha: sha != null ? CommitSha(sha!) : null,
+          isBare: bare,
+          isDetached: detached,
+        ));
+      }
+      path = null;
+      sha = null;
+      branch = null;
+      bare = false;
+      detached = false;
+    }
+
+    for (final line in const LineSplitter().convert(stdout)) {
+      if (line.isEmpty) {
+        flush();
+      } else if (line.startsWith('worktree ')) {
+        path = line.substring('worktree '.length);
+      } else if (line.startsWith('HEAD ')) {
+        sha = line.substring('HEAD '.length);
+      } else if (line.startsWith('branch refs/heads/')) {
+        branch = line.substring('branch refs/heads/'.length);
+      } else if (line == 'bare') {
+        bare = true;
+      } else if (line == 'detached') {
+        detached = true;
+      }
+    }
+    flush();
+    return trees;
   }
 
   Future<List<Submodule>> getSubmodules(RepoLocation repo) async {

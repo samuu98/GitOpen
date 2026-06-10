@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/dialogs/add_worktree_dialog.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/branch_tree_view.dart';
 import 'package:gitopen/ui/sidebar/remotes_section.dart';
@@ -10,6 +11,7 @@ import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
 import 'package:gitopen/ui/sidebar/stash_row.dart';
 import 'package:gitopen/ui/sidebar/submodule_row.dart';
 import 'package:gitopen/ui/sidebar/tag_row.dart';
+import 'package:gitopen/ui/sidebar/worktree_row.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// The left rail: branches, remotes, tags, stashes and submodules for the
@@ -151,7 +153,48 @@ class _SidebarContent extends ConsumerWidget {
                   ],
                 ),
         ),
+        _Section(
+          title: 'WORKTREES',
+          trailing: _AddWorktreeIconButton(
+              repo: repo, onChanged: () => _refreshSidebar(ref)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final w in data.worktrees)
+                WorktreeRow(
+                  worktree: w,
+                  repo: repo,
+                  onRefresh: () => _refreshSidebar(ref),
+                ),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _AddWorktreeIconButton extends ConsumerWidget {
+  const _AddWorktreeIconButton({required this.repo, required this.onChanged});
+  final RepoLocation repo;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Semantics(
+      button: true,
+      label: 'Add worktree',
+      child: InkWell(
+        onTap: () async {
+          final created = await AddWorktreeDialog.show(context, repo);
+          if (created) onChanged();
+        },
+        borderRadius: BorderRadius.circular(2),
+        child: Padding(
+          padding: const EdgeInsets.all(2),
+          child: Icon(Icons.add, size: 14, color: AppPalette.of(context).fg2),
+        ),
+      ),
     );
   }
 }

@@ -14,6 +14,30 @@ final class GitCliWorktreeWriter {
   GitCliWorktreeWriter(this._git);
   final GitResultRunner _git;
 
+  Future<GitResult<void>> addWorktree(
+    RepoLocation r,
+    String path, {
+    String? newBranch,
+    String? ref,
+  }) {
+    final args = <String>['worktree', 'add'];
+    if (newBranch != null) args.addAll(['-b', newBranch]);
+    args.add(path);
+    if (newBranch == null && ref != null) args.add(ref);
+    return _git.runVoid(r, args);
+  }
+
+  Future<GitResult<void>> removeWorktree(
+    RepoLocation r,
+    String path, {
+    bool force = false,
+  }) {
+    final args = <String>['worktree', 'remove'];
+    if (force) args.add('--force');
+    args.add(path);
+    return _git.runVoid(r, args);
+  }
+
   Future<GitResult<void>> initRepo(String directory) async {
     try {
       // Run from the system temp dir: the target may not exist yet (git

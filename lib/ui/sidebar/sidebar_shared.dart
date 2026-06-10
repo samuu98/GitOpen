@@ -9,6 +9,7 @@ import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
+import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 
 /// Selects [sha] in the graph and asks the graph panel to scroll it into
@@ -29,12 +30,14 @@ class SidebarData {
     this.remotes,
     this.stashes,
     this.submodules,
+    this.worktrees,
   );
   final List<Branch> branches;
   final List<Tag> tags;
   final List<Remote> remotes;
   final List<Stash> stashes;
   final List<Submodule> submodules;
+  final List<Worktree> worktrees;
 }
 
 final FutureProviderFamily<SidebarData, RepoLocation> sidebarDataProvider =
@@ -51,6 +54,8 @@ final FutureProviderFamily<SidebarData, RepoLocation> sidebarDataProvider =
   final stashes = await git.getStashes(repo);
   logger.i('sidebar: ${stashes.length} stashes — loading submodules');
   final submodules = await git.getSubmodules(repo);
-  logger.i('sidebar: ${submodules.length} submodules — done');
-  return SidebarData(branches, tags, remotes, stashes, submodules);
+  logger.i('sidebar: ${submodules.length} submodules — loading worktrees');
+  final worktrees = await git.getWorktrees(repo);
+  logger.i('sidebar: ${worktrees.length} worktrees — done');
+  return SidebarData(branches, tags, remotes, stashes, submodules, worktrees);
 });

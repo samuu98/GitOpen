@@ -11,6 +11,7 @@ import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
+import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
 
@@ -83,6 +84,10 @@ abstract interface class GitReadOperations {
   /// HEAD's reflog, newest first (`git reflog`), capped at [limit] entries.
   /// An empty/unborn repository yields an empty list.
   Future<List<ReflogEntry>> getReflog(RepoLocation repo, {int limit = 100});
+
+  /// All worktrees of the repository (`git worktree list`), the main
+  /// checkout first.
+  Future<List<Worktree>> getWorktrees(RepoLocation repo);
 
   /// Submodules registered in the superproject (`git submodule status`).
   /// Empty output (no submodules) yields an empty list.
