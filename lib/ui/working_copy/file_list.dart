@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/files/path_tree.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
+import 'package:gitopen/ui/common/file_list_mode_toggle.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/discard_changes.dart';
 import 'package:gitopen/ui/working_copy/file_row.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
-class FileList extends ConsumerWidget {
+class FileList extends ConsumerStatefulWidget {
   const FileList({
     required this.repo,
     required this.unstaged,
@@ -20,8 +22,28 @@ class FileList extends ConsumerWidget {
   final List<WorkingFileEntry> staged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FileList> createState() => _FileListState();
+}
+
+class _FileListState extends ConsumerState<FileList> {
+  final Set<String> _collapsedUnstaged = {};
+  final Set<String> _collapsedStaged = {};
+
+  @override
+  Widget build(BuildContext context) {
+    final asTree =
+        ref.watch(appSettingsProvider.select((s) => s.fileListsAsTree));
+    final repo = widget.repo;
+    final unstaged = widget.unstaged;
+    final staged = widget.staged;
     return ListView(children: [
+      const Padding(
+        padding: EdgeInsets.fromLTRB(12, 6, 12, 0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [FileListModeToggle()],
+        ),
+      ),
       Header(
         title: 'Unstaged (${unstaged.length})',
         actions: [
@@ -45,7 +67,12 @@ class FileList extends ConsumerWidget {
           ),
         ],
       ),
-      for (final e in unstaged) FileRow(repo: repo, entry: e, isStaged: false),
+      ..._entryRows(
+        unstaged,
+        isStaged: false,
+        asTree: asTree,
+        collapsed: _collapsedUnstaged,
+      ),
       Header(
         title: 'Staged (${staged.length})',
         actions: [
@@ -62,8 +89,121 @@ class FileList extends ConsumerWidget {
           ),
         ],
       ),
-      for (final e in staged) FileRow(repo: repo, entry: e, isStaged: true),
+      ..._entryRows(
+        staged,
+        isStaged: true,
+        asTree: asTree,
+        collapsed: _collapsedStaged,
+      ),
     ]);
+  }
+
+  List<Widget> _entryRows(
+    List<WorkingFileEntry> entries, {
+    required bool isStaged,
+    required bool asTree,
+    required Set<String> collapsed,
+  }) {
+    if (!asTree) {
+      return [
+        for (final e in entries)
+          FileRow(repo: widget.repo, entry: e, isStaged: isStaged),
+      ];
+    }
+    final nodes = buildFileTree(entries, (e) => e.path);
+    return _nodeRows(nodes, isStaged: isStaged, depth: 0, collapsed: collapsed);
+  }
+
+  List<Widget> _nodeRows(
+    List<PathTreeNode<WorkingFileEntry>> nodes, {
+    required bool isStaged,
+    required int depth,
+    required Set<String> collapsed,
+  }) {
+    final rows = <Widget>[];
+    for (final node in nodes) {
+      final item = node.item;
+      if (item != null) {
+        rows.add(FileRow(
+          repo: widget.repo,
+          entry: item,
+          isStaged: isStaged,
+          displayName: node.name,
+          indent: depth * 14.0,
+        ));
+        continue;
+      }
+      final isCollapsed = collapsed.contains(node.path);
+      rows.add(_DirRow(
+        name: node.name,
+        depth: depth,
+        collapsed: isCollapsed,
+        onTap: () => setState(() {
+          if (!collapsed.add(node.path)) collapsed.remove(node.path);
+        }),
+      ));
+      if (!isCollapsed) {
+        rows.addAll(_nodeRows(
+          node.children,
+          isStaged: isStaged,
+          depth: depth + 1,
+          collapsed: collapsed,
+        ));
+      }
+    }
+    return rows;
+  }
+}
+
+class _DirRow extends StatelessWidget {
+  const _DirRow({
+    required this.name,
+    required this.depth,
+    required this.collapsed,
+    required this.onTap,
+  });
+  final String name;
+  final int depth;
+  final bool collapsed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 12 + depth * 14.0,
+          right: 12,
+          top: 3,
+          bottom: 3,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              collapsed ? Icons.chevron_right : Icons.expand_more,
+              size: 14,
+              color: palette.fg3,
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.folder_outlined, size: 14, color: palette.accentTag),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                name,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.fg1,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -43,11 +43,20 @@ class FileRow extends ConsumerStatefulWidget {
     required this.repo,
     required this.entry,
     required this.isStaged,
+    this.displayName,
+    this.indent = 0,
     super.key,
   });
   final RepoLocation repo;
   final WorkingFileEntry entry;
   final bool isStaged;
+
+  /// Text shown for the file (tree mode shows the leaf name); defaults to
+  /// the full path. Semantics keep the full path either way.
+  final String? displayName;
+
+  /// Extra left padding for tree indentation.
+  final double indent;
 
   @override
   ConsumerState<FileRow> createState() => _FileRowState();
@@ -292,9 +301,11 @@ class _FileRowState extends ConsumerState<FileRow> {
                 );
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
+                padding: EdgeInsets.only(
+                  left: 12 + widget.indent,
+                  right: 12,
+                  top: 4,
+                  bottom: 4,
                 ),
                 child: Row(
                   children: [
@@ -353,7 +364,7 @@ class _FileRowState extends ConsumerState<FileRow> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        widget.entry.path,
+                        widget.displayName ?? widget.entry.path,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: isSelected ? Colors.white : palette.fg0,
