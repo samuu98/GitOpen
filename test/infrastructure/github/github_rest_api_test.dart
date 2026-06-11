@@ -1,0 +1,143 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:gitopen/application/github/github_api.dart';
+import 'package:gitopen/infrastructure/github/github_rest_api.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+const ({String owner, String repo}) _slug = (owner: 'o', repo: 'r');
+
+GitHubRestApi _api(MockClient client) => GitHubRestApi(client: client);
+
+void main() {
+  test('listPullRequests parses the fields the panel shows', () async {
+    late Uri captured;
+    final client = MockClient((request) async {
+      captured = request.url;
+      expect(request.headers['Authorization'], 'Bearer tok');
+      return http.Response(
+        jsonEncode([
+          {
+            'number': 7,
+            'title': 'Add thing',
+            'draft': true,
+            'html_url': 'https://github.com/o/r/pull/7',
+            'updated_at': '2026-06-11T10:00:00Z',
+            'user': {'login': 'ada'},
+            'head': {'ref': 'feat/x', 'sha': 'a' * 40},
+          },
+        ]),
+        200,
+      );
+    });
+    final prs = await _api(client).listPullRequests(_slug, token: 'tok');
+    expect(captured.path, '/repos/o/r/pulls');
+    expect(captured.queryParameters['state'], 'open');
+    expect(prs, hasLength(1));
+    final pr = prs.single;
+    expect(pr.number, 7);
+    expect(pr.title, 'Add thing');
+    expect(pr.author, 'ada');
+    expect(pr.isDraft, isTrue);
+    expect(pr.headRef, 'feat/x');
+    expect(pr.headSha, 'a' * 40);
+    expect(pr.updatedAt.isUtc, isTrue);
+  });
+
+  test('listWorkflowRuns parses runs and passes the branch filter', () async {
+    late Uri captured;
+    final client = MockClient((request) async {
+      captured = request.url;
+      return http.Response(
+        jsonEncode({
+          'workflow_runs': [
+            {
+              'id': 99,
+              'name': 'CI',
+              'head_branch': 'main',
+              'status': 'completed',
+              'conclusion': 'success',
+              'html_url': 'https://github.com/o/r/actions/runs/99',
+              'created_at': '2026-06-11T10:00:00Z',
+              'updated_at': '2026-06-11T10:03:30Z',
+            },
+          ],
+        }),
+        200,
+      );
+    });
+    final runs = await _api(
+      client,
+    ).listWorkflowRuns(_slug, token: 'tok', branch: 'main');
+    expect(captured.path, '/repos/o/r/actions/runs');
+    expect(captured.queryParameters['branch'], 'main');
+    final run = runs.single;
+    expect(run.id, 99);
+    expect(run.isCompleted, isTrue);
+    expect(run.conclusion, 'success');
+    expect(run.duration, const Duration(minutes: 3, seconds: 30));
+  });
+
+  test('prChecks aggregates check runs into a summary', () async {
+    final client = MockClient((request) async {
+      expect(request.url.path, '/repos/o/r/commits/abc1234/check-runs');
+      return http.Response(
+        jsonEncode({
+          'check_runs': [
+            {'status': 'completed', 'conclusion': 'success'},
+            {'status': 'completed', 'conclusion': 'neutral'},
+            {'status': 'completed', 'conclusion': 'failure'},
+            {'status': 'in_progress', 'conclusion': null},
+          ],
+        }),
+        200,
+      );
+    });
+    final summary = await _api(client).prChecks(_slug, 'abc1234', token: 't');
+    expect(summary.total, 4);
+    expect(summary.succeeded, 2);
+    expect(summary.failed, 1);
+    expect(summary.pending, 1);
+  });
+
+  test('maps HTTP failures to typed kinds', () async {
+    Future<void> expectKind(
+      http.Response response,
+      GitHubApiErrorKind kind,
+    ) async {
+      final client = MockClient((_) async => response);
+      await expectLater(
+        _api(client).listPullRequests(_slug, token: 't'),
+        throwsA(
+          isA<GitHubApiException>().having((e) => e.kind, 'kind', kind),
+        ),
+      );
+    }
+
+    await expectKind(http.Response('{}', 401), GitHubApiErrorKind.auth);
+    await expectKind(
+      http.Response('{}', 403, headers: {'x-ratelimit-remaining': '0'}),
+      GitHubApiErrorKind.rateLimit,
+    );
+    await expectKind(http.Response('{}', 403), GitHubApiErrorKind.auth);
+    await expectKind(http.Response('{}', 404), GitHubApiErrorKind.notFound);
+    await expectKind(http.Response('boom', 500), GitHubApiErrorKind.network);
+  });
+
+  test('maps transport exceptions to network', () async {
+    final client = MockClient((_) async {
+      throw http.ClientException('connection reset');
+    });
+    await expectLater(
+      _api(client).listPullRequests(_slug, token: 't'),
+      throwsA(
+        isA<GitHubApiException>().having(
+          (e) => e.kind,
+          'kind',
+          GitHubApiErrorKind.network,
+        ),
+      ),
+    );
+  });
+}
