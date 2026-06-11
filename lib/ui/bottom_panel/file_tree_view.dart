@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/files/path_tree.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/files/file_tree_entry.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/file_history_dialog.dart';
+import 'package:gitopen/ui/common/file_list_mode_toggle.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final AutoDisposeFutureProviderFamily<List<FileTreeEntry>,
@@ -12,48 +14,162 @@ final AutoDisposeFutureProviderFamily<List<FileTreeEntry>,
     FutureProvider.family.autoDispose<List<FileTreeEntry>,
         ({RepoLocation repo, CommitSha sha})>((ref, key) async {
   final git = ref.watch(gitReadOperationsProvider);
-  return git.getFileTree(key.repo, key.sha, '');
+  return git.getFileTree(key.repo, key.sha, '', recursive: true);
 });
 
-class FileTreeViewWidget extends ConsumerWidget {
+/// The commit's full file listing, rendered as a collapsible folder tree or
+/// a flat full-path list depending on the shared `fileListsAsTree` setting.
+class FileTreeViewWidget extends ConsumerStatefulWidget {
   const FileTreeViewWidget({required this.repo, required this.sha, super.key});
   final RepoLocation repo;
   final CommitSha sha;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FileTreeViewWidget> createState() =>
+      _FileTreeViewWidgetState();
+}
+
+class _FileTreeViewWidgetState extends ConsumerState<FileTreeViewWidget> {
+  final Set<String> _collapsed = {};
+
+  @override
+  Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final async = ref.watch(_fileTreeProvider((repo: repo, sha: sha)));
+    final asTree =
+        ref.watch(appSettingsProvider.select((s) => s.fileListsAsTree));
+    final async = ref.watch(
+      _fileTreeProvider((repo: widget.repo, sha: widget.sha)),
+    );
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Error: $e',
           style: TextStyle(color: palette.accentErr))),
       data: (entries) {
-        final sorted = [...entries]
-          ..sort((a, b) {
-            final aIsTree = a.kind == FileTreeKind.tree;
-            final bIsTree = b.kind == FileTreeKind.tree;
-            if (aIsTree != bIsTree) return aIsTree ? -1 : 1;
-            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-          });
-        return ListView.builder(
+        final children = <Widget>[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [FileListModeToggle()],
+            ),
+          ),
+        ];
+        if (asTree) {
+          final nodes = buildFileTree(entries, (e) => e.fullPath);
+          children.addAll(_nodeRows(nodes, depth: 0));
+        } else {
+          final sorted = [...entries]..sort((a, b) =>
+              a.fullPath.toLowerCase().compareTo(b.fullPath.toLowerCase()));
+          children.addAll([
+            for (final e in sorted)
+              _FileRow(repo: widget.repo, entry: e, label: e.fullPath),
+          ]);
+        }
+        return ListView(
           padding: const EdgeInsets.all(12),
-          itemCount: sorted.length,
-          itemBuilder: (_, i) => _FileRow(repo: repo, entry: sorted[i]),
+          children: children,
         );
       },
     );
   }
+
+  List<Widget> _nodeRows(List<PathTreeNode<FileTreeEntry>> nodes,
+      {required int depth}) {
+    final rows = <Widget>[];
+    for (final node in nodes) {
+      final item = node.item;
+      if (item != null) {
+        rows.add(_FileRow(
+          repo: widget.repo,
+          entry: item,
+          label: node.name,
+          indent: depth * 14.0,
+        ));
+        continue;
+      }
+      final isCollapsed = _collapsed.contains(node.path);
+      rows.add(_FolderRow(
+        name: node.name,
+        depth: depth,
+        collapsed: isCollapsed,
+        onTap: () => setState(() {
+          if (!_collapsed.add(node.path)) _collapsed.remove(node.path);
+        }),
+      ));
+      if (!isCollapsed) {
+        rows.addAll(_nodeRows(node.children, depth: depth + 1));
+      }
+    }
+    return rows;
+  }
 }
 
-/// A single file-tree row.  Visuals are unchanged from the prior inline
-/// builder; blob/symlink/submodule rows additionally expose a "File history"
-/// affordance (hover icon + right-click menu) that opens [FileHistoryDialog].
-/// Tree (folder) rows are left exactly as before.
+class _FolderRow extends StatelessWidget {
+  const _FolderRow({
+    required this.name,
+    required this.depth,
+    required this.collapsed,
+    required this.onTap,
+  });
+  final String name;
+  final int depth;
+  final bool collapsed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 8 + depth * 14.0,
+          right: 8,
+          top: 3,
+          bottom: 3,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              collapsed ? Icons.chevron_right : Icons.expand_more,
+              size: 14,
+              color: palette.fg3,
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.folder_outlined, size: 15, color: palette.accentTag),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                name,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.fg1,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A single file row (blob/symlink/submodule — the recursive listing has no
+/// tree rows). Exposes a "File history" affordance (hover icon +
+/// right-click menu) that opens [FileHistoryDialog].
 class _FileRow extends StatefulWidget {
-  const _FileRow({required this.repo, required this.entry});
+  const _FileRow({
+    required this.repo,
+    required this.entry,
+    required this.label,
+    this.indent = 0,
+  });
   final RepoLocation repo;
   final FileTreeEntry entry;
+  final String label;
+  final double indent;
 
   @override
   State<_FileRow> createState() => _FileRowState();
@@ -61,8 +177,6 @@ class _FileRow extends StatefulWidget {
 
 class _FileRowState extends State<_FileRow> {
   bool _hover = false;
-
-  bool get _isFile => widget.entry.kind != FileTreeKind.tree;
 
   Future<void> _openHistory() => FileHistoryDialog.show(
         context,
@@ -94,35 +208,31 @@ class _FileRowState extends State<_FileRow> {
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final e = widget.entry;
-    final icon = e.kind == FileTreeKind.tree
-        ? Icons.folder_outlined
-        : e.kind == FileTreeKind.submodule
-            ? Icons.developer_board_outlined
-            : e.kind == FileTreeKind.symlink
-                ? Icons.link_outlined
-                : Icons.insert_drive_file_outlined;
-    final iconColor =
-        e.kind == FileTreeKind.tree ? palette.accentTag : palette.fg2;
+    final icon = e.kind == FileTreeKind.submodule
+        ? Icons.developer_board_outlined
+        : e.kind == FileTreeKind.symlink
+            ? Icons.link_outlined
+            : Icons.insert_drive_file_outlined;
 
     final row = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+      padding: EdgeInsets.only(
+        left: 8 + widget.indent,
+        right: 8,
+        top: 3,
+        bottom: 3,
+      ),
       child: Row(
         children: [
-          Icon(icon, size: 15, color: iconColor),
+          Icon(icon, size: 15, color: palette.fg2),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              e.name,
-              style: TextStyle(
-                color: palette.fg0,
-                fontSize: 12.5,
-                fontWeight: e.kind == FileTreeKind.tree
-                    ? FontWeight.w500
-                    : FontWeight.normal,
-              ),
+              widget.label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.fg0, fontSize: 12.5),
             ),
           ),
-          if (_isFile && _hover)
+          if (_hover)
             _HistoryButton(onPressed: _openHistory)
           else if (e.sizeBytes != null)
             Text('${e.sizeBytes}',
@@ -134,8 +244,6 @@ class _FileRowState extends State<_FileRow> {
         ],
       ),
     );
-
-    if (!_isFile) return row;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
