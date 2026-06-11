@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/git/merge_outcome.dart';
+import 'package:gitopen/application/git/rebase_plan.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
@@ -151,7 +152,12 @@ final class GitCliSequencerWriter {
       };
       todo.writeln('$verb ${e.sha.value}');
     }
-    return _scriptedRebase(r, onto.value, todo.toString());
+    return _scriptedRebase(
+      r,
+      onto.value,
+      todo.toString(),
+      editorMessages: plannedEditorMessages(plan),
+    );
   }
 
   Future<GitResult<RebaseOutcome>> rewordCommit(
@@ -182,7 +188,7 @@ final class GitCliSequencerWriter {
       r,
       '${sha.value}^',
       todo.toString(),
-      commitMessage: message,
+      editorMessages: [message],
     );
   }
 
@@ -210,13 +216,15 @@ final class GitCliSequencerWriter {
   }
 
   /// Runs `git rebase -i <onto>` with a fully scripted todo list (no editor
-  /// prompts). [commitMessage], when given, is fed to the single message
-  /// prompt the todo raises (a `reword` line) via GIT_EDITOR.
+  /// prompts). [editorMessages] is the ordered list of commit-message stops
+  /// the todo raises (reword lines and squash groups, see
+  /// [plannedEditorMessages]); a `null` slot keeps the message git proposes
+  /// at that stop.
   Future<GitResult<RebaseOutcome>> _scriptedRebase(
     RepoLocation r,
     String onto,
     String todoText, {
-    String? commitMessage,
+    List<String?> editorMessages = const [],
   }) async {
     // Write the scripted todo to a temp file. Git invokes
     //   sh -c "$GIT_SEQUENCE_EDITOR <git-todo-path>"
@@ -227,17 +235,29 @@ final class GitCliSequencerWriter {
       ..writeAsStringSync(todoText);
     final todoPosix = todoFile.path.replaceAll(r'\', '/');
 
-    // No-op editor for squash/fixup prompts; for a reword, the same trailing-
-    // space `cp` trick overwrites COMMIT_EDITMSG with the prepared message.
-    // (GIT_EDITOR wins over core.editor, so the override below only applies
-    // when set.)
+    // Editor strategy: git invokes `sh -c "$GIT_EDITOR <msg-path>"` once per
+    // message stop, in todo order. A generated script pops numbered message
+    // files (msg-0, msg-1, …) driven by a counter file; a missing file keeps
+    // git's proposed message (the `null` slots). With no stops at all a
+    // no-op `true` editor suffices. (GIT_EDITOR wins over core.editor.)
     var editor = 'true';
-    if (commitMessage != null) {
-      final msgFile = File(p.join(tmpDir.path, 'msg'))
-        ..writeAsStringSync(
-          commitMessage.endsWith('\n') ? commitMessage : '$commitMessage\n',
+    if (editorMessages.isNotEmpty) {
+      final dirPosix = tmpDir.path.replaceAll(r'\', '/');
+      for (var i = 0; i < editorMessages.length; i++) {
+        final message = editorMessages[i];
+        if (message == null) continue;
+        File(p.join(tmpDir.path, 'msg-$i')).writeAsStringSync(
+          message.endsWith('\n') ? message : '$message\n',
         );
-      editor = "cp '${msgFile.path.replaceAll(r'\', '/')}' ";
+      }
+      File(p.join(tmpDir.path, 'counter')).writeAsStringSync('0');
+      File(p.join(tmpDir.path, 'editor.sh')).writeAsStringSync(
+        '#!/bin/sh\n'
+        "n=\$(cat '$dirPosix/counter')\n"
+        "echo \$((n+1)) > '$dirPosix/counter'\n"
+        'if [ -f "$dirPosix/msg-\$n" ]; then cp "$dirPosix/msg-\$n" "\$1"; fi\n',
+      );
+      editor = "sh '$dirPosix/editor.sh'";
     }
 
     final args = <String>[

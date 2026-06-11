@@ -21,10 +21,7 @@ void main() {
       ['log', '--pretty=format:%s'],
       workingDirectory: path,
     );
-    return (r.stdout as String)
-        .split('\n')
-        .where((l) => l.isNotEmpty)
-        .toList();
+    return (r.stdout as String).split('\n').where((l) => l.isNotEmpty).toList();
   }
 
   /// Number of commits reachable from HEAD.
@@ -159,6 +156,111 @@ void main() {
       expect(await commitCount(f.path), before - 1);
       expect(await tracks(f.path, 'c2.txt'), isTrue);
       expect(await tracks(f.path, 'c1.txt'), isTrue);
+    } finally {
+      await f.dispose();
+    }
+  });
+
+  /// Full message (subject + body) of the commit whose subject is [subject].
+  Future<String> fullMessageOf(String path, String subject) async {
+    final sha = await Process.run(
+      'git',
+      ['log', '--format=%H', '--grep', '^$subject\$', '-1'],
+      workingDirectory: path,
+    );
+    final r = await Process.run(
+      'git',
+      ['log', '--format=%B', '-1', (sha.stdout as String).trim()],
+      workingDirectory: path,
+    );
+    return (r.stdout as String).trim();
+  }
+
+  test('REWORD via the plan rewrites the message', () async {
+    final f = await RepoFixture.withRebaseHistory();
+    try {
+      final sut = GitCliWriteOperations();
+      final res = await sut.interactiveRebase(
+        loc(f),
+        CommitSha(f.rebaseShas[0]),
+        [
+          RebaseTodoEntry(
+            CommitSha(f.rebaseShas[1]),
+            RebaseTodoAction.reword,
+            message: 'c1 reworded\n\nwith a body',
+          ),
+          RebaseTodoEntry(CommitSha(f.rebaseShas[2]), RebaseTodoAction.pick),
+          RebaseTodoEntry(CommitSha(f.rebaseShas[3]), RebaseTodoAction.pick),
+        ],
+      );
+      expect(res, isA<GitSuccess<RebaseOutcome>>());
+      expect((res as GitSuccess<RebaseOutcome>).value, isA<RebaseApplied>());
+      final subjects = await logSubjects(f.path);
+      expect(subjects, equals(['c3', 'c2', 'c1 reworded', 'c0 base']));
+      expect(
+        await fullMessageOf(f.path, 'c1 reworded'),
+        'c1 reworded\n\nwith a body',
+      );
+    } finally {
+      await f.dispose();
+    }
+  });
+
+  test('SQUASH with a custom message uses it for the folded commit', () async {
+    final f = await RepoFixture.withRebaseHistory();
+    try {
+      final sut = GitCliWriteOperations();
+      final res = await sut.interactiveRebase(
+        loc(f),
+        CommitSha(f.rebaseShas[0]),
+        [
+          RebaseTodoEntry(CommitSha(f.rebaseShas[1]), RebaseTodoAction.pick),
+          RebaseTodoEntry(
+            CommitSha(f.rebaseShas[2]),
+            RebaseTodoAction.squash,
+            message: 'c1+c2 folded',
+          ),
+          RebaseTodoEntry(CommitSha(f.rebaseShas[3]), RebaseTodoAction.pick),
+        ],
+      );
+      expect(res, isA<GitSuccess<RebaseOutcome>>());
+      expect((res as GitSuccess<RebaseOutcome>).value, isA<RebaseApplied>());
+      expect(
+        await logSubjects(f.path),
+        equals(['c3', 'c1+c2 folded', 'c0 base']),
+      );
+      expect(await tracks(f.path, 'c2.txt'), isTrue);
+    } finally {
+      await f.dispose();
+    }
+  });
+
+  test('REWORD and SQUASH messages land on the right stops', () async {
+    final f = await RepoFixture.withRebaseHistory();
+    try {
+      final sut = GitCliWriteOperations();
+      final res = await sut.interactiveRebase(
+        loc(f),
+        CommitSha(f.rebaseShas[0]),
+        [
+          RebaseTodoEntry(
+            CommitSha(f.rebaseShas[1]),
+            RebaseTodoAction.reword,
+            message: 'c1 first stop',
+          ),
+          RebaseTodoEntry(CommitSha(f.rebaseShas[2]), RebaseTodoAction.pick),
+          RebaseTodoEntry(
+            CommitSha(f.rebaseShas[3]),
+            RebaseTodoAction.squash,
+            message: 'c2+c3 second stop',
+          ),
+        ],
+      );
+      expect(res, isA<GitSuccess<RebaseOutcome>>());
+      expect(
+        await logSubjects(f.path),
+        equals(['c2+c3 second stop', 'c1 first stop', 'c0 base']),
+      );
     } finally {
       await f.dispose();
     }
