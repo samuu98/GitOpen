@@ -78,18 +78,20 @@ class _SegmentButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-          child: Row(children: [
-            Icon(icon, size: 13, color: fg),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: fg,
-                fontSize: 11.5,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          child: Row(
+            children: [
+              Icon(icon, size: 13, color: fg),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 11.5,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ),
       ),
     );

@@ -23,10 +23,10 @@ final class CheckSummary extends Equatable {
   CheckState get state => total == 0
       ? CheckState.none
       : failed > 0
-          ? CheckState.failure
-          : pending > 0
-              ? CheckState.pending
-              : CheckState.success;
+      ? CheckState.failure
+      : pending > 0
+      ? CheckState.pending
+      : CheckState.success;
 
   @override
   List<Object?> get props => [total, succeeded, failed, pending];
@@ -57,15 +57,15 @@ final class PullRequestInfo extends Equatable {
 
   @override
   List<Object?> get props => [
-        number,
-        title,
-        author,
-        isDraft,
-        headRef,
-        headSha,
-        htmlUrl,
-        updatedAt,
-      ];
+    number,
+    title,
+    author,
+    isDraft,
+    headRef,
+    headSha,
+    htmlUrl,
+    updatedAt,
+  ];
 }
 
 /// A GitHub Actions workflow run. [status] is the raw API value
@@ -96,13 +96,13 @@ final class WorkflowRunInfo extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        name,
-        headBranch,
-        status,
-        conclusion,
-        htmlUrl,
-        createdAt,
-        updatedAt,
-      ];
+    id,
+    name,
+    headBranch,
+    status,
+    conclusion,
+    htmlUrl,
+    createdAt,
+    updatedAt,
+  ];
 }

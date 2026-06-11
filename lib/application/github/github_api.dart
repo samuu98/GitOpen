@@ -44,7 +44,7 @@ abstract interface class GitHubApi {
 /// The token usable for the GitHub REST API carried by [spec], or null when
 /// the credential has no API-compatible token (ssh, basic, system default).
 String? githubTokenOf(AuthSpec? spec) => switch (spec) {
-      AuthGitHubOauth(:final accessToken) => accessToken,
-      AuthHttpsPat(:final token) => token,
-      _ => null,
-    };
+  AuthGitHubOauth(:final accessToken) => accessToken,
+  AuthHttpsPat(:final token) => token,
+  _ => null,
+};

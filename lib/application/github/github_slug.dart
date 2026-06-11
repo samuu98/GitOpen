@@ -1,7 +1,8 @@
 import 'package:gitopen/application/github/github_models.dart';
 
-final RegExp _https =
-    RegExp(r'^https?://github\.com/([^/]+)/([^/]+?)(\.git)?/?$');
+final RegExp _https = RegExp(
+  r'^https?://github\.com/([^/]+)/([^/]+?)(\.git)?/?$',
+);
 final RegExp _ssh = RegExp(r'^git@github\.com:([^/]+)/([^/]+?)(\.git)?$');
 
 /// Extracts the `owner/repo` slug from a github.com remote URL (https or

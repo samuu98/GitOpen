@@ -10,7 +10,7 @@ import 'package:http/http.dart' as http;
 /// device-flow poller).
 final class GitHubRestApi implements GitHubApi {
   GitHubRestApi({http.Client? client, this.baseUrl = 'https://api.github.com'})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   final http.Client _client;
   final String baseUrl;
@@ -66,7 +66,7 @@ final class GitHubRestApi implements GitHubApi {
     );
     final runs =
         (body as Map<String, dynamic>)['check_runs'] as List<dynamic>? ??
-            const [];
+        const [];
     var succeeded = 0;
     var failed = 0;
     var pending = 0;
@@ -101,7 +101,8 @@ final class GitHubRestApi implements GitHubApi {
       headRef: head['ref'] as String? ?? '',
       headSha: head['sha'] as String? ?? '',
       htmlUrl: pr['html_url'] as String? ?? '',
-      updatedAt: DateTime.tryParse(pr['updated_at'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(pr['updated_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
     );
   }
@@ -114,9 +115,11 @@ final class GitHubRestApi implements GitHubApi {
       status: run['status'] as String? ?? 'completed',
       conclusion: run['conclusion'] as String?,
       htmlUrl: run['html_url'] as String? ?? '',
-      createdAt: DateTime.tryParse(run['created_at'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(run['created_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-      updatedAt: DateTime.tryParse(run['updated_at'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(run['updated_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
     );
   }
@@ -131,11 +134,14 @@ final class GitHubRestApi implements GitHubApi {
     final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
     final http.Response response;
     try {
-      response = await _client.get(uri, headers: {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': 'Bearer $token',
-        'X-GitHub-Api-Version': '2022-11-28',
-      });
+      response = await _client.get(
+        uri,
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': 'Bearer $token',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      );
     } on http.ClientException catch (e) {
       throw GitHubApiException(GitHubApiErrorKind.network, e.message);
     } on SocketException catch (e) {

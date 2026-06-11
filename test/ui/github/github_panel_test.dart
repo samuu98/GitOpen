@@ -62,8 +62,7 @@ final class _FakeApi implements GitHubApi {
     RepoSlug slug,
     String headSha, {
     required String token,
-  }) async =>
-      const CheckSummary(total: 2, succeeded: 2, failed: 0, pending: 0);
+  }) async => const CheckSummary(total: 2, succeeded: 2, failed: 0, pending: 0);
 }
 
 Future<void> _pump(
@@ -118,8 +117,9 @@ void main() {
     expect(find.text('Sign in with GitHub'), findsOneWidget);
   });
 
-  testWidgets('lists open pull requests with draft badge and checks',
-      (tester) async {
+  testWidgets('lists open pull requests with draft badge and checks', (
+    tester,
+  ) async {
     await _pump(tester, repo: repo, api: _FakeApi(), profile: profile);
     expect(find.text('#12'), findsOneWidget);
     expect(find.text('Improve the widget'), findsOneWidget);
@@ -137,8 +137,9 @@ void main() {
     expect(find.textContaining('3m 30s'), findsOneWidget);
   });
 
-  testWidgets('a network error renders inline with a Retry button',
-      (tester) async {
+  testWidgets('a network error renders inline with a Retry button', (
+    tester,
+  ) async {
     await _pump(
       tester,
       repo: repo,

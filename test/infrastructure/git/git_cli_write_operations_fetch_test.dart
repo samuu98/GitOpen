@@ -11,16 +11,22 @@ void main() {
     final origin = await RepoFixture.withLinearHistory(3);
     final local = await RepoFixture.empty();
     try {
-      await Process.run('git', ['remote', 'add', 'origin', origin.path],
-          workingDirectory: local.path);
+      await Process.run('git', [
+        'remote',
+        'add',
+        'origin',
+        origin.path,
+      ], workingDirectory: local.path);
       final sut = GitCliWriteOperations();
       final loc = RepoLocation(RepoId.newId(), local.path, 't');
       final events = <GitProgress>[];
       await sut.fetch(loc, remote: 'origin').forEach(events.add);
       // Even if no progress lines emit on local-fs remote, the stream must
       // complete cleanly. Verify the fetch worked:
-      final refs = await Process.run('git', ['branch', '-r'],
-          workingDirectory: local.path);
+      final refs = await Process.run('git', [
+        'branch',
+        '-r',
+      ], workingDirectory: local.path);
       expect(refs.stdout.toString(), contains('origin/'));
     } finally {
       await origin.dispose();

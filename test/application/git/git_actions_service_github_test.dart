@@ -70,26 +70,28 @@ void main() {
   final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
 
   GitActionsService service(_FakeWrite write) => GitActionsService(
-        write: write,
-        resolveProfile: (_) async => null,
-        errorText: (e) => e.toString(),
-      );
+    write: write,
+    resolveProfile: (_) async => null,
+    errorText: (e) => e.toString(),
+  );
 
-  test('checkoutPullRequest force-fetches pull/<n>/head then checks out',
-      () async {
-    final write = _FakeWrite();
-    final result = await service(write).checkoutPullRequest(
-      repo,
-      42,
-      prompt: _NoPrompt(),
-      progress: _NullSink(),
-    );
-    expect(result.outcome, ActionOutcome.success);
-    expect(write.calls, [
-      'fetch origin +pull/42/head:refs/heads/pr/42',
-      'checkout pr/42',
-    ]);
-  });
+  test(
+    'checkoutPullRequest force-fetches pull/<n>/head then checks out',
+    () async {
+      final write = _FakeWrite();
+      final result = await service(write).checkoutPullRequest(
+        repo,
+        42,
+        prompt: _NoPrompt(),
+        progress: _NullSink(),
+      );
+      expect(result.outcome, ActionOutcome.success);
+      expect(write.calls, [
+        'fetch origin +pull/42/head:refs/heads/pr/42',
+        'checkout pr/42',
+      ]);
+    },
+  );
 
   test('a failed fetch stops before checkout', () async {
     final write = _FakeWrite()..failFetch = true;

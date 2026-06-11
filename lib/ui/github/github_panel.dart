@@ -13,33 +13,37 @@ import 'package:url_launcher/url_launcher.dart';
 typedef _ApiKey = ({RepoSlug slug, String token});
 
 final AutoDisposeFutureProviderFamily<List<PullRequestInfo>, _ApiKey>
-    _prsProvider =
-    FutureProvider.family.autoDispose<List<PullRequestInfo>, _ApiKey>(
-  (ref, key) =>
-      ref.watch(gitHubApiProvider).listPullRequests(key.slug, token: key.token),
-);
+_prsProvider = FutureProvider.family
+    .autoDispose<List<PullRequestInfo>, _ApiKey>(
+      (ref, key) => ref
+          .watch(gitHubApiProvider)
+          .listPullRequests(key.slug, token: key.token),
+    );
 
 final AutoDisposeFutureProviderFamily<
-        List<WorkflowRunInfo>,
-        ({RepoSlug slug, String token, String? branch})> _runsProvider =
-    FutureProvider.family.autoDispose<
-        List<WorkflowRunInfo>,
-        ({RepoSlug slug, String token, String? branch})>(
-  (ref, key) => ref
-      .watch(gitHubApiProvider)
-      .listWorkflowRuns(key.slug, token: key.token, branch: key.branch),
-);
+  List<WorkflowRunInfo>,
+  ({RepoSlug slug, String token, String? branch})
+>
+_runsProvider = FutureProvider.family
+    .autoDispose<
+      List<WorkflowRunInfo>,
+      ({RepoSlug slug, String token, String? branch})
+    >(
+      (ref, key) => ref
+          .watch(gitHubApiProvider)
+          .listWorkflowRuns(key.slug, token: key.token, branch: key.branch),
+    );
 
 final AutoDisposeFutureProviderFamily<
-        CheckSummary,
-        ({RepoSlug slug, String token, String sha})> _checksProvider =
-    FutureProvider.family.autoDispose<
-        CheckSummary,
-        ({RepoSlug slug, String token, String sha})>(
-  (ref, key) => ref
-      .watch(gitHubApiProvider)
-      .prChecks(key.slug, key.sha, token: key.token),
-);
+  CheckSummary,
+  ({RepoSlug slug, String token, String sha})
+>
+_checksProvider = FutureProvider.family
+    .autoDispose<CheckSummary, ({RepoSlug slug, String token, String sha})>(
+      (ref, key) => ref
+          .watch(gitHubApiProvider)
+          .prChecks(key.slug, key.sha, token: key.token),
+    );
 
 /// GitHub view for a github.com repo: open Pull Requests (with per-PR
 /// checkout + check status) and recent Actions runs for the current branch.
@@ -406,8 +410,9 @@ class _CheckChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
-    final async =
-        ref.watch(_checksProvider((slug: slug, token: token, sha: sha)));
+    final async = ref.watch(
+      _checksProvider((slug: slug, token: token, sha: sha)),
+    );
     final summary = async.valueOrNull;
     if (summary == null || summary.state == CheckState.none) {
       return const SizedBox.shrink();
@@ -445,8 +450,10 @@ class _ActionsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
-    final branch =
-        ref.watch(repoStatusProvider(repo)).valueOrNull?.currentBranch;
+    final branch = ref
+        .watch(repoStatusProvider(repo))
+        .valueOrNull
+        ?.currentBranch;
     final key = (slug: slug, token: token, branch: branch);
     final async = ref.watch(_runsProvider(key));
     return async.when(
