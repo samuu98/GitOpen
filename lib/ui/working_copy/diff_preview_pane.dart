@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/diff/image_preview.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
 import 'package:gitopen/domain/diff/diff_spec.dart';
 import 'package:gitopen/domain/diff/file_diff.dart';
+import 'package:gitopen/domain/files/file_revision.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
 import 'package:gitopen/ui/common/diff_line_row.dart';
 import 'package:gitopen/ui/common/diff_prefs.dart';
+import 'package:gitopen/ui/common/image_diff_view.dart';
 import 'package:gitopen/ui/common/truncated_diff_banner.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
@@ -82,6 +85,25 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
             );
           }
           if (fileDiff.isBinary) {
+            if (isImagePath(sel.path)) {
+              return ListView(
+                padding: const EdgeInsets.all(8),
+                children: [
+                  DiffHeader(path: sel.path, fileDiff: fileDiff),
+                  ImageDiffView(
+                    repo: repo,
+                    oldPath: fileDiff.oldPath ?? sel.path,
+                    newPath: sel.path,
+                    oldRevision: sel.staged
+                        ? const FileRevisionHead()
+                        : const FileRevisionIndex(),
+                    newRevision: sel.staged
+                        ? const FileRevisionIndex()
+                        : const FileRevisionWorkingTree(),
+                  ),
+                ],
+              );
+            }
             return Center(
               child: Text(
                 'Binary file (no preview)',

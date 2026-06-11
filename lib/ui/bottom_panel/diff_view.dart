@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/diff/image_preview.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
 import 'package:gitopen/domain/diff/diff_result.dart';
 import 'package:gitopen/domain/diff/diff_spec.dart';
 import 'package:gitopen/domain/diff/file_diff.dart';
+import 'package:gitopen/domain/files/file_revision.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
 import 'package:gitopen/ui/common/diff_line_row.dart';
 import 'package:gitopen/ui/common/diff_prefs.dart';
+import 'package:gitopen/ui/common/image_diff_view.dart';
 import 'package:gitopen/ui/common/truncated_diff_banner.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -146,16 +149,24 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
         children: [
           _header(context),
           if (file.isBinary)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                'Binary file (no preview)',
-                style: TextStyle(
-                  color: palette.fg2,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            )
+            isImagePath(file.path)
+                ? ImageDiffView(
+                    repo: widget.repo,
+                    oldPath: file.oldPath ?? file.path,
+                    newPath: file.path,
+                    oldRevision: FileRevisionParentOfCommit(widget.sha),
+                    newRevision: FileRevisionAtCommit(widget.sha),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'Binary file (no preview)',
+                      style: TextStyle(
+                        color: palette.fg2,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  )
           else ...[
             for (final h in shown.hunks) _hunk(context, h, language),
             if (full != null && full.isLoading)
