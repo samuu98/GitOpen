@@ -18,8 +18,12 @@ final class GitCliSyncWriter {
   GitCliSyncWriter(this._runner);
   final GitProcessRunner _runner;
 
-  Stream<GitProgress> fetch(RepoLocation r,
-      {String? remote, bool all = false, AuthSpec? auth}) async* {
+  Stream<GitProgress> fetch(
+    RepoLocation r, {
+    String? remote,
+    bool all = false,
+    AuthSpec? auth,
+  }) async* {
     final args = <String>['fetch', '--progress'];
     if (all) {
       args.add('--all');
@@ -31,8 +35,23 @@ final class GitCliSyncWriter {
     }
   }
 
-  Stream<GitProgress> pull(RepoLocation r, PullStrategy strategy,
-      {AuthSpec? auth}) async* {
+  Stream<GitProgress> fetchRefspec(
+    RepoLocation r,
+    String remote,
+    String refspec, {
+    AuthSpec? auth,
+  }) async* {
+    final args = <String>['fetch', '--progress', remote, refspec];
+    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+      yield p;
+    }
+  }
+
+  Stream<GitProgress> pull(
+    RepoLocation r,
+    PullStrategy strategy, {
+    AuthSpec? auth,
+  }) async* {
     final args = <String>['pull', '--progress'];
     switch (strategy) {
       case PullStrategy.ffOnly:
@@ -47,12 +66,14 @@ final class GitCliSyncWriter {
     }
   }
 
-  Stream<GitProgress> push(RepoLocation r,
-      {String? remote,
-      String? branch,
-      bool forceWithLease = false,
-      bool pushTags = false,
-      AuthSpec? auth}) async* {
+  Stream<GitProgress> push(
+    RepoLocation r, {
+    String? remote,
+    String? branch,
+    bool forceWithLease = false,
+    bool pushTags = false,
+    AuthSpec? auth,
+  }) async* {
     // `push.autoSetupRemote=true` makes a bare `git push` on a branch with
     // no upstream behave like `git push --set-upstream origin <branch>` —
     // it picks the default push remote, pushes to the same-name branch,
@@ -88,8 +109,11 @@ final class GitCliSyncWriter {
     }
   }
 
-  Stream<GitProgress> _runProgressStream(String cwd, List<String> args,
-      {AuthSpec? auth}) async* {
+  Stream<GitProgress> _runProgressStream(
+    String cwd,
+    List<String> args, {
+    AuthSpec? auth,
+  }) async* {
     final helper = await CredentialHelper.setup(auth);
     // The helper-supplied `-c key=value` overrides must come BEFORE the
     // git subcommand. They inject the Authorization header and reset
@@ -101,13 +125,17 @@ final class GitCliSyncWriter {
     // can see whether the helper actually injected the header (and which
     // auth kind reached this layer) without leaking the token.
     final redacted = effectiveArgs
-        .map((a) => a.startsWith('http.extraheader=Authorization:')
-            ? 'http.extraheader=Authorization: <redacted>'
-            : a)
+        .map(
+          (a) => a.startsWith('http.extraheader=Authorization:')
+              ? 'http.extraheader=Authorization: <redacted>'
+              : a,
+        )
         .join(' ');
-    appLog.d('git[progress] auth=${auth?.runtimeType ?? 'none'} '
-        'env_keys=${helper.env.keys.toList()} '
-        'cmd: git $redacted');
+    appLog.d(
+      'git[progress] auth=${auth?.runtimeType ?? 'none'} '
+      'env_keys=${helper.env.keys.toList()} '
+      'cmd: git $redacted',
+    );
     final stderrBuf = StringBuffer();
     try {
       final proc = await Process.start(
@@ -119,9 +147,10 @@ final class GitCliSyncWriter {
       // Drain stdout so the process never blocks on a full pipe; awaited
       // before exitCode below so no output is lost to a race on exit.
       final stdoutDrained = proc.stdout.drain<void>();
-      await for (final line in proc.stderr
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
+      await for (final line
+          in proc.stderr
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
         final parsed = GitProgressParser.parse(line);
         if (parsed != null) {
           yield parsed;

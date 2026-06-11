@@ -9,6 +9,9 @@ import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_dir_probe.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
+import 'package:gitopen/application/github/github_api.dart';
+import 'package:gitopen/application/github/github_models.dart';
+import 'package:gitopen/application/github/github_slug.dart';
 import 'package:gitopen/application/launcher/folder_picker.dart';
 import 'package:gitopen/application/launcher/repo_launcher.dart';
 import 'package:gitopen/application/operations/operations_notifier.dart';
@@ -34,6 +37,7 @@ import 'package:gitopen/infrastructure/git/git_identity_service.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
 import 'package:gitopen/infrastructure/git/git_remote_url_reader.dart';
 import 'package:gitopen/infrastructure/git/io_git_dir_probe.dart';
+import 'package:gitopen/infrastructure/github/github_rest_api.dart';
 import 'package:gitopen/infrastructure/launcher/system_repo_launcher.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
 import 'package:gitopen/infrastructure/logging/app_logger_port.dart';
@@ -56,6 +60,27 @@ final gitProcessRunnerProvider = Provider<GitProcessRunner>((ref) {
   return GitProcessRunner();
 });
 
+/// Reads a repo's remote URL via the git CLI (shared by the auth resolver
+/// and GitHub-ness detection).
+final remoteUrlReaderProvider = Provider<RemoteUrlReader>((ref) {
+  return GitRemoteUrlReader(runner: ref.watch(gitProcessRunnerProvider));
+});
+
+/// GitHub REST client (token passed per call).
+final gitHubApiProvider = Provider<GitHubApi>((ref) => GitHubRestApi());
+
+/// The repo's GitHub `owner/repo` slug, or null when `origin` is missing or
+/// not a github.com URL - null hides the GitHub view.
+final AutoDisposeFutureProviderFamily<RepoSlug?, RepoLocation>
+githubSlugProvider = FutureProvider.family.autoDispose<RepoSlug?, RepoLocation>(
+  (ref, repo) async {
+    final url = await ref
+        .watch(remoteUrlReaderProvider)
+        .remoteUrl(repo, 'origin');
+    return url == null ? null : githubSlugFromRemoteUrl(url);
+  },
+);
+
 final loggerProvider = Provider<LoggerPort>((ref) => const AppLoggerPort());
 
 final gitReadOperationsProvider = Provider<GitReadOperations>((ref) {
@@ -72,15 +97,17 @@ final workspacePersistenceProvider = Provider<WorkspacePersistence>((ref) {
 
 final workspaceManagerProvider =
     StateNotifierProvider<WorkspaceManager, List<Workspace>>((ref) {
-  return WorkspaceManager(ref.watch(repositoryRegistryProvider));
-});
+      return WorkspaceManager(ref.watch(repositoryRegistryProvider));
+    });
 
-final folderPickerProvider =
-    Provider<FolderPicker>((ref) => const SystemFolderPicker());
+final folderPickerProvider = Provider<FolderPicker>(
+  (ref) => const SystemFolderPicker(),
+);
 
 /// Probes `.git` for in-progress-operation markers (file-system backed).
-final gitDirProbeProvider =
-    Provider<GitDirProbe>((ref) => const IoGitDirProbe());
+final gitDirProbeProvider = Provider<GitDirProbe>(
+  (ref) => const IoGitDirProbe(),
+);
 
 /// Watches a repo's `.git` bookkeeping for external changes (auto-refresh).
 final repoWatcherProvider = Provider<RepoWatcher>((ref) => IoRepoWatcher());
@@ -93,7 +120,8 @@ final gitWriteOperationsProvider = Provider<GitWriteOperations>((ref) {
 /// composition root is the one place allowed to know how to read git's
 /// stderr off a `GitProcessException` (UI gets the function, not the type).
 final gitErrorTextProvider = Provider<String Function(Object error)>(
-  (ref) => (e) => e is GitProcessException ? e.stderr : e.toString(),
+  (ref) =>
+      (e) => e is GitProcessException ? e.stderr : e.toString(),
 );
 
 /// Pure orchestrator for git actions (progress + auth-retry + declarative
@@ -114,8 +142,8 @@ final activityLogRepositoryProvider = Provider<ActivityLogRepository>((ref) {
 
 final operationsProvider =
     StateNotifierProvider<OperationsNotifier, List<RunningOperation>>((ref) {
-  return OperationsNotifier(ref.watch(activityLogRepositoryProvider));
-});
+      return OperationsNotifier(ref.watch(activityLogRepositoryProvider));
+    });
 
 final authProfileStoreProvider = Provider<AuthProfileStore>(
   (ref) => SecureAuthProfileStore(),
@@ -125,7 +153,7 @@ final authResolverProvider = Provider<AuthResolver>((ref) {
   final store = ref.watch(authProfileStoreProvider);
   return AuthResolver(
     store,
-    remoteUrl: GitRemoteUrlReader(runner: ref.watch(gitProcessRunnerProvider)),
+    remoteUrl: ref.watch(remoteUrlReaderProvider),
     // Always reads the current binding map from settings — closure runs once
     // per resolve, so the provider does not need to rebuild on settings change.
     bindingLookup: (repoId) =>
@@ -149,25 +177,25 @@ final authResolverProvider = Provider<AuthResolver>((ref) {
 /// `git status` of their own.
 final FutureProviderFamily<RepoStatus, RepoLocation> repoStatusProvider =
     FutureProvider.family<RepoStatus, RepoLocation>((ref, repo) {
-  return ref.watch(gitReadOperationsProvider).getStatus(repo);
-});
+      return ref.watch(gitReadOperationsProvider).getStatus(repo);
+    });
 
 /// Local branches only — always fast.  This is what the UI awaits on
 /// initial repo load so the graph and sidebar render immediately.
 final FutureProviderFamily<List<Branch>, RepoLocation> localBranchesProvider =
     FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) {
-  appLog.i('branches: loading locals for ${repo.displayName}');
-  return ref.watch(gitReadOperationsProvider).getLocalBranches(repo);
-});
+      appLog.i('branches: loading locals for ${repo.displayName}');
+      return ref.watch(gitReadOperationsProvider).getLocalBranches(repo);
+    });
 
 /// Remote tracking branches — may take seconds (or time out at 3s on
 /// huge monorepos).  Loaded in parallel and consumed without `await` by
 /// UI that wants to render incrementally.
 final FutureProviderFamily<List<Branch>, RepoLocation> remoteBranchesProvider =
     FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) {
-  appLog.i('branches: loading remotes for ${repo.displayName}');
-  return ref.watch(gitReadOperationsProvider).getRemoteBranches(repo);
-});
+      appLog.i('branches: loading remotes for ${repo.displayName}');
+      return ref.watch(gitReadOperationsProvider).getRemoteBranches(repo);
+    });
 
 /// Combined locals + remotes.  Resolves only after BOTH lists are ready
 /// (remotes is internally capped at 3s — see
@@ -180,28 +208,30 @@ final FutureProviderFamily<List<Branch>, RepoLocation> remoteBranchesProvider =
 /// and blocking the UI on big repos.  Always await both `.future`s here.
 final FutureProviderFamily<List<Branch>, RepoLocation> branchesProvider =
     FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) async {
-  final locals = await ref.watch(localBranchesProvider(repo).future);
-  final remotes = await ref.watch(remoteBranchesProvider(repo).future);
-  return [...locals, ...remotes];
-});
+      final locals = await ref.watch(localBranchesProvider(repo).future);
+      final remotes = await ref.watch(remoteBranchesProvider(repo).future);
+      return [...locals, ...remotes];
+    });
 
 /// Submodules registered in the superproject (`git submodule status`).
 /// Family-keyed by [RepoLocation] like the other ref providers.
 final FutureProviderFamily<List<Submodule>, RepoLocation> submodulesProvider =
     FutureProvider.family<List<Submodule>, RepoLocation>((ref, repo) {
-  return ref.watch(gitReadOperationsProvider).getSubmodules(repo);
-});
+      return ref.watch(gitReadOperationsProvider).getSubmodules(repo);
+    });
 
 final AutoDisposeFutureProviderFamily<AuthProfile?, RepoLocation>
-    repoActiveProfileProvider = FutureProvider.autoDispose
-        .family<AuthProfile?, RepoLocation>((ref, repo) async {
-  ref.watch(appSettingsProvider.select((s) => s.authRepoBindings));
-  appLog.i('auth: resolveForRepo(${repo.displayName}) starting');
-  final profile = await ref.read(authResolverProvider).resolveForRepo(repo);
-  appLog.i('auth: resolveForRepo(${repo.displayName}) → '
-      '${profile?.label ?? "none"}');
-  return profile;
-});
+repoActiveProfileProvider = FutureProvider.autoDispose
+    .family<AuthProfile?, RepoLocation>((ref, repo) async {
+      ref.watch(appSettingsProvider.select((s) => s.authRepoBindings));
+      appLog.i('auth: resolveForRepo(${repo.displayName}) starting');
+      final profile = await ref.read(authResolverProvider).resolveForRepo(repo);
+      appLog.i(
+        'auth: resolveForRepo(${repo.displayName}) → '
+        '${profile?.label ?? "none"}',
+      );
+      return profile;
+    });
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   return SettingsRepository(ref.watch(appDatabaseProvider));
@@ -209,8 +239,8 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
 
 final appSettingsProvider =
     StateNotifierProvider<AppSettingsNotifier, AppSettingsState>((ref) {
-  return AppSettingsNotifier(ref.watch(settingsRepositoryProvider));
-});
+      return AppSettingsNotifier(ref.watch(settingsRepositoryProvider));
+    });
 
 final updaterProvider = Provider<GitHubReleaseUpdater>((ref) {
   return GitHubReleaseUpdater();
@@ -237,9 +267,9 @@ final gitHubUserServiceProvider = Provider<GitHubUserService>((ref) {
 /// HTTP client, so the auth dialog never imports infrastructure).
 final deviceFlowPortProvider =
     Provider<DeviceFlowPort Function(String clientId)>((ref) {
-  return (clientId) =>
-      GitHubDeviceFlowPort(GitHubDeviceFlow(clientId: clientId));
-});
+      return (clientId) =>
+          GitHubDeviceFlowPort(GitHubDeviceFlow(clientId: clientId));
+    });
 
 final availableEditorsProvider = FutureProvider<List<EditorTarget>>((ref) {
   return ref.watch(repoLauncherProvider).detectAvailableEditors();

@@ -208,6 +208,33 @@ final class GitActionsService {
     );
   }
 
+  /// Materialises GitHub PR [number] as the local branch `pr/<number>`
+  /// (forced fetch of `pull/<number>/head`) and checks it out. The fetch has
+  /// progress + auth-retry; a fetch failure stops before the checkout.
+  Future<ActionResult> checkoutPullRequest(
+    RepoLocation repo,
+    int number, {
+    required AuthPrompt prompt,
+    required ProgressSink progress,
+  }) async {
+    final branch = 'pr/$number';
+    final fetched = await _runStream(
+      OpKind.fetch,
+      'Fetching PR #$number',
+      repo,
+      (auth) => _write.fetchRefspec(
+        repo,
+        'origin',
+        '+pull/$number/head:refs/heads/$branch',
+        auth: auth,
+      ),
+      prompt: prompt,
+      progress: progress,
+    );
+    if (fetched.outcome != ActionOutcome.success) return fetched;
+    return _simple('Checkout', _write.checkout(repo, branch));
+  }
+
   // ---- Local (non-streaming) actions ------------------------------------
   // No auth / progress streaming; each maps the write op's GitResult to a
   // declarative ActionResult. Conflict-bearing ops report

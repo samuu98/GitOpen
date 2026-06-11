@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/main_view_provider.dart';
+import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-/// Segmented toggle between the commit-graph view and the working-copy
-/// changes view. Lives at the top of the main panel area.
+/// Segmented toggle between the commit-graph view, the working-copy changes
+/// view and (for github.com origins) the GitHub PRs/Actions view. Lives at
+/// the top of the main panel area.
 class ViewSelector extends ConsumerWidget {
-  const ViewSelector({super.key});
+  const ViewSelector({required this.repo, super.key});
+  final RepoLocation repo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
     final current = ref.watch(mainViewProvider);
+    final isGitHub = ref.watch(githubSlugProvider(repo)).valueOrNull != null;
     return Container(
       height: 30,
       color: palette.bg2,
@@ -33,6 +38,16 @@ class ViewSelector extends ConsumerWidget {
             onTap: () =>
                 ref.read(mainViewProvider.notifier).state = MainView.changes,
           ),
+          if (isGitHub) ...[
+            const SizedBox(width: 4),
+            _SegmentButton(
+              label: 'GitHub',
+              icon: Icons.cloud_outlined,
+              selected: current == MainView.github,
+              onTap: () =>
+                  ref.read(mainViewProvider.notifier).state = MainView.github,
+            ),
+          ],
         ],
       ),
     );
@@ -63,18 +78,20 @@ class _SegmentButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-          child: Row(children: [
-            Icon(icon, size: 13, color: fg),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: fg,
-                fontSize: 11.5,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          child: Row(
+            children: [
+              Icon(icon, size: 13, color: fg),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 11.5,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ),
       ),
     );

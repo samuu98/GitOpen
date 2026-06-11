@@ -118,6 +118,26 @@ class GitActionsController {
     );
   }
 
+  /// Fetches GitHub PR [number] into `pr/<number>` and checks it out.
+  Future<ActionResult> checkoutPullRequest(
+    BuildContext context,
+    RepoLocation repo,
+    int number,
+  ) {
+    return _run(
+      context,
+      repo,
+      (prompt, progress) => _ref
+          .read(gitActionsServiceProvider)
+          .checkoutPullRequest(
+            repo,
+            number,
+            prompt: prompt,
+            progress: progress,
+          ),
+    );
+  }
+
   /// `git merge <ref>` into the current branch.
   Future<ActionResult> merge(
     BuildContext context,

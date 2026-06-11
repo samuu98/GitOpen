@@ -22,6 +22,7 @@ import 'package:gitopen/ui/commit_graph/detached_head_banner.dart';
 import 'package:gitopen/ui/common/vertical_splitter.dart';
 import 'package:gitopen/ui/conflicts/conflict_resolution_panel.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
+import 'package:gitopen/ui/github/github_panel.dart';
 import 'package:gitopen/ui/operations/toast_overlay.dart';
 import 'package:gitopen/ui/settings/settings_page.dart';
 import 'package:gitopen/ui/shell/repo_selector.dart';
@@ -42,14 +43,15 @@ Future<void> main() async {
   // Block until the file sink is open, otherwise the very first lines we
   // log (about repo rehydration) would race the file init.
   await appLogFileOutput.init();
-  _log.i('GitOpen starting — log file at '
-      '${await appLogFileOutput.resolvePath()}');
+  _log.i(
+    'GitOpen starting — log file at '
+    '${await appLogFileOutput.resolvePath()}',
+  );
 
   // Global error capture — without this, a thrown exception during repo
   // load can take the app down with no visible stack trace.
   FlutterError.onError = (details) {
-    _log.e('FlutterError',
-        error: details.exception, stackTrace: details.stack);
+    _log.e('FlutterError', error: details.exception, stackTrace: details.stack);
     FlutterError.presentError(details);
   };
   PlatformDispatcher.instance.onError = (error, stack) {
@@ -66,10 +68,12 @@ Future<void> main() async {
     unawaited(_checkForUpdatesQuietly(container));
   }
 
-  runApp(UncontrolledProviderScope(
-    container: container,
-    child: const GitOpenApp(),
-  ));
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const GitOpenApp(),
+    ),
+  );
 
   doWhenWindowReady(() {
     const initialSize = Size(1400, 900);
@@ -147,8 +151,9 @@ class GitOpenApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(appSettingsProvider.select((s) => s.theme));
-    final palette =
-        theme == AppTheme.dark ? AppPalette.dark() : AppPalette.light();
+    final palette = theme == AppTheme.dark
+        ? AppPalette.dark()
+        : AppPalette.light();
     return MaterialApp(
       title: 'GitOpen',
       debugShowCheckedModeBanner: false,
@@ -166,9 +171,17 @@ class GitOpenApp extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 // Intent classes for the reactive Shortcuts block in Shell
 // ---------------------------------------------------------------------------
-class _CommitIntent extends Intent { const _CommitIntent(); }
-class _FetchIntent extends Intent { const _FetchIntent(); }
-class _OpenSettingsIntent extends Intent { const _OpenSettingsIntent(); }
+class _CommitIntent extends Intent {
+  const _CommitIntent();
+}
+
+class _FetchIntent extends Intent {
+  const _FetchIntent();
+}
+
+class _OpenSettingsIntent extends Intent {
+  const _OpenSettingsIntent();
+}
 
 class Shell extends ConsumerStatefulWidget {
   const Shell({super.key});
@@ -184,8 +197,9 @@ class _ShellState extends ConsumerState<Shell> {
     final activeId = ref.read(activeWorkspaceIdProvider);
     if (activeId == null) return;
     final workspaces = ref.read(workspaceManagerProvider);
-    final active =
-        workspaces.firstWhereOrNull((w) => w.location.id == activeId);
+    final active = workspaces.firstWhereOrNull(
+      (w) => w.location.id == activeId,
+    );
     if (active == null) return;
     await ref
         .read(gitActionsControllerProvider)
@@ -200,15 +214,15 @@ class _ShellState extends ConsumerState<Shell> {
         ? null
         : workspaces.firstWhereOrNull((w) => w.location.id == activeId);
     final settingsOpen = ref.watch(settingsOpenProvider);
-    final bindings =
-        ref.watch(appSettingsProvider.select((s) => s.keybindings));
+    final bindings = ref.watch(
+      appSettingsProvider.select((s) => s.keybindings),
+    );
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
         if (bindings['commit'] != null)
           bindings['commit']!: const _CommitIntent(),
-        if (bindings['fetch'] != null)
-          bindings['fetch']!: const _FetchIntent(),
+        if (bindings['fetch'] != null) bindings['fetch']!: const _FetchIntent(),
         if (bindings['openSettings'] != null)
           bindings['openSettings']!: const _OpenSettingsIntent(),
       },
@@ -235,46 +249,50 @@ class _ShellState extends ConsumerState<Shell> {
           ),
         },
         child: Focus(
-        autofocus: true,
-        child: Builder(builder: (context) {
-          final palette = AppPalette.of(context);
-          return Scaffold(
-          backgroundColor: palette.bg1,
-          body: WindowBorder(
-            color: palette.bg3,
-            width: 1,
-            child: Stack(children: [
-              Column(
-                children: [
-                  const _TitleBar(),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        const Sidebar(),
-                        Expanded(
-                          child: Container(
-                            color: palette.bg1,
-                            alignment: Alignment.center,
-                            child: workspaces.isEmpty
-                                ? const WelcomeScreen()
-                                : active == null
-                                    ? const WelcomeScreen()
-                                    : settingsOpen
+          autofocus: true,
+          child: Builder(
+            builder: (context) {
+              final palette = AppPalette.of(context);
+              return Scaffold(
+                backgroundColor: palette.bg1,
+                body: WindowBorder(
+                  color: palette.bg3,
+                  width: 1,
+                  child: Stack(
+                    children: [
+                      Column(
+                        children: [
+                          const _TitleBar(),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                const Sidebar(),
+                                Expanded(
+                                  child: Container(
+                                    color: palette.bg1,
+                                    alignment: Alignment.center,
+                                    child: workspaces.isEmpty
+                                        ? const WelcomeScreen()
+                                        : active == null
+                                        ? const WelcomeScreen()
+                                        : settingsOpen
                                         ? const SettingsPage()
                                         : _RepoBody(repo: active.location),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                      const ToastOverlay(),
+                    ],
                   ),
-                ],
-              ),
-              const ToastOverlay(),
-            ]),
+                ),
+              );
+            },
           ),
-        );
-        }),
-      ),
+        ),
       ),
     );
   }
@@ -301,17 +319,19 @@ class _RepoBody extends ConsumerWidget {
       repo: repo,
       child: Column(
         children: [
-          const ViewSelector(),
+          ViewSelector(repo: repo),
           DetachedHeadBanner(repo: repo),
           Expanded(
             child: hasConflict
                 ? ConflictResolutionPanel(repo: repo)
                 : view == MainView.changes
-                    ? WorkingCopyPanel(repo: repo)
-                    : VerticalSplitter(
-                        top: CommitGraphPanel(repo: repo),
-                        bottom: BottomPanel(repo: repo),
-                      ),
+                ? WorkingCopyPanel(repo: repo)
+                : view == MainView.github
+                ? GitHubPanel(repo: repo)
+                : VerticalSplitter(
+                    top: CommitGraphPanel(repo: repo),
+                    bottom: BottomPanel(repo: repo),
+                  ),
           ),
           const StatusBar(),
         ],
@@ -412,10 +432,12 @@ class _WindowControls extends StatelessWidget {
       iconMouseOver: Colors.white,
       iconMouseDown: Colors.white,
     );
-    return Row(children: [
-      MinimizeWindowButton(colors: colors),
-      MaximizeWindowButton(colors: colors),
-      CloseWindowButton(colors: closeColors),
-    ]);
+    return Row(
+      children: [
+        MinimizeWindowButton(colors: colors),
+        MaximizeWindowButton(colors: colors),
+        CloseWindowButton(colors: closeColors),
+      ],
+    );
   }
 }
