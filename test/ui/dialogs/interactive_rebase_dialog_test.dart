@@ -27,7 +27,10 @@ CommitInfo _commit(String shaChar, String summary) {
 
 final class _FakeReadOps implements GitReadOperations {
   // Newest-first, like `git log`.
-  final commits = [_commit('b', 'second'), _commit('a', 'first')];
+  final List<CommitInfo> commits = [
+    _commit('b', 'second'),
+    _commit('a', 'first'),
+  ];
 
   @override
   Stream<CommitInfo> getCommits(RepoLocation repo, CommitQuery query) =>

@@ -6,6 +6,7 @@ import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/dialogs/interactive_rebase_dialog.dart';
 import 'package:gitopen/ui/dialogs/merge_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
@@ -80,6 +81,11 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           label: 'Rebase current onto this',
           icon: Icons.compare_arrows,
         ),
+        AppMenuItem(
+          value: 'interactive_rebase',
+          label: 'Interactive rebase onto this…',
+          icon: Icons.playlist_play,
+        ),
         AppMenuDivider(),
       ],
       if (isLocal) ...const [
@@ -152,6 +158,20 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         await ref
             .read(gitActionsControllerProvider)
             .rebase(context, widget.repo, branchName);
+        _refresh();
+
+      case 'interactive_rebase':
+        final tip = branch.tipSha;
+        if (tip == null || !context.mounted) return;
+        final plan = await InteractiveRebaseDialog.show(
+          context,
+          repo: widget.repo,
+          onto: tip,
+        );
+        if (plan == null || !context.mounted) return;
+        await ref
+            .read(gitActionsControllerProvider)
+            .interactiveRebase(context, widget.repo, tip, plan);
         _refresh();
 
       case 'rename':

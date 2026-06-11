@@ -210,9 +210,8 @@ class _InteractiveRebaseDialogState
                   shrinkWrap: true,
                   buildDefaultDragHandles: false,
                   itemCount: plan.length,
-                  onReorder: (oldIndex, newIndex) {
+                  onReorderItem: (oldIndex, newIndex) {
                     setState(() {
-                      if (newIndex > oldIndex) newIndex--;
                       plan.insert(newIndex, plan.removeAt(oldIndex));
                     });
                   },
