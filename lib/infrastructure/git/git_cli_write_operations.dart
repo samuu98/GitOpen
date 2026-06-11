@@ -319,6 +319,14 @@ final class GitCliWriteOperations implements GitWriteOperations {
   }) => _sync.fetch(r, remote: remote, all: all, auth: auth);
 
   @override
+  Stream<GitProgress> fetchRefspec(
+    RepoLocation r,
+    String remote,
+    String refspec, {
+    AuthSpec? auth,
+  }) => _sync.fetchRefspec(r, remote, refspec, auth: auth);
+
+  @override
   Stream<GitProgress> pull(
     RepoLocation r,
     PullStrategy strategy, {

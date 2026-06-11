@@ -31,6 +31,18 @@ final class GitCliSyncWriter {
     }
   }
 
+  Stream<GitProgress> fetchRefspec(
+    RepoLocation r,
+    String remote,
+    String refspec, {
+    AuthSpec? auth,
+  }) async* {
+    final args = <String>['fetch', '--progress', remote, refspec];
+    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+      yield p;
+    }
+  }
+
   Stream<GitProgress> pull(RepoLocation r, PullStrategy strategy,
       {AuthSpec? auth}) async* {
     final args = <String>['pull', '--progress'];

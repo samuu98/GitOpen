@@ -27,4 +27,39 @@ void main() {
       await local.dispose();
     }
   });
+
+  test('fetchRefspec materialises a remote ref as a local branch', () async {
+    // Origin with an extra non-branch ref (like GitHub's refs/pull/N/head).
+    final origin = await RepoFixture.withLinearHistory(2);
+    final local = await RepoFixture.empty();
+    try {
+      await Process.run(
+        'git',
+        ['update-ref', 'refs/pull/3/head', origin.headSha],
+        workingDirectory: origin.path,
+      );
+      final originUrl = origin.path.replaceAll(r'\', '/');
+      await Process.run(
+        'git',
+        ['remote', 'add', 'origin', originUrl],
+        workingDirectory: local.path,
+      );
+
+      final sut = GitCliWriteOperations();
+      final repo = RepoLocation(RepoId.newId(), local.path, 'fx');
+      await sut
+          .fetchRefspec(repo, 'origin', '+pull/3/head:refs/heads/pr/3')
+          .drain<void>();
+
+      final sha = await Process.run(
+        'git',
+        ['rev-parse', 'refs/heads/pr/3'],
+        workingDirectory: local.path,
+      );
+      expect((sha.stdout as String).trim(), origin.headSha);
+    } finally {
+      await origin.dispose();
+      await local.dispose();
+    }
+  });
 }

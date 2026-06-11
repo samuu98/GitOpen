@@ -144,6 +144,17 @@ abstract interface class GitWriteOperations {
     bool all = false,
     AuthSpec? auth,
   });
+
+  /// `git fetch <remote> <refspec>` - fetches one explicit refspec, e.g.
+  /// `'+pull/42/head:refs/heads/pr/42'` to materialise a GitHub PR head as a
+  /// (force-updated) local branch.
+  Stream<GitProgress> fetchRefspec(
+    RepoLocation r,
+    String remote,
+    String refspec, {
+    AuthSpec? auth,
+  });
+
   Stream<GitProgress> pull(
     RepoLocation r,
     PullStrategy strategy, {
