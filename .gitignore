@@ -432,8 +432,10 @@ test-results/
 .AppleDouble
 .LSOverride
 
-# Icon must end with two \r
-Icon
+# Finder custom-folder icon file ("Icon" followed by a literal \r).
+# The bare pattern `Icon` would also match assets/icon/ on case-insensitive
+# filesystems, so the trailing CR is expressed via a character class.
+Icon[\r]
 
 
 # Thumbnails
