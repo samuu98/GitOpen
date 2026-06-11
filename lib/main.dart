@@ -130,7 +130,8 @@ void _subscribePersistence(ProviderContainer container) {
 
 Future<void> _checkForUpdatesQuietly(ProviderContainer container) async {
   try {
-    const currentVersion = '0.1.0';
+    // Keep in sync with pubspec.yaml `version:`.
+    const currentVersion = '1.0.0';
     final updater = container.read(updaterProvider);
     final newer = await updater.checkForUpdates(currentVersion);
     if (newer != null) {
@@ -335,13 +336,15 @@ class _ShellState extends ConsumerState<Shell> {
                           child: Container(
                             color: palette.bg1,
                             alignment: Alignment.center,
-                            child: workspaces.isEmpty
-                                ? const WelcomeScreen()
-                                : active == null
+                            // Settings must win over the welcome screen:
+                            // on a fresh install there is no workspace yet,
+                            // but the user still needs settings to set up
+                            // auth profiles before cloning anything.
+                            child: settingsOpen
+                                ? const SettingsPage()
+                                : workspaces.isEmpty || active == null
                                     ? const WelcomeScreen()
-                                    : settingsOpen
-                                        ? const SettingsPage()
-                                        : Builder(builder: (context) {
+                                    : Builder(builder: (context) {
                                             final view = ref.watch(mainViewProvider);
                                             final repoStateAsync = ref.watch(
                                                 repoStateProvider(active.location));
