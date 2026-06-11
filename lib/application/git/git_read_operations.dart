@@ -129,6 +129,15 @@ abstract interface class GitReadOperations {
     bool recursive = false,
   });
 
+  /// Symmetric divergence between two commits
+  /// (`git rev-list --left-right --count a...b`): `left` = commits
+  /// reachable only from [a], `right` = only from [b].
+  Future<({int left, int right})> countDivergence(
+    RepoLocation repo,
+    CommitSha a,
+    CommitSha b,
+  );
+
   /// Commits that touched [path], newest first, following renames
   /// (`git log --follow`).  [take] caps the number of commits returned
   /// (`--max-count`); null returns the full history.  The returned

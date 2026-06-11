@@ -89,6 +89,13 @@ final class GitCliReadOperations implements GitReadOperations {
       _guard(() => _log.getCommitFullMessage(repo, sha));
 
   @override
+  Future<({int left, int right})> countDivergence(
+    RepoLocation repo,
+    CommitSha a,
+    CommitSha b,
+  ) => _guard(() => _log.countDivergence(repo, a, b));
+
+  @override
   Future<List<CommitInfo>> getFileHistory(
     RepoLocation repo,
     String path, {

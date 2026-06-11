@@ -199,6 +199,24 @@ final class GitCliLogReader {
     }
   }
 
+  /// Symmetric divergence counts between two commits:
+  /// `git rev-list --left-right --count a...b` → (left: only reachable from
+  /// [a], right: only reachable from [b]).
+  Future<({int left, int right})> countDivergence(
+    RepoLocation repo,
+    CommitSha a,
+    CommitSha b,
+  ) async {
+    final out = await _runner.run(repo.path, [
+      'rev-list',
+      '--left-right',
+      '--count',
+      '${a.value}...${b.value}',
+    ]);
+    final parts = out.trim().split(RegExp(r'\s+'));
+    return (left: int.parse(parts[0]), right: int.parse(parts[1]));
+  }
+
   Future<List<CommitInfo>> getFileHistory(
     RepoLocation repo,
     String path, {
