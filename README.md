@@ -6,6 +6,21 @@ Inspired by Fork. Targets Windows and Linux.
 > **Status:** Slice 2 (write operations) complete. See
 > `docs/superpowers/specs/` and `docs/superpowers/plans/` for roadmap.
 
+## Download
+
+Grab the latest version from GitHub Releases:
+
+- **Windows (portable)**: `GitOpen-Portable-x.y.z.zip` — extract anywhere and
+  run `GitOpen\gitopen.exe`. No installation, no admin rights.
+- **Windows (installer)**: `GitOpen-Setup-x.y.z.exe` — Start menu entry,
+  optional desktop shortcut, uninstaller.
+- **Linux**: `gitopen_x.y.z_amd64.deb`
+
+> **Note:** Windows binaries are not code-signed yet. Defender may quarantine
+> the *installer* as a false positive; the portable zip avoids that, but
+> SmartScreen can still ask for confirmation on first launch — click
+> **More info → Run anyway**.
+
 ## Build and run
 
 Prerequisites:
