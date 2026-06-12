@@ -30,6 +30,7 @@ import 'package:gitopen/ui/shell/repo_selector.dart';
 import 'package:gitopen/ui/shell/view_selector.dart';
 import 'package:gitopen/ui/sidebar/sidebar.dart';
 import 'package:gitopen/ui/status_bar/status_bar.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/toolbar/git_toolbar.dart';
 import 'package:gitopen/ui/welcome/welcome_screen.dart';
@@ -155,6 +156,10 @@ class GitOpenApp extends ConsumerWidget {
     final palette = theme == AppTheme.dark
         ? AppPalette.dark()
         : AppPalette.light();
+    const spacing = AppSpacing.desktop();
+    const radii = AppRadii.desktop();
+    const typography = AppTypography.desktop();
+    const motion = AppMotion.standard();
     return MaterialApp(
       title: 'GitOpen',
       debugShowCheckedModeBanner: false,
@@ -162,7 +167,32 @@ class GitOpenApp extends ConsumerWidget {
         useMaterial3: true,
         brightness: theme == AppTheme.dark ? Brightness.dark : Brightness.light,
         scaffoldBackgroundColor: palette.bg1,
-        extensions: [palette],
+        splashFactory: InkSparkle.splashFactory,
+        hoverColor: palette.bg3,
+        focusColor: palette.accentRemote.withValues(alpha: 0.22),
+        tooltipTheme: TooltipThemeData(
+          waitDuration: motion.slow,
+          showDuration: const Duration(seconds: 4),
+          decoration: BoxDecoration(
+            color: palette.bg5,
+            borderRadius: radii.controlRadius,
+            border: Border.all(color: palette.borderStrong),
+          ),
+          textStyle: typography.caption.copyWith(color: palette.fg0),
+        ),
+        scrollbarTheme: ScrollbarThemeData(
+          thumbColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.hovered)
+                ? palette.fg2
+                : palette.fg3.withValues(alpha: 0.65);
+          }),
+          trackColor: WidgetStateProperty.all(palette.bg2),
+          radius: Radius.circular(radii.pill),
+          thickness: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.hovered) ? 8 : 6;
+          }),
+        ),
+        extensions: [palette, spacing, radii, typography, motion],
       ),
       home: const Shell(),
     );
