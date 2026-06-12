@@ -164,7 +164,6 @@ class GeneralSection extends ConsumerWidget {
                 SettingsRow(
                   label: 'Fetch interval',
                   description: 'How often the background fetch runs.',
-                  divider: false,
                   child: DropdownButton<int>(
                     value: s.autoFetchIntervalMinutes,
                     isDense: true,
@@ -184,6 +183,20 @@ class GeneralSection extends ConsumerWidget {
                             }
                           }
                         : null,
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Auto-refresh',
+                  description:
+                      'Refresh automatically when the repository changes on disk '
+                      '(e.g. commits made from another client).',
+                  divider: false,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Switch(
+                      value: s.autoRefreshEnabled,
+                      onChanged: notifier.setAutoRefreshEnabled,
+                    ),
                   ),
                 ),
               ],
