@@ -33,10 +33,16 @@ Rejected alternatives:
 - `bool isRelevantRepoEvent(String repoRoot, String eventPath)` — pure
   classifier:
   - Paths under `.git/` are relevant only for: `HEAD`, `ORIG_HEAD`,
-    `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `index`, `packed-refs`,
+    `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `packed-refs`,
     and anything under `refs/`. `*.lock` files are never relevant.
     Everything else under `.git` (objects, logs, FETCH_HEAD, gc churn) is
     noise.
+  - `index` is deliberately NOT relevant (changed 2026-06-12 after a field
+    incident): the app's own `git status` runs rewrite `.git/index` to
+    refresh the stat cache, so each refresh scheduled the next one — a
+    self-sustaining loop that reloaded the graph every ~3 s and froze the
+    UI. External staging is still picked up indirectly (worktree edits, and
+    the eventual commit moves HEAD/refs).
   - Paths outside `.git` (working tree) are relevant — they refresh the
     working-copy panel.
 - `RepoChangeWatcher` — owns one watcher stream for a repo root.
@@ -54,10 +60,13 @@ Rejected alternatives:
 ### Shell wiring (`lib/main.dart`)
 
 Same idempotent reconcile pattern as `_reconcileAutoFetchTimer`: keep a
-`Map<RepoId, RepoChangeWatcher>`, reconciled on every build against the open
-workspaces and the `autoRefreshEnabled` setting. Open tab without watcher →
-create; closed tab → dispose; setting off → dispose all. `onChanged` calls
-`refreshRepo(ref, repo)`.
+`Map<RepoLocation, RepoChangeWatcher>`, reconciled on every build against the
+open workspaces and the `autoRefreshEnabled` setting. Open tab without watcher
+→ create; closed tab → dispose; setting off → dispose all. `onChanged` calls
+`refreshRepo(ref, repo)`. A watcher killed by a stream error stays in the map
+as a tombstone — recreating it on every build would respawn it endlessly while
+the error persists; it is recreated when the tab is reopened or the setting
+toggles.
 
 Redundant triggers from the app's own write operations (they also touch
 `.git`) are accepted: the debounce coalesces them and reads are idempotent.

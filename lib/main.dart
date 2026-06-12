@@ -220,13 +220,15 @@ class _ShellState extends ConsumerState<Shell> {
 
   /// Keeps one [RepoChangeWatcher] per open repo, matching the current tabs
   /// and the auto-refresh setting. Idempotent — safe to call on every build.
-  /// Watchers killed by stream errors are also pruned (and recreated) here.
+  /// A watcher killed by a stream error stays in the map as a tombstone —
+  /// recreating it here would respawn it on every build while the error
+  /// persists. It comes back when the tab is reopened or the toggle flips.
   void _reconcileRepoWatchers(List<Workspace> workspaces, bool enabled) {
     final wanted = <RepoLocation>{
       if (enabled) ...workspaces.map((w) => w.location),
     };
     _repoWatchers.removeWhere((loc, watcher) {
-      if (wanted.contains(loc) && watcher.isActive) return false;
+      if (wanted.contains(loc)) return false;
       watcher.dispose();
       return true;
     });
