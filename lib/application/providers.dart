@@ -11,6 +11,7 @@ import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/git_lfs/git_lfs_models.dart';
 import 'package:gitopen/application/git_lfs/git_lfs_operations.dart';
+import 'package:gitopen/application/git_lfs/git_lfs_service.dart';
 import 'package:gitopen/application/github/github_api.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/github/github_slug.dart';
@@ -121,6 +122,17 @@ final gitWriteOperationsProvider = Provider<GitWriteOperations>((ref) {
 
 final gitLfsOperationsProvider = Provider<GitLfsOperations>((ref) {
   return GitCliLfsOperations(runner: ref.watch(gitProcessRunnerProvider));
+});
+
+/// Pure orchestrator for Git LFS actions (progress + auth-retry), mirror of
+/// [gitActionsServiceProvider].
+final gitLfsServiceProvider = Provider<GitLfsService>((ref) {
+  return GitLfsService(
+    lfs: ref.watch(gitLfsOperationsProvider),
+    resolveProfile: (repo) =>
+        ref.read(authResolverProvider).resolveForRepo(repo),
+    errorText: ref.watch(gitErrorTextProvider),
+  );
 });
 
 final FutureProviderFamily<GitLfsStatus, RepoLocation> gitLfsStatusProvider =
