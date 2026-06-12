@@ -80,6 +80,7 @@ flutter test
   > **Note:** The MSIX is not code-signed. Windows SmartScreen will warn on first install — click **More info → Run anyway** to proceed.
 - **AppImage build** (Linux): run `bash scripts/build-appimage.sh`; outputs `GitOpen-x86_64.AppImage`
 - **Auto-update checker**: on startup (and via Settings → Updates → "Check now") queries GitHub Releases for a newer `v*.*.*` tag and prompts the user to download
+- **Auto-refresh**: filesystem watcher per open repo — commits/branch changes made by other clients appear automatically (toggle in Settings → General)
 
 ## License
 
