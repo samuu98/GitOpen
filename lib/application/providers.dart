@@ -9,6 +9,8 @@ import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_dir_probe.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
+import 'package:gitopen/application/git_lfs/git_lfs_models.dart';
+import 'package:gitopen/application/git_lfs/git_lfs_operations.dart';
 import 'package:gitopen/application/github/github_api.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/github/github_slug.dart';
@@ -37,6 +39,7 @@ import 'package:gitopen/infrastructure/git/git_identity_service.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
 import 'package:gitopen/infrastructure/git/git_remote_url_reader.dart';
 import 'package:gitopen/infrastructure/git/io_git_dir_probe.dart';
+import 'package:gitopen/infrastructure/git_lfs/git_cli_lfs_operations.dart';
 import 'package:gitopen/infrastructure/github/github_rest_api.dart';
 import 'package:gitopen/infrastructure/launcher/system_repo_launcher.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
@@ -115,6 +118,32 @@ final repoWatcherProvider = Provider<RepoWatcher>((ref) => IoRepoWatcher());
 final gitWriteOperationsProvider = Provider<GitWriteOperations>((ref) {
   return GitCliWriteOperations(runner: ref.watch(gitProcessRunnerProvider));
 });
+
+final gitLfsOperationsProvider = Provider<GitLfsOperations>((ref) {
+  return GitCliLfsOperations(runner: ref.watch(gitProcessRunnerProvider));
+});
+
+final FutureProviderFamily<GitLfsStatus, RepoLocation> gitLfsStatusProvider =
+    FutureProvider.family<GitLfsStatus, RepoLocation>((ref, repo) {
+      return ref.watch(gitLfsOperationsProvider).status(repo);
+    });
+
+final FutureProviderFamily<List<GitLfsTrackedPattern>, RepoLocation>
+gitLfsTrackedPatternsProvider =
+    FutureProvider.family<List<GitLfsTrackedPattern>, RepoLocation>((
+      ref,
+      repo,
+    ) {
+      return ref.watch(gitLfsOperationsProvider).trackedPatterns(repo);
+    });
+
+final FutureProviderFamily<List<GitLfsFile>, RepoLocation> gitLfsFilesProvider =
+    FutureProvider.family<List<GitLfsFile>, RepoLocation>((
+      ref,
+      repo,
+    ) {
+      return ref.watch(gitLfsOperationsProvider).files(repo);
+    });
 
 /// Extracts user-presentable text from a thrown git transport error — the
 /// composition root is the one place allowed to know how to read git's

@@ -12,5 +12,6 @@ void main() {
     // they don't actually open the SQLite file until first query.
     expect(c.read(repositoryRegistryProvider), isNotNull);
     expect(c.read(workspacePersistenceProvider), isNotNull);
+    expect(c.read(gitLfsOperationsProvider), isNotNull);
   });
 }
