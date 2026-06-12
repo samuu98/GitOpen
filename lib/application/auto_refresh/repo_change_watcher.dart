@@ -6,9 +6,16 @@ import 'package:watcher/watcher.dart';
 import '../../infrastructure/logging/app_logger.dart';
 
 /// Git state files inside `.git/` whose change means "repo state moved".
+///
+/// `index` is deliberately absent: the app's own `git status` runs rewrite
+/// it to refresh the stat cache, so treating it as an external change made
+/// every refresh schedule the next one — a self-sustaining refresh loop
+/// that saturated the app with git subprocesses. External staging is still
+/// picked up indirectly (worktree edits, and the eventual commit moves
+/// HEAD/refs).
 const _gitStateFiles = {
   'HEAD', 'ORIG_HEAD', 'MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD',
-  'index', 'packed-refs',
+  'packed-refs',
 };
 
 /// Whether a filesystem event at [eventPath] implies the repo at [repoRoot]
