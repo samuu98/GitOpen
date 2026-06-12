@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'application/active_workspace_provider.dart';
+import 'application/auto_refresh/repo_change_watcher.dart';
 import 'application/git/repo_state_provider.dart';
 import 'application/main_view_provider.dart';
 import 'application/operations/running_operation.dart';
@@ -16,6 +17,7 @@ import 'application/repo_revision.dart';
 import 'application/settings/app_settings.dart';
 import 'application/settings/settings_open_provider.dart';
 import 'application/workspaces/workspace.dart';
+import 'domain/repositories/repo_location.dart';
 import 'infrastructure/logging/app_logger.dart';
 import 'ui/theme/app_palette.dart';
 import 'ui/theme/app_typography.dart';
@@ -203,10 +205,42 @@ class _ShellState extends ConsumerState<Shell> {
   /// any fetch (manual or automatic) is still running.
   bool _fetchInFlight = false;
 
+  /// One filesystem watcher per open repo (see [_reconcileRepoWatchers]).
+  final Map<RepoLocation, RepoChangeWatcher> _repoWatchers = {};
+
   @override
   void dispose() {
     _autoFetchTimer?.cancel();
+    for (final w in _repoWatchers.values) {
+      w.dispose();
+    }
+    _repoWatchers.clear();
     super.dispose();
+  }
+
+  /// Keeps one [RepoChangeWatcher] per open repo, matching the current tabs
+  /// and the auto-refresh setting. Idempotent — safe to call on every build.
+  /// Watchers killed by stream errors are also pruned (and recreated) here.
+  void _reconcileRepoWatchers(List<Workspace> workspaces, bool enabled) {
+    final wanted = <RepoLocation>{
+      if (enabled) ...workspaces.map((w) => w.location),
+    };
+    _repoWatchers.removeWhere((loc, watcher) {
+      if (wanted.contains(loc) && watcher.isActive) return false;
+      watcher.dispose();
+      return true;
+    });
+    for (final loc in wanted) {
+      _repoWatchers.putIfAbsent(
+        loc,
+        () => RepoChangeWatcher(
+          repoRoot: loc.path,
+          onChanged: () {
+            if (mounted) refreshRepo(ref, loc);
+          },
+        ),
+      );
+    }
   }
 
   /// Starts, stops, or reschedules the background fetch timer to match the
@@ -282,6 +316,11 @@ class _ShellState extends ConsumerState<Shell> {
     final autoFetch = ref.watch(appSettingsProvider
         .select((s) => (s.autoFetchEnabled, s.autoFetchIntervalMinutes)));
     _reconcileAutoFetchTimer(autoFetch.$1, autoFetch.$2);
+
+    // Same idea for the per-repo filesystem watchers behind auto-refresh.
+    final autoRefresh =
+        ref.watch(appSettingsProvider.select((s) => s.autoRefreshEnabled));
+    _reconcileRepoWatchers(workspaces, autoRefresh);
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{
