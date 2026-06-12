@@ -42,6 +42,7 @@ dependencies:
   win32: ^5.15.0
   ffi: ^2.2.0
   crypto: ^3.0.6
+  watcher: ^1.1.0
 
 dev_dependencies:
   flutter_test:
