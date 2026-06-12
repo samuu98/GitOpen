@@ -42,6 +42,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
       autoUpdateCheck: (all['auto_update_check'] as bool?) ?? true,
       autoFetchEnabled: (all['auto_fetch_enabled'] as bool?) ?? false,
       autoFetchIntervalMinutes: (all['auto_fetch_interval_minutes'] as int?) ?? 10,
+      autoRefreshEnabled: (all['auto_refresh_enabled'] as bool?) ?? true,
       sidebarWidth: _asDouble(all['sidebar_width'], 260),
       bottomPanelHeight: _asDouble(all['bottom_panel_height'], 320),
       pinnedBranches: _decodePinned(all['pinned_branches']),
@@ -120,6 +121,11 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
   Future<void> setAutoFetchIntervalMinutes(int v) async {
     state = state.copyWith(autoFetchIntervalMinutes: v);
     await _repo.put('auto_fetch_interval_minutes', v);
+  }
+
+  Future<void> setAutoRefreshEnabled(bool v) async {
+    state = state.copyWith(autoRefreshEnabled: v);
+    await _repo.put('auto_refresh_enabled', v);
   }
 
   /// Persisted panel sizes. Updated on drag-end so we don't write on every

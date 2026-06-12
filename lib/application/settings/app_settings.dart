@@ -22,6 +22,10 @@ final class AppSettingsState extends Equatable {
   /// Interval, in minutes, between background fetches when [autoFetchEnabled].
   final int autoFetchIntervalMinutes;
 
+  /// Refresh a repo's UI automatically when it changes on disk (commits,
+  /// branch moves, staging done by other clients). On by default.
+  final bool autoRefreshEnabled;
+
   final double sidebarWidth;
   final double bottomPanelHeight;
 
@@ -51,6 +55,7 @@ final class AppSettingsState extends Equatable {
     this.autoUpdateCheck = true,
     this.autoFetchEnabled = false,
     this.autoFetchIntervalMinutes = 10,
+    this.autoRefreshEnabled = true,
     this.sidebarWidth = 260,
     this.bottomPanelHeight = 320,
     this.pinnedBranches = const {},
@@ -77,6 +82,7 @@ final class AppSettingsState extends Equatable {
     bool? autoUpdateCheck,
     bool? autoFetchEnabled,
     int? autoFetchIntervalMinutes,
+    bool? autoRefreshEnabled,
     double? sidebarWidth,
     double? bottomPanelHeight,
     Map<String, List<String>>? pinnedBranches,
@@ -103,6 +109,7 @@ final class AppSettingsState extends Equatable {
       autoFetchEnabled: autoFetchEnabled ?? this.autoFetchEnabled,
       autoFetchIntervalMinutes:
           autoFetchIntervalMinutes ?? this.autoFetchIntervalMinutes,
+      autoRefreshEnabled: autoRefreshEnabled ?? this.autoRefreshEnabled,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       bottomPanelHeight: bottomPanelHeight ?? this.bottomPanelHeight,
       pinnedBranches: pinnedBranches ?? this.pinnedBranches,
@@ -117,7 +124,8 @@ final class AppSettingsState extends Equatable {
   List<Object?> get props => [
     theme, externalEditorPath, defaultPullStrategy, commitSignoffDefault,
     fontSize, fontFamily, githubClientId, autoUpdateCheck,
-    autoFetchEnabled, autoFetchIntervalMinutes, sidebarWidth,
+    autoFetchEnabled, autoFetchIntervalMinutes, autoRefreshEnabled,
+    sidebarWidth,
     bottomPanelHeight, pinnedBranches, collapsedSections, keybindings,
     gitIdentities, authRepoBindings,
   ];
