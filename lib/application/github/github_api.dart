@@ -3,7 +3,15 @@ import 'package:gitopen/application/github/github_models.dart';
 
 /// Why a GitHub API call failed, so the panel can render the right inline
 /// state (sign-in CTA, rate-limit notice, retry, ...).
-enum GitHubApiErrorKind { auth, rateLimit, network, notFound }
+enum GitHubApiErrorKind {
+  auth,
+  rateLimit,
+  network,
+  notFound,
+  validation,
+  conflict,
+  mergeBlocked,
+}
 
 /// Typed failure surfaced by [GitHubApi] implementations. `toString` is safe
 /// to show to the user as-is.
@@ -37,6 +45,84 @@ abstract interface class GitHubApi {
   Future<CheckSummary> prChecks(
     RepoSlug slug,
     String headSha, {
+    required String token,
+  });
+
+  Future<PullRequestDetail> getPullRequest(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  });
+
+  Future<List<PullRequestFile>> listPullRequestFiles(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  });
+
+  Future<List<PullRequestReview>> listPullRequestReviews(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  });
+
+  Future<List<PullRequestComment>> listPullRequestReviewComments(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  });
+
+  Future<List<IssueCommentInfo>> listPullRequestIssueComments(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  });
+
+  Future<PullRequestDetail> createPullRequest(
+    RepoSlug slug,
+    CreatePullRequestRequest request, {
+    required String token,
+  });
+
+  Future<PullRequestDetail> updatePullRequest(
+    RepoSlug slug,
+    int number,
+    UpdatePullRequestRequest request, {
+    required String token,
+  });
+
+  Future<PullRequestDetail> markPullRequestReadyForReview(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  });
+
+  Future<void> mergePullRequest(
+    RepoSlug slug,
+    int number,
+    MergePullRequestRequest request, {
+    required String token,
+  });
+
+  Future<IssueCommentInfo> createIssueComment(
+    RepoSlug slug,
+    int number,
+    String body, {
+    required String token,
+  });
+
+  Future<PullRequestReview> createReview(
+    RepoSlug slug,
+    int number,
+    SubmitReviewRequest request, {
+    required String token,
+  });
+
+  Future<PullRequestComment> createReviewCommentReply(
+    RepoSlug slug,
+    int number,
+    int commentId,
+    String body, {
     required String token,
   });
 }

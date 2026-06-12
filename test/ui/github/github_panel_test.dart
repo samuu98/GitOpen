@@ -63,6 +63,138 @@ final class _FakeApi implements GitHubApi {
     String headSha, {
     required String token,
   }) async => const CheckSummary(total: 2, succeeded: 2, failed: 0, pending: 0);
+
+  @override
+  Future<PullRequestDetail> getPullRequest(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  }) async => PullRequestDetail(
+    number: number,
+    nodeId: 'PR_kwDOExample',
+    title: 'Improve the widget',
+    body: 'Detailed body',
+    author: 'ada',
+    state: 'open',
+    isDraft: true,
+    mergeable: true,
+    mergeStateStatus: 'clean',
+    baseRef: 'main',
+    headRef: 'feat/widget',
+    headSha: 'a' * 40,
+    htmlUrl: 'https://github.com/o/r/pull/$number',
+    createdAt: DateTime.utc(2026, 6, 10),
+    updatedAt: DateTime.utc(2026, 6, 11),
+  );
+
+  @override
+  Future<List<PullRequestFile>> listPullRequestFiles(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  }) async => const [];
+
+  @override
+  Future<List<PullRequestReview>> listPullRequestReviews(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  }) async => const [];
+
+  @override
+  Future<List<PullRequestComment>> listPullRequestReviewComments(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  }) async => const [];
+
+  @override
+  Future<List<IssueCommentInfo>> listPullRequestIssueComments(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  }) async => const [];
+
+  @override
+  Future<PullRequestDetail> createPullRequest(
+    RepoSlug slug,
+    CreatePullRequestRequest request, {
+    required String token,
+  }) async => getPullRequest(slug, 13, token: token);
+
+  @override
+  Future<PullRequestDetail> updatePullRequest(
+    RepoSlug slug,
+    int number,
+    UpdatePullRequestRequest request, {
+    required String token,
+  }) async => getPullRequest(slug, number, token: token);
+
+  @override
+  Future<PullRequestDetail> markPullRequestReadyForReview(
+    RepoSlug slug,
+    int number, {
+    required String token,
+  }) async => getPullRequest(slug, number, token: token);
+
+  @override
+  Future<void> mergePullRequest(
+    RepoSlug slug,
+    int number,
+    MergePullRequestRequest request, {
+    required String token,
+  }) async {}
+
+  @override
+  Future<IssueCommentInfo> createIssueComment(
+    RepoSlug slug,
+    int number,
+    String body, {
+    required String token,
+  }) async => IssueCommentInfo(
+    id: 1,
+    user: 'ada',
+    body: body,
+    createdAt: DateTime.utc(2026, 6, 11),
+    updatedAt: DateTime.utc(2026, 6, 11),
+    htmlUrl: 'https://github.com/o/r/pull/$number#issuecomment-1',
+  );
+
+  @override
+  Future<PullRequestReview> createReview(
+    RepoSlug slug,
+    int number,
+    SubmitReviewRequest request, {
+    required String token,
+  }) async => PullRequestReview(
+    id: 1,
+    user: 'ada',
+    state: request.event,
+    body: request.body,
+    submittedAt: DateTime.utc(2026, 6, 11),
+    htmlUrl: 'https://github.com/o/r/pull/$number#pullrequestreview-1',
+  );
+
+  @override
+  Future<PullRequestComment> createReviewCommentReply(
+    RepoSlug slug,
+    int number,
+    int commentId,
+    String body, {
+    required String token,
+  }) async => PullRequestComment(
+    id: 2,
+    user: 'ada',
+    body: body,
+    path: 'lib/widget.dart',
+    side: 'RIGHT',
+    line: 2,
+    position: null,
+    inReplyToId: commentId,
+    createdAt: DateTime.utc(2026, 6, 11),
+    updatedAt: DateTime.utc(2026, 6, 11),
+    htmlUrl: 'https://github.com/o/r/pull/$number#discussion_r2',
+  );
 }
 
 Future<void> _pump(
