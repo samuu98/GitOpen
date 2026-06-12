@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
+import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/github/github_api_state.dart';
 import 'package:gitopen/ui/github/github_providers.dart';
 import 'package:gitopen/ui/github/pull_request_detail_view.dart';
+import 'package:gitopen/ui/github/pull_request_forms.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -53,43 +55,99 @@ class _PullRequestsTabState extends ConsumerState<PullRequestsTab> {
           );
         }
         final selected = _selectedNumber;
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final list = _PullRequestList(
-              repo: widget.repo,
-              slug: widget.slug,
-              token: widget.token,
-              prs: prs,
-              selectedNumber: selected,
-              onSelect: (number) => setState(() => _selectedNumber = number),
-            );
-            final detail = selected == null
-                ? const _NoPullRequestSelected()
-                : PullRequestDetailView(
+        return Column(
+          children: [
+            _PullRequestsToolbar(onCreate: _createPullRequest),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final list = _PullRequestList(
                     repo: widget.repo,
                     slug: widget.slug,
                     token: widget.token,
-                    number: selected,
+                    prs: prs,
+                    selectedNumber: selected,
+                    onSelect: (number) =>
+                        setState(() => _selectedNumber = number),
                   );
-            if (constraints.maxWidth < 720) {
-              return Column(
-                children: [
-                  SizedBox(height: 210, child: list),
-                  Container(height: 1, color: palette.border),
-                  Expanded(child: detail),
-                ],
-              );
-            }
-            return Row(
-              children: [
-                SizedBox(width: 360, child: list),
-                Container(width: 1, color: palette.border),
-                Expanded(child: detail),
-              ],
-            );
-          },
+                  final detail = selected == null
+                      ? const _NoPullRequestSelected()
+                      : PullRequestDetailView(
+                          repo: widget.repo,
+                          slug: widget.slug,
+                          token: widget.token,
+                          number: selected,
+                        );
+                  if (constraints.maxWidth < 720) {
+                    return Column(
+                      children: [
+                        SizedBox(height: 210, child: list),
+                        Container(height: 1, color: palette.border),
+                        Expanded(child: detail),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      SizedBox(width: 360, child: list),
+                      Container(width: 1, color: palette.border),
+                      Expanded(child: detail),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Future<void> _createPullRequest() async {
+    final result = await showCreatePullRequestDialog(context);
+    if (result == null || !mounted) return;
+    try {
+      final created = await ref
+          .read(gitHubApiProvider)
+          .createPullRequest(widget.slug, result.request, token: widget.token);
+      ref.invalidate(
+        githubPullRequestsProvider((slug: widget.slug, token: widget.token)),
+      );
+      setState(() => _selectedNumber = created.number);
+    } on Object catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+}
+
+class _PullRequestsToolbar extends StatelessWidget {
+  const _PullRequestsToolbar({required this.onCreate});
+
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    return Container(
+      height: 38,
+      decoration: BoxDecoration(
+        color: palette.bg2,
+        border: Border(bottom: BorderSide(color: palette.border)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: Row(
+        children: [
+          FilledButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add, size: 14),
+            label: const Text('Create PR'),
+          ),
+          const Spacer(),
+        ],
+      ),
     );
   }
 }

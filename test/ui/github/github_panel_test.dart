@@ -15,6 +15,10 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 final class _FakeApi implements GitHubApi {
   _FakeApi({this.error});
   final GitHubApiException? error;
+  CreatePullRequestRequest? createdRequest;
+  UpdatePullRequestRequest? updatedRequest;
+  MergePullRequestRequest? mergedRequest;
+  bool markedReady = false;
 
   @override
   Future<List<PullRequestInfo>> listPullRequests(
@@ -129,7 +133,10 @@ final class _FakeApi implements GitHubApi {
     RepoSlug slug,
     CreatePullRequestRequest request, {
     required String token,
-  }) async => getPullRequest(slug, 13, token: token);
+  }) async {
+    createdRequest = request;
+    return getPullRequest(slug, 13, token: token);
+  }
 
   @override
   Future<PullRequestDetail> updatePullRequest(
@@ -137,14 +144,20 @@ final class _FakeApi implements GitHubApi {
     int number,
     UpdatePullRequestRequest request, {
     required String token,
-  }) async => getPullRequest(slug, number, token: token);
+  }) async {
+    updatedRequest = request;
+    return getPullRequest(slug, number, token: token);
+  }
 
   @override
   Future<PullRequestDetail> markPullRequestReadyForReview(
     RepoSlug slug,
     int number, {
     required String token,
-  }) async => getPullRequest(slug, number, token: token);
+  }) async {
+    markedReady = true;
+    return getPullRequest(slug, number, token: token);
+  }
 
   @override
   Future<void> mergePullRequest(
@@ -152,7 +165,9 @@ final class _FakeApi implements GitHubApi {
     int number,
     MergePullRequestRequest request, {
     required String token,
-  }) async {}
+  }) async {
+    mergedRequest = request;
+  }
 
   @override
   Future<IssueCommentInfo> createIssueComment(
@@ -288,6 +303,66 @@ void main() {
     expect(find.text('main <- feat/widget'), findsOneWidget);
     expect(find.text('lib/widget.dart'), findsOneWidget);
     expect(find.textContaining('+new'), findsOneWidget);
+  });
+
+  testWidgets('Create PR dialog calls createPullRequest', (tester) async {
+    final api = _FakeApi();
+    await _pump(tester, repo: repo, api: api, profile: profile);
+
+    await tester.tap(find.text('Create PR'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('create-pr-title')), 'New PR');
+    await tester.enterText(find.byKey(const Key('create-pr-body')), 'Body');
+    await tester.enterText(find.byKey(const Key('create-pr-base')), 'main');
+    await tester.enterText(
+      find.byKey(const Key('create-pr-head')),
+      'feat/widget',
+    );
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    expect(api.createdRequest?.title, 'New PR');
+    expect(api.createdRequest?.base, 'main');
+  });
+
+  testWidgets('Merge PR dialog calls mergePullRequest', (tester) async {
+    final api = _FakeApi();
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Improve the widget'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Merge'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Squash'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm merge'));
+    await tester.pumpAndSettle();
+
+    expect(api.mergedRequest?.method, PullRequestMergeMethod.squash);
+  });
+
+  testWidgets('Ready button marks a draft PR ready for review', (tester) async {
+    final api = _FakeApi();
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Improve the widget'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ready'));
+    await tester.pumpAndSettle();
+
+    expect(api.markedReady, isTrue);
+  });
+
+  testWidgets('Close button updates PR state to closed', (tester) async {
+    final api = _FakeApi();
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Improve the widget'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    expect(api.updatedRequest?.state, 'closed');
   });
 
   testWidgets('a network error renders inline with a Retry button', (

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
+import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/github/github_api_state.dart';
 import 'package:gitopen/ui/github/github_providers.dart';
 import 'package:gitopen/ui/github/pull_request_files_view.dart';
+import 'package:gitopen/ui/github/pull_request_forms.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-class PullRequestDetailView extends ConsumerWidget {
+class PullRequestDetailView extends ConsumerStatefulWidget {
   const PullRequestDetailView({
     required this.repo,
     required this.slug,
@@ -22,8 +24,20 @@ class PullRequestDetailView extends ConsumerWidget {
   final int number;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final key = (slug: slug, token: token, number: number);
+  ConsumerState<PullRequestDetailView> createState() =>
+      _PullRequestDetailViewState();
+}
+
+class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    final key = (
+      slug: widget.slug,
+      token: widget.token,
+      number: widget.number,
+    );
     final detailAsync = ref.watch(githubPullRequestDetailProvider(key));
     return detailAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -34,24 +48,134 @@ class PullRequestDetailView extends ConsumerWidget {
       data: (detail) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PullRequestHeader(detail: detail),
+          _PullRequestHeader(
+            detail: detail,
+            error: _error,
+            onEdit: () => _edit(detail),
+            onClose: () => _update(
+              const UpdatePullRequestRequest(state: 'closed'),
+              successMessage: 'Pull request closed.',
+            ),
+            onReopen: () => _update(
+              const UpdatePullRequestRequest(state: 'open'),
+              successMessage: 'Pull request reopened.',
+            ),
+            onReady: detail.isDraft ? () => _ready(detail) : null,
+            onMerge: () => _merge(detail),
+          ),
           Expanded(
             child: PullRequestFilesView(
-              slug: slug,
-              token: token,
-              number: number,
+              slug: widget.slug,
+              token: widget.token,
+              number: widget.number,
             ),
           ),
         ],
       ),
     );
   }
+
+  void _invalidate() {
+    final detailKey = (
+      slug: widget.slug,
+      token: widget.token,
+      number: widget.number,
+    );
+    ref
+      ..invalidate(githubPullRequestDetailProvider(detailKey))
+      ..invalidate(
+        githubPullRequestsProvider((slug: widget.slug, token: widget.token)),
+      );
+  }
+
+  Future<void> _edit(PullRequestDetail detail) async {
+    final result = await showEditPullRequestDialog(context, detail);
+    if (result == null || !mounted) return;
+    await _update(result.request, successMessage: 'Pull request updated.');
+  }
+
+  Future<void> _update(
+    UpdatePullRequestRequest request, {
+    required String successMessage,
+  }) async {
+    await _runMutation(() async {
+      await ref
+          .read(gitHubApiProvider)
+          .updatePullRequest(
+            widget.slug,
+            widget.number,
+            request,
+            token: widget.token,
+          );
+      _invalidate();
+      return successMessage;
+    });
+  }
+
+  Future<void> _ready(PullRequestDetail detail) async {
+    await _runMutation(() async {
+      await ref
+          .read(gitHubApiProvider)
+          .markPullRequestReadyForReview(
+            widget.slug,
+            detail.number,
+            token: widget.token,
+          );
+      _invalidate();
+      return 'Pull request marked ready.';
+    });
+  }
+
+  Future<void> _merge(PullRequestDetail detail) async {
+    final result = await showMergePullRequestDialog(context);
+    if (result == null || !mounted) return;
+    await _runMutation(() async {
+      await ref
+          .read(gitHubApiProvider)
+          .mergePullRequest(
+            widget.slug,
+            detail.number,
+            result.request,
+            token: widget.token,
+          );
+      _invalidate();
+      return 'Pull request merged.';
+    });
+  }
+
+  Future<void> _runMutation(Future<String> Function() op) async {
+    setState(() => _error = null);
+    try {
+      final message = await op();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() => _error = '$e');
+    }
+  }
 }
 
 class _PullRequestHeader extends StatelessWidget {
-  const _PullRequestHeader({required this.detail});
+  const _PullRequestHeader({
+    required this.detail,
+    required this.error,
+    required this.onEdit,
+    required this.onClose,
+    required this.onReopen,
+    required this.onReady,
+    required this.onMerge,
+  });
 
   final PullRequestDetail detail;
+  final String? error;
+  final VoidCallback onEdit;
+  final VoidCallback onClose;
+  final VoidCallback onReopen;
+  final VoidCallback? onReady;
+  final VoidCallback onMerge;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +227,48 @@ class _PullRequestHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: palette.fg1, fontSize: 12.5, height: 1.35),
           ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.edit_outlined, size: 14),
+                label: const Text('Edit'),
+                onPressed: onEdit,
+              ),
+              if (detail.isOpen)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.block, size: 14),
+                  label: const Text('Close'),
+                  onPressed: onClose,
+                )
+              else
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text('Reopen'),
+                  onPressed: onReopen,
+                ),
+              if (onReady != null)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.publish_outlined, size: 14),
+                  label: const Text('Ready'),
+                  onPressed: onReady,
+                ),
+              FilledButton.icon(
+                icon: const Icon(Icons.merge_type, size: 14),
+                label: const Text('Merge'),
+                onPressed: detail.isOpen ? onMerge : null,
+              ),
+            ],
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              error!,
+              style: TextStyle(color: palette.accentErr, fontSize: 12),
+            ),
+          ],
         ],
       ),
     );
