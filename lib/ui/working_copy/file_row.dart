@@ -258,7 +258,118 @@ class _FileRowState extends ConsumerState<FileRow> {
       ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)));
   }
 
-  bool get _canExpand => !widget.isStaged && _canExpandHunks(widget.entry);
+  // --- Unstage (staged rows) — reverse-apply the index-vs-HEAD patch via
+  // `git apply --cached --reverse`; non-destructive, so no confirm. ---
+
+  Future<void> _unstageSelectedHunks(List<DiffHunk> allHunks) async {
+    final selected = _checkedHunks.toList()..sort();
+    final patch = buildPatchForHunks(
+      widget.entry.path,
+      selected.map((i) => allHunks[i]).toList(),
+    );
+    await ref.read(gitWriteOperationsProvider).unstagePatch(widget.repo, patch);
+    setState(_checkedHunks.clear);
+    _invalidateDiffs();
+  }
+
+  Future<void> _unstageSelectedLines(List<DiffHunk> allHunks) async {
+    final patches = _patchesForCheckedLines(allHunks);
+    if (patches.isEmpty) return;
+    final write = ref.read(gitWriteOperationsProvider);
+    for (final patch in patches) {
+      await write.unstagePatch(widget.repo, patch);
+    }
+    setState(_checkedLines.clear);
+    _invalidateDiffs();
+  }
+
+  Future<void> _unstageHunk(DiffHunk hunk, int index) async {
+    final patch = buildPatchForHunks(widget.entry.path, [hunk]);
+    await ref.read(gitWriteOperationsProvider).unstagePatch(widget.repo, patch);
+    if (!mounted) return;
+    setState(() {
+      _checkedHunks.remove(index);
+      _checkedLines.remove(index);
+    });
+    _invalidateDiffs();
+  }
+
+  // --- Discard selected lines/hunks (unstaged rows) — reverse-apply to the
+  // working tree via the shared discard flow (confirm + progress). ---
+
+  Future<void> _discardSelectedHunks(List<DiffHunk> allHunks) async {
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: 'Discard selected hunks',
+      body:
+          'Discard the selected hunks from "${widget.entry.path}"? Local '
+          'edits in them will be lost.',
+      confirmLabel: 'Discard',
+      dangerous: true,
+    );
+    if (!confirmed || !mounted) return;
+    final selected = _checkedHunks.toList()..sort();
+    final patch = buildPatchForHunks(
+      widget.entry.path,
+      selected.map((i) => allHunks[i]).toList(),
+    );
+    await ref
+        .read(gitActionsControllerProvider)
+        .discardHunk(context, widget.repo, patch);
+    if (!mounted) return;
+    setState(_checkedHunks.clear);
+    _invalidateDiffs();
+  }
+
+  Future<void> _discardSelectedLines(List<DiffHunk> allHunks) async {
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: 'Discard selected lines',
+      body:
+          'Discard the selected lines from "${widget.entry.path}"? Local '
+          'edits to them will be lost.',
+      confirmLabel: 'Discard',
+      dangerous: true,
+    );
+    if (!confirmed || !mounted) return;
+    final patches = _patchesForCheckedLines(allHunks);
+    if (patches.isEmpty) return;
+    final controller = ref.read(gitActionsControllerProvider);
+    for (final patch in patches) {
+      await controller.discardHunk(context, widget.repo, patch);
+      if (!mounted) return;
+    }
+    setState(_checkedLines.clear);
+    _invalidateDiffs();
+  }
+
+  List<String> _patchesForCheckedLines(List<DiffHunk> allHunks) {
+    final patches = <String>[];
+    for (final entry in _checkedLines.entries) {
+      if (entry.value.isEmpty) continue;
+      final patch = buildPatchForLines(
+        widget.entry.path,
+        allHunks[entry.key],
+        entry.value,
+      );
+      if (patch.isNotEmpty) patches.add(patch);
+    }
+    return patches;
+  }
+
+  void _invalidateDiffs() {
+    ref
+      ..invalidate(workingCopyStatusProvider(widget.repo))
+      ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)))
+      ..invalidate(stagedFileDiffProvider((widget.repo, widget.entry.path)));
+  }
+
+  /// Staged rows expand against the index-vs-HEAD diff (for unstaging);
+  /// unstaged rows against the working-tree-vs-index diff (for staging/
+  /// discarding). Untracked/ignored unstaged files have no hunks to show.
+  bool get _canExpand => widget.isStaged
+      ? widget.entry.indexState != WorkingFileState.unmodified
+      : _canExpandHunks(widget.entry);
 
   @override
   Widget build(BuildContext context) {
@@ -374,7 +485,7 @@ class _FileRowState extends ConsumerState<FileRow> {
                       ),
                     ),
                     if (_checkedHunks.isNotEmpty || _hasCheckedLines)
-                      _buildStageSelectedButton(),
+                      _buildSelectionActions(),
                     if (!widget.isStaged &&
                         _hover &&
                         _checkedHunks.isEmpty &&
@@ -393,40 +504,78 @@ class _FileRowState extends ConsumerState<FileRow> {
     );
   }
 
-  Widget _buildStageSelectedButton() {
+  Widget _buildSelectionActions() {
     final diffAsync = ref.watch(
-      unstagedFileDiffProvider((widget.repo, widget.entry.path)),
+      widget.isStaged
+          ? stagedFileDiffProvider((widget.repo, widget.entry.path))
+          : unstagedFileDiffProvider((widget.repo, widget.entry.path)),
     );
     return diffAsync.maybeWhen(
       data: (fileDiff) {
         if (fileDiff == null) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: TextButton(
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              textStyle: const TextStyle(fontSize: 11),
+        final hunks = fileDiff.hunks;
+        final byLines = _hasCheckedLines;
+        if (widget.isStaged) {
+          return _selectionButton(
+            label: byLines
+                ? 'Unstage selected lines'
+                : 'Unstage selected hunks',
+            onPressed: byLines
+                ? () => _unstageSelectedLines(hunks)
+                : () => _unstageSelectedHunks(hunks),
+          );
+        }
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _selectionButton(
+              label: byLines ? 'Stage selected lines' : 'Stage selected hunks',
+              onPressed: byLines
+                  ? () => _stageSelectedLines(hunks)
+                  : () => _stageSelectedHunks(hunks),
             ),
-            onPressed: _hasCheckedLines
-                ? () => _stageSelectedLines(fileDiff.hunks)
-                : () => _stageSelectedHunks(fileDiff.hunks),
-            child: Text(
-              _hasCheckedLines
-                  ? 'Stage selected lines'
-                  : 'Stage selected hunks',
+            _selectionButton(
+              label: byLines
+                  ? 'Discard selected lines'
+                  : 'Discard selected hunks',
+              danger: true,
+              onPressed: byLines
+                  ? () => _discardSelectedLines(hunks)
+                  : () => _discardSelectedHunks(hunks),
             ),
-          ),
+          ],
         );
       },
       orElse: () => const SizedBox.shrink(),
     );
   }
 
+  Widget _selectionButton({
+    required String label,
+    required VoidCallback onPressed,
+    bool danger = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: TextButton(
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          textStyle: const TextStyle(fontSize: 11),
+          foregroundColor: danger ? AppPalette.of(context).accentErr : null,
+        ),
+        onPressed: onPressed,
+        child: Text(label),
+      ),
+    );
+  }
+
   Widget _buildHunkSection() {
     final diffAsync = ref.watch(
-      unstagedFileDiffProvider((widget.repo, widget.entry.path)),
+      widget.isStaged
+          ? stagedFileDiffProvider((widget.repo, widget.entry.path))
+          : unstagedFileDiffProvider((widget.repo, widget.entry.path)),
     );
     return diffAsync.when(
       loading: () => const Padding(
@@ -458,11 +607,14 @@ class _FileRowState extends ConsumerState<FileRow> {
               HunkRow(
                 hunk: fileDiff.hunks[i],
                 index: i,
+                staged: widget.isStaged,
                 isChecked: _checkedHunks.contains(i),
                 onToggle: () => _toggleHunk(i),
                 selectedLines: _checkedLines[i] ?? const <int>{},
                 onToggleLine: (lineIndex) => _toggleLine(i, lineIndex),
-                onDiscard: () => _discardHunk(fileDiff.hunks[i], i),
+                onAction: () => widget.isStaged
+                    ? _unstageHunk(fileDiff.hunks[i], i)
+                    : _discardHunk(fileDiff.hunks[i], i),
               ),
           ],
         );
@@ -502,20 +654,27 @@ class HunkRow extends StatelessWidget {
   const HunkRow({
     required this.hunk,
     required this.index,
+    required this.staged,
     required this.isChecked,
     required this.onToggle,
     required this.selectedLines,
     required this.onToggleLine,
-    required this.onDiscard,
+    required this.onAction,
     super.key,
   });
   final DiffHunk hunk;
   final int index;
+
+  /// Whether this hunk belongs to a staged row. Drives the inline action:
+  /// staged → unstage the hunk; unstaged → discard it.
+  final bool staged;
   final bool isChecked;
   final VoidCallback onToggle;
   final Set<int> selectedLines;
   final ValueChanged<int> onToggleLine;
-  final VoidCallback onDiscard;
+
+  /// Inline per-hunk action: discard (unstaged) or unstage (staged).
+  final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -562,20 +721,22 @@ class HunkRow extends StatelessWidget {
                       ),
                     ),
                     Tooltip(
-                      message: 'Discard hunk',
+                      message: staged ? 'Unstage hunk' : 'Discard hunk',
                       waitDuration: const Duration(milliseconds: 400),
                       child: Semantics(
                         button: true,
-                        label: 'Discard hunk ${index + 1}',
+                        label: staged
+                            ? 'Unstage hunk ${index + 1}'
+                            : 'Discard hunk ${index + 1}',
                         child: InkWell(
-                          onTap: onDiscard,
+                          onTap: onAction,
                           borderRadius: BorderRadius.circular(3),
                           child: Padding(
                             padding: const EdgeInsets.all(2),
                             child: Icon(
-                              Icons.undo,
+                              staged ? Icons.remove_circle_outline : Icons.undo,
                               size: 13,
-                              color: palette.accentErr,
+                              color: staged ? palette.fg2 : palette.accentErr,
                             ),
                           ),
                         ),
