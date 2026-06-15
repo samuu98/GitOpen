@@ -137,7 +137,7 @@ void _subscribePersistence(ProviderContainer container) {
 
 Future<void> _checkForUpdatesQuietly(ProviderContainer container) async {
   try {
-    const currentVersion = '0.1.0';
+    final currentVersion = await container.read(appVersionProvider.future);
     final updater = container.read(updaterProvider);
     final newer = await updater.checkForUpdates(currentVersion);
     if (newer != null) {

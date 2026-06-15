@@ -53,6 +53,7 @@ import 'package:gitopen/infrastructure/persistence/workspace_persistence_impl.da
 import 'package:gitopen/infrastructure/updates/github_release_updater.dart';
 import 'package:gitopen/infrastructure/watch/io_repo_watcher.dart';
 import 'package:gitopen/ui/services/folder_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
@@ -285,6 +286,13 @@ final appSettingsProvider =
 
 final updaterProvider = Provider<GitHubReleaseUpdater>((ref) {
   return GitHubReleaseUpdater();
+});
+
+/// The installed app version (e.g. `0.1.25`), read from the platform package
+/// metadata. Used by the update check instead of a hard-coded string.
+final appVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return info.version;
 });
 
 final gitIdentityServiceProvider = Provider<GitIdentityService>((ref) {

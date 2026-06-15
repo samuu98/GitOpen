@@ -25,6 +25,7 @@ dependencies:
   http: ^1.6.0
   intl: ^0.20.0
   logger: ^2.5.0
+  package_info_plus: ^8.1.0 # read the installed app version for update checks
   path: ^1.9.1
   path_provider: ^2.1.5
   sqlite3_flutter_libs: ^0.5.26
