@@ -1,7 +1,7 @@
 name: gitopen
 description: "Cross-platform desktop git client"
 publish_to: 'none'
-version: 0.1.26+27
+version: 0.1.27+28
 
 environment:
   sdk: ^3.11.5
@@ -48,7 +48,7 @@ flutter:
 
 msix_config:
   display_name: GitOpen
-  publisher_display_name: s.porta
+  publisher_display_name: s.porta & zN3utr4l
   identity_name: com.gitopen.desktop
   msix_version: 1.0.0.0
   logo_path: assets/icon/app_icon.png

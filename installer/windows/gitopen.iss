@@ -10,8 +10,8 @@
 AppId={{A2D8F37C-2D31-4F3D-99A1-7D8B6C7E2A11}
 AppName=GitOpen
 AppVersion={#AppVersion}
-AppPublisher=s.porta
-AppPublisherURL=https://github.com/sporta/GitOpen
+AppPublisher=s.porta & zN3utr4l
+AppPublisherURL=https://github.com/zN3utr4l/GitOpen
 DefaultDirName={autopf}\GitOpen
 DefaultGroupName=GitOpen
 DisableProgramGroupPage=yes
