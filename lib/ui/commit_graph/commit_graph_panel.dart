@@ -46,11 +46,31 @@ List<CommitNode> _layoutInIsolate(List<CommitInfo> commits) {
 /// UI rather than spinning forever.
 const _gitLogTimeout = Duration(seconds: 60);
 
+/// Commits fetched in the first page and added on each scroll-to-load. A small
+/// first page paints fast; more stream in as the user scrolls, so large repos
+/// no longer block on a single 2000-commit `git log` + full layout.
+const int _graphPageSize = 300;
+
+/// Per-repo upper bound on how many commits the graph currently loads. Starts
+/// at [_graphPageSize] and grows by a page each time the user scrolls near the
+/// bottom; [_commitGraphDataProvider] re-runs and re-lays-out the larger
+/// window (keeping the visible graph via skipLoadingOnReload).
+final StateProviderFamily<int, RepoLocation> _graphLimitProvider =
+    StateProvider.family<int, RepoLocation>((ref, repo) => _graphPageSize);
+
 class _GraphData {
-  _GraphData(this.nodes, this.refsBySha, this.maxLane);
+  _GraphData(
+    this.nodes,
+    this.refsBySha,
+    this.maxLane, {
+    required this.hasMore,
+  });
   final List<CommitNode> nodes;
   final Map<String, List<RefDecoration>> refsBySha;
   final int maxLane;
+
+  /// Whether the last page came back full — i.e. older commits likely remain.
+  final bool hasMore;
 }
 
 final FutureProviderFamily<_GraphData, RepoLocation>
@@ -83,11 +103,10 @@ _commitGraphDataProvider = FutureProvider.family<_GraphData, RepoLocation>((
 
   // Fall back to HEAD (via --all) when every branch is hidden so the panel
   // does not go completely empty.
-  // Take is capped at 2000: enough to fill several screen-heights of graph
-  // even on the densest history, while keeping memory predictable on very
-  // large monorepos.  Body is loaded on demand in the details panel, not
-  // here, so each commit row costs ~150 bytes.
-  const takeCommits = 2000;
+  // Load only the current page window; it grows as the user scrolls toward the
+  // bottom. Bodies are loaded on demand in the details panel, so each row
+  // costs ~150 bytes.
+  final takeCommits = ref.watch(_graphLimitProvider(repo));
   final query = CommitQuery(
     take: takeCommits,
     refs: refsForLog.isEmpty ? null : refsForLog,
@@ -238,7 +257,10 @@ _commitGraphDataProvider = FutureProvider.family<_GraphData, RepoLocation>((
       if (s.toLane > maxLane) maxLane = s.toLane;
     }
   }
-  return _GraphData(nodes, refsBySha, maxLane);
+  // A full window back from git means there are (probably) older commits to
+  // page in as the user keeps scrolling.
+  final hasMore = commits.length >= takeCommits;
+  return _GraphData(nodes, refsBySha, maxLane, hasMore: hasMore);
 });
 
 class CommitGraphPanel extends ConsumerStatefulWidget {
@@ -253,6 +275,26 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
   final ScrollController _controller = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_maybeLoadMore);
+  }
+
+  /// Grows the loaded window by a page when the user scrolls near the bottom,
+  /// unless a load is already in flight or there is nothing more to fetch.
+  void _maybeLoadMore() {
+    if (!_controller.hasClients) return;
+    final pos = _controller.position;
+    if (pos.pixels < pos.maxScrollExtent - 800) return;
+    final async = ref.read(_commitGraphDataProvider(widget.repo));
+    final data = async.valueOrNull;
+    if (data == null || !data.hasMore || async.isLoading) return;
+    ref
+        .read(_graphLimitProvider(widget.repo).notifier)
+        .update((n) => n + _graphPageSize);
+  }
 
   @override
   void dispose() {
@@ -324,6 +366,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
           _buildSearchField(context, palette),
           Expanded(
             child: async.when(
+              skipLoadingOnReload: true,
               data: (data) {
                 if (data.nodes.isEmpty) {
                   return Center(
@@ -347,8 +390,19 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                       child: ListView.builder(
                         controller: _controller,
                         itemExtent: 26,
-                        itemCount: data.nodes.length,
+                        itemCount: data.nodes.length + (data.hasMore ? 1 : 0),
                         itemBuilder: (context, i) {
+                          if (i >= data.nodes.length) {
+                            return const Center(
+                              child: SizedBox(
+                                height: 14,
+                                width: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                ),
+                              ),
+                            );
+                          }
                           final node = data.nodes[i];
                           final refs =
                               data.refsBySha[node.commit.sha.value] ?? const [];
