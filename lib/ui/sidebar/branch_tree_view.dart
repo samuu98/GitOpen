@@ -316,7 +316,9 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
   }
 
   Widget _renderNode(BranchTreeNode n, int depth) {
-    final indent = 6.0 + depth * 14.0;
+    // Base indent aligns the top-level folder chevron under the section
+    // header chevron (which sits at 14px in _Section); each level nests 14px.
+    final indent = 14.0 + depth * 14.0;
     if (n.children.isEmpty) {
       final branch = n.branch;
       final current = branch?.isCurrent ?? false;
