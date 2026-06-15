@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/ui/operations/activity_panel.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 // Both success and failure toasts auto-fade after this window.
@@ -44,15 +45,18 @@ class _ToastOverlayState extends ConsumerState<ToastOverlay> {
   Widget build(BuildContext context) {
     final ops = ref.watch(operationsProvider);
     final now = DateTime.now();
-    final visible = ops.where((o) {
-      if (_dismissed.contains(o.id)) return false;
-      if (o.status == OperationStatus.running ||
-          o.status == OperationStatus.pending) {
-        return true;
-      }
-      if (o.finishedAt == null) return false;
-      return now.difference(o.finishedAt!) < _autoDismiss;
-    }).take(3).toList();
+    final visible = ops
+        .where((o) {
+          if (_dismissed.contains(o.id)) return false;
+          if (o.status == OperationStatus.running ||
+              o.status == OperationStatus.pending) {
+            return true;
+          }
+          if (o.finishedAt == null) return false;
+          return now.difference(o.finishedAt!) < _autoDismiss;
+        })
+        .take(3)
+        .toList();
 
     if (visible.isEmpty) return const SizedBox.shrink();
 
@@ -82,21 +86,25 @@ class _ToastItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
+    final spacing = AppSpacing.of(context);
+    final radii = AppRadii.of(context);
     final isError = op.status == OperationStatus.failed;
     final isRunning = op.status == OperationStatus.running;
     return Container(
-      margin: const EdgeInsets.only(top: 8),
+      margin: EdgeInsets.only(top: spacing.sm),
       constraints: const BoxConstraints(maxWidth: 360, minWidth: 280),
       decoration: BoxDecoration(
         color: palette.bg2,
         border: Border.all(
-            color: isError ? palette.accentErr : palette.borderStrong),
-        borderRadius: BorderRadius.circular(6),
+          color: isError ? palette.accentErr : palette.borderStrong,
+        ),
+        borderRadius: radii.panelRadius,
         boxShadow: const [
           BoxShadow(
-              color: Color(0x80000000),
-              blurRadius: 12,
-              offset: Offset(0, 4))
+            color: Color(0x80000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
       child: InkWell(
@@ -117,26 +125,28 @@ class _ToastItem extends ConsumerWidget {
                     ),
                   if (!isRunning)
                     Icon(
-                        isError
-                            ? Icons.error_outline
-                            : Icons.check_circle_outline,
-                        size: 16,
-                        color: isError
-                            ? palette.accentErr
-                            : palette.accentCurrent),
-                  const SizedBox(width: 8),
+                      isError
+                          ? Icons.error_outline
+                          : Icons.check_circle_outline,
+                      size: 16,
+                      color: isError
+                          ? palette.accentErr
+                          : palette.accentCurrent,
+                    ),
+                  SizedBox(width: spacing.sm),
                   Expanded(
-                      child: Text(op.label,
-                          style: TextStyle(
-                              color: palette.fg0, fontSize: 12.5))),
+                    child: Text(
+                      op.label,
+                      style: TextStyle(color: palette.fg0, fontSize: 12.5),
+                    ),
+                  ),
                   if (isRunning)
                     _TinyIconButton(
                       icon: Icons.stop_circle_outlined,
                       tooltip: 'Cancel',
                       color: palette.fg2,
-                      onTap: () => ref
-                          .read(operationsProvider.notifier)
-                          .cancel(op.id),
+                      onTap: () =>
+                          ref.read(operationsProvider.notifier).cancel(op.id),
                     ),
                   _TinyIconButton(
                     icon: Icons.close,
@@ -147,22 +157,24 @@ class _ToastItem extends ConsumerWidget {
                 ],
               ),
               if (isRunning) ...[
-                const SizedBox(height: 6),
+                SizedBox(height: spacing.xs),
                 LinearProgressIndicator(value: op.progress, minHeight: 3),
                 if (op.phase.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(op.phase,
-                        style: TextStyle(
-                            color: palette.fg2, fontSize: 11)),
+                    padding: EdgeInsets.only(top: spacing.xxs),
+                    child: Text(
+                      op.phase,
+                      style: TextStyle(color: palette.fg2, fontSize: 11),
+                    ),
                   ),
               ],
               if (isError && op.errorMessage != null)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(op.errorMessage!,
-                      style: TextStyle(
-                          color: palette.accentErr, fontSize: 11)),
+                  padding: EdgeInsets.only(top: spacing.xxs),
+                  child: Text(
+                    op.errorMessage!,
+                    style: TextStyle(color: palette.accentErr, fontSize: 11),
+                  ),
                 ),
             ],
           ),
@@ -203,6 +215,7 @@ class _TinyIconButtonState extends State<_TinyIconButton> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final radii = AppRadii.of(context);
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(
@@ -218,11 +231,13 @@ class _TinyIconButtonState extends State<_TinyIconButton> {
             margin: const EdgeInsets.only(left: 2),
             decoration: BoxDecoration(
               color: _hover ? palette.bg4 : Colors.transparent,
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: radii.controlRadius,
             ),
-            child: Icon(widget.icon,
-                size: 14,
-                color: _hover ? palette.fg0 : widget.color),
+            child: Icon(
+              widget.icon,
+              size: 14,
+              color: _hover ? palette.fg0 : widget.color,
+            ),
           ),
         ),
       ),

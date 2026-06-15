@@ -5,6 +5,7 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/common/file_list_mode_toggle.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/discard_changes.dart';
 import 'package:gitopen/ui/working_copy/file_row.dart';
@@ -185,6 +186,7 @@ class _DirRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final spacing = AppSpacing.of(context);
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -201,9 +203,9 @@ class _DirRow extends StatelessWidget {
               size: 14,
               color: palette.fg3,
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: spacing.xxs),
             Icon(Icons.folder_outlined, size: 14, color: palette.accentTag),
-            const SizedBox(width: 6),
+            SizedBox(width: spacing.xs),
             Expanded(
               child: Text(
                 name,
@@ -238,8 +240,12 @@ class Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final spacing = AppSpacing.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: spacing.md,
+        vertical: spacing.xs,
+      ),
       color: palette.bg2,
       child: Row(
         children: [

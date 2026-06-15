@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 class ActivityPanel extends ConsumerWidget {
@@ -11,6 +12,7 @@ class ActivityPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ops = ref.watch(operationsProvider);
     final palette = AppPalette.of(context);
+    final spacing = AppSpacing.of(context);
     return Dialog(
       backgroundColor: palette.bg1,
       child: SizedBox(
@@ -20,7 +22,7 @@ class ActivityPanel extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: spacing.panel,
               child: Row(
                 children: [
                   Text(
@@ -70,48 +72,60 @@ class _RowState extends State<_Row> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final spacing = AppSpacing.of(context);
+    final radii = AppRadii.of(context);
     final op = widget.op;
-    IconData icon; Color color;
+    IconData icon;
+    Color color;
     switch (op.status) {
       case OperationStatus.running:
       case OperationStatus.pending:
-        icon = Icons.refresh; color = palette.accentRemote;
+        icon = Icons.refresh;
+        color = palette.accentRemote;
       case OperationStatus.success:
-        icon = Icons.check_circle; color = palette.accentCurrent;
+        icon = Icons.check_circle;
+        color = palette.accentCurrent;
       case OperationStatus.failed:
-        icon = Icons.error; color = palette.accentErr;
+        icon = Icons.error;
+        color = palette.accentErr;
       case OperationStatus.cancelled:
-        icon = Icons.block; color = palette.fg2;
+        icon = Icons.block;
+        color = palette.fg2;
     }
     return InkWell(
       onTap: () => setState(() => _expanded = !_expanded),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: EdgeInsets.symmetric(
+          horizontal: spacing.md,
+          vertical: spacing.xs,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  op.label,
-                  style: TextStyle(color: palette.fg0, fontSize: 12.5),
+            Row(
+              children: [
+                Icon(icon, size: 14, color: color),
+                SizedBox(width: spacing.sm),
+                Expanded(
+                  child: Text(
+                    op.label,
+                    style: TextStyle(color: palette.fg0, fontSize: 12.5),
+                  ),
                 ),
-              ),
-              Text(
-                op.startedAt.toLocal().toString().substring(11, 19),
-                style: TextStyle(color: palette.fg3, fontSize: 11),
-              ),
-            ]),
+                Text(
+                  op.startedAt.toLocal().toString().substring(11, 19),
+                  style: TextStyle(color: palette.fg3, fontSize: 11),
+                ),
+              ],
+            ),
             if (_expanded && op.stderrTail.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 6, left: 22),
+                padding: EdgeInsets.only(top: spacing.xs, left: 22),
                 child: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(spacing.sm),
                   decoration: BoxDecoration(
                     color: palette.bg2,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: radii.rowRadius,
                   ),
                   child: Text(
                     op.stderrTail.join('\n'),
@@ -125,7 +139,7 @@ class _RowState extends State<_Row> {
               ),
             if (_expanded && op.errorMessage != null)
               Padding(
-                padding: const EdgeInsets.only(top: 6, left: 22),
+                padding: EdgeInsets.only(top: spacing.xs, left: 22),
                 child: Text(
                   op.errorMessage!,
                   style: TextStyle(color: palette.accentErr, fontSize: 11),

@@ -14,6 +14,7 @@ import 'package:gitopen/ui/common/diff_line_row.dart';
 import 'package:gitopen/ui/common/diff_prefs.dart';
 import 'package:gitopen/ui/common/image_diff_view.dart';
 import 'package:gitopen/ui/common/truncated_diff_banner.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final AutoDisposeFutureProviderFamily<
@@ -74,6 +75,7 @@ class DiffView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
+    final spacing = AppSpacing.of(context);
     final ignoreWhitespace = ref.watch(ignoreWhitespaceProvider);
     final async = ref.watch(
       _diffProvider(
@@ -103,7 +105,7 @@ class DiffView extends ConsumerWidget {
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.all(12),
+              padding: spacing.panel,
               itemCount: d.files.length,
               itemBuilder: (_, i) =>
                   _FileDiffBlock(file: d.files[i], repo: repo, sha: sha),
@@ -138,6 +140,8 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final spacing = AppSpacing.of(context);
+    final radii = AppRadii.of(context);
     final language = languageForPath(file.path);
     final full = _full
         ? ref.watch(
@@ -153,11 +157,11 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
         : null;
     final shown = full?.valueOrNull ?? file;
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: spacing.md),
       decoration: BoxDecoration(
         color: palette.bg1,
         border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: radii.panelRadius,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -173,7 +177,7 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
                     newRevision: FileRevisionAtCommit(widget.sha),
                   )
                 : Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(spacing.md),
                     child: Text(
                       'Binary file (no preview)',
                       style: TextStyle(
