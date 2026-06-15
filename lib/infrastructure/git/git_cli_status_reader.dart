@@ -12,7 +12,10 @@ final class GitCliStatusReader {
 
   Future<RepoStatus> getStatus(RepoLocation repo) async {
     final stdout = await _runner.run(repo.path, [
-      'status', '--porcelain=v2', '--branch', '-z',
+      // `--no-optional-locks` keeps this read-only status from refreshing and
+      // rewriting `.git/index`, which would otherwise wake the repo watcher
+      // and feed an auto-refresh loop.
+      '--no-optional-locks', 'status', '--porcelain=v2', '--branch', '-z',
     ]);
 
     String? branch;
@@ -77,11 +80,13 @@ final class GitCliStatusReader {
         }
         final xy = parts[1];
         final path = parts.sublist(8).join(' ');
-        entries.add(WorkingFileEntry(
-          path: path,
-          indexState: _mapIndex(xy[0]),
-          workingTreeState: _mapWorktree(xy[1]),
-        ));
+        entries.add(
+          WorkingFileEntry(
+            path: path,
+            indexState: _mapIndex(xy[0]),
+            workingTreeState: _mapWorktree(xy[1]),
+          ),
+        );
         i++;
         continue;
       }
@@ -98,12 +103,14 @@ final class GitCliStatusReader {
         final xy = parts[1];
         final newPath = parts.sublist(9).join(' ');
         final origPath = i + 1 < tokens.length ? tokens[i + 1] : null;
-        entries.add(WorkingFileEntry(
-          path: newPath,
-          indexState: _mapIndex(xy[0]),
-          workingTreeState: _mapWorktree(xy[1]),
-          oldPath: origPath,
-        ));
+        entries.add(
+          WorkingFileEntry(
+            path: newPath,
+            indexState: _mapIndex(xy[0]),
+            workingTreeState: _mapWorktree(xy[1]),
+            oldPath: origPath,
+          ),
+        );
         i += 2;
         continue;
       }
@@ -116,29 +123,35 @@ final class GitCliStatusReader {
         }
         final xy = parts[1];
         final path = parts.sublist(10).join(' ');
-        entries.add(WorkingFileEntry(
-          path: path,
-          indexState: _mapIndex(xy[0]),
-          workingTreeState: WorkingFileState.conflicted,
-        ));
+        entries.add(
+          WorkingFileEntry(
+            path: path,
+            indexState: _mapIndex(xy[0]),
+            workingTreeState: WorkingFileState.conflicted,
+          ),
+        );
         i++;
         continue;
       }
       if (tok.startsWith('? ')) {
-        entries.add(WorkingFileEntry(
-          path: tok.substring(2),
-          indexState: WorkingFileState.unmodified,
-          workingTreeState: WorkingFileState.untracked,
-        ));
+        entries.add(
+          WorkingFileEntry(
+            path: tok.substring(2),
+            indexState: WorkingFileState.unmodified,
+            workingTreeState: WorkingFileState.untracked,
+          ),
+        );
         i++;
         continue;
       }
       if (tok.startsWith('! ')) {
-        entries.add(WorkingFileEntry(
-          path: tok.substring(2),
-          indexState: WorkingFileState.unmodified,
-          workingTreeState: WorkingFileState.ignored,
-        ));
+        entries.add(
+          WorkingFileEntry(
+            path: tok.substring(2),
+            indexState: WorkingFileState.unmodified,
+            workingTreeState: WorkingFileState.ignored,
+          ),
+        );
         i++;
         continue;
       }

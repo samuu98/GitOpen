@@ -28,36 +28,42 @@ class IoRepoWatcher implements RepoWatcher {
         }
       }
       ..onListen = () {
-      final gitDir = _resolveGitDir(repo.path);
-      if (gitDir == null) {
-        unawaited(controller.close());
-        return;
-      }
-      final targets = [
-        Directory(gitDir),
-        Directory(p.join(gitDir, 'logs')),
-      ].where((d) => d.existsSync()).toList();
-      if (targets.isEmpty) {
-        unawaited(controller.close());
-        return;
-      }
-      var open = targets.length;
-      for (final t in targets) {
-        subs.add(t.watch().listen(
-          (_) {
-            if (!controller.isClosed) controller.add(null);
-          },
-          onError: (Object e) {
-            appLog.w('repo watcher error on ${t.path}: $e');
-          },
-          onDone: () {
-            open--;
-            if (open == 0 && !controller.isClosed) {
-              unawaited(controller.close());
-            }
-          },
-        ));
-      }
+        final gitDir = _resolveGitDir(repo.path);
+        if (gitDir == null) {
+          unawaited(controller.close());
+          return;
+        }
+        final targets = [
+          Directory(gitDir),
+          Directory(p.join(gitDir, 'logs')),
+        ].where((d) => d.existsSync()).toList();
+        if (targets.isEmpty) {
+          unawaited(controller.close());
+          return;
+        }
+        var open = targets.length;
+        for (final t in targets) {
+          subs.add(
+            t.watch().listen(
+              (event) {
+                // Skip `.git/index` + lock churn (our own `git status`
+                // rewrites the index) or this watcher re-fires itself in a
+                // loop; see [isTransientGitNoise].
+                if (isTransientGitNoise(event.path)) return;
+                if (!controller.isClosed) controller.add(null);
+              },
+              onError: (Object e) {
+                appLog.w('repo watcher error on ${t.path}: $e');
+              },
+              onDone: () {
+                open--;
+                if (open == 0 && !controller.isClosed) {
+                  unawaited(controller.close());
+                }
+              },
+            ),
+          );
+        }
       };
     return controller.stream;
   }
@@ -71,9 +77,9 @@ class IoRepoWatcher implements RepoWatcher {
     if (!f.existsSync()) return null;
     try {
       final line = f.readAsLinesSync().firstWhere(
-            (l) => l.startsWith('gitdir:'),
-            orElse: () => '',
-          );
+        (l) => l.startsWith('gitdir:'),
+        orElse: () => '',
+      );
       if (line.isEmpty) return null;
       final target = line.substring('gitdir:'.length).trim();
       return p.isAbsolute(target)
@@ -83,4 +89,14 @@ class IoRepoWatcher implements RepoWatcher {
       return null;
     }
   }
+}
+
+/// True for git bookkeeping files that churn during normal read operations —
+/// notably `.git/index` (rewritten by `git status`) and any `*.lock` file.
+/// Auto-refreshing on these makes [IoRepoWatcher] re-trigger itself in a loop
+/// (status → index write → fs event → refresh → status …), so they are
+/// dropped. HEAD/refs/FETCH_HEAD/MERGE_HEAD/packed-refs/reflog still pass.
+bool isTransientGitNoise(String path) {
+  final name = p.basename(path);
+  return name == 'index' || name.endsWith('.lock');
 }
