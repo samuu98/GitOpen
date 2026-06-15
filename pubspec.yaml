@@ -1,7 +1,7 @@
 name: gitopen
 description: "Cross-platform desktop git client"
 publish_to: 'none'
-version: 0.1.25+26
+version: 0.1.26+27
 
 environment:
   sdk: ^3.11.5
