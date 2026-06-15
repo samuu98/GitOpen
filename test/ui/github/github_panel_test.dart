@@ -283,6 +283,7 @@ void main() {
   testWidgets('no usable token shows the sign-in CTA', (tester) async {
     await _pump(tester, repo: repo, api: _FakeApi());
     expect(find.text('Sign in with GitHub'), findsOneWidget);
+    expect(find.byIcon(Icons.cloud_off_outlined), findsOneWidget);
   });
 
   testWidgets('lists open pull requests with draft badge and checks', (

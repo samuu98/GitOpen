@@ -70,6 +70,23 @@ void main() {
     expect(find.text('12 MB'), findsOneWidget);
     expect(find.byTooltip('Add pattern'), findsOneWidget);
   });
+
+  testWidgets('shows empty patterns and files messages when ready', (
+    tester,
+  ) async {
+    await _pumpLfs(
+      tester,
+      status: const GitLfsStatus(
+        isInstalled: true,
+        version: '3.6.1',
+        isRepoConfigured: true,
+        hasAttributes: true,
+      ),
+    );
+
+    expect(find.text('No tracked patterns'), findsOneWidget);
+    expect(find.text('No LFS files in this repository'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpLfs(

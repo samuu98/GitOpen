@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/git_lfs/git_lfs_models.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
 import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/lfs/lfs_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -54,28 +55,10 @@ class _LfsNotInstalled extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.storage_outlined, size: 32, color: palette.fg3),
-          const SizedBox(height: 8),
-          Text(
-            'Git LFS is not installed',
-            style: TextStyle(
-              color: palette.fg1,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Install git-lfs from git-lfs.com, then reopen this view.',
-            style: TextStyle(color: palette.fg3, fontSize: 12),
-          ),
-        ],
-      ),
+    return const AppEmptyState(
+      icon: Icons.storage_outlined,
+      title: 'Git LFS is not installed',
+      message: 'Install git-lfs from git-lfs.com, then reopen this view.',
     );
   }
 }
@@ -87,26 +70,16 @@ class _LfsSetup extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = AppPalette.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Git LFS ${status.version ?? ''} is available but not set up '
-            'in this repository.',
-            style: TextStyle(color: palette.fg1, fontSize: 12.5),
-          ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            icon: const Icon(Icons.download_done, size: 16),
-            label: const Text('Install in repo'),
-            onPressed: () => ref
-                .read(lfsActionsControllerProvider)
-                .installLocal(context, repo),
-          ),
-        ],
-      ),
+    return AppEmptyState(
+      icon: Icons.download_done,
+      title: 'Git LFS is available',
+      message:
+          'Git LFS ${status.version ?? ''} is available but not set up in '
+          'this repository.',
+      actionIcon: Icons.download_done,
+      actionLabel: 'Install in repo',
+      onAction: () =>
+          ref.read(lfsActionsControllerProvider).installLocal(context, repo),
     );
   }
 }
@@ -238,15 +211,10 @@ class _TrackedPatternsSection extends ConsumerWidget {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => _LfsError(message: '$e'),
             data: (patterns) => patterns.isEmpty
-                ? Center(
-                    child: Text(
-                      'No tracked patterns',
-                      style: TextStyle(
-                        color: palette.fg3,
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
+                ? const AppEmptyState(
+                    icon: Icons.label_off_outlined,
+                    title: 'No tracked patterns',
+                    message: 'Track a file pattern to store it with Git LFS.',
                   )
                 : ListView.builder(
                     itemCount: patterns.length,
@@ -376,15 +344,11 @@ class _LfsFilesSection extends ConsumerWidget {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => _LfsError(message: '$e'),
             data: (files) => files.isEmpty
-                ? Center(
-                    child: Text(
-                      'No LFS files in this repository',
-                      style: TextStyle(
-                        color: palette.fg3,
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
+                ? const AppEmptyState(
+                    icon: Icons.folder_off_outlined,
+                    title: 'No LFS files in this repository',
+                    message:
+                        'Files matching tracked patterns will appear here.',
                   )
                 : ListView.builder(
                     itemCount: files.length,

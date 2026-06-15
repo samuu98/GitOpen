@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
 import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/github/github_api_state.dart';
 import 'package:gitopen/ui/github/github_providers.dart';
@@ -23,7 +24,6 @@ class GitHubActionsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = AppPalette.of(context);
     final branch = ref
         .watch(repoStatusProvider(repo))
         .valueOrNull
@@ -37,17 +37,15 @@ class GitHubActionsTab extends ConsumerWidget {
         onRetry: () => ref.invalidate(githubWorkflowRunsProvider(key)),
       ),
       data: (runs) => runs.isEmpty
-          ? Center(
-              child: Text(
-                branch == null
-                    ? 'No workflow runs'
-                    : 'No workflow runs for $branch',
-                style: TextStyle(
-                  color: palette.fg3,
-                  fontSize: 12.5,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
+          ? AppEmptyState(
+              icon: Icons.play_circle_outline,
+              title: branch == null
+                  ? 'No workflow runs'
+                  : 'No workflow runs for $branch',
+              message: 'Recent GitHub Actions activity will appear here.',
+              actionIcon: Icons.refresh,
+              actionLabel: 'Refresh',
+              onAction: () => ref.invalidate(githubWorkflowRunsProvider(key)),
             )
           : ListView.builder(
               padding: const EdgeInsets.all(8),

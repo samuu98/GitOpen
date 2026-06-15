@@ -6,6 +6,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/commit_details_view.dart';
 import 'package:gitopen/ui/bottom_panel/diff_view.dart';
 import 'package:gitopen/ui/bottom_panel/file_tree_view.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 class BottomPanel extends ConsumerStatefulWidget {
@@ -38,11 +39,11 @@ class _BottomPanelState extends ConsumerState<BottomPanel> {
   }
 
   Widget _body(BuildContext context, CommitSha? sha) {
-    final palette = AppPalette.of(context);
     if (sha == null) {
-      return Center(
-        child: Text('Select a commit.',
-            style: TextStyle(color: palette.fg2, fontStyle: FontStyle.italic)),
+      return const AppEmptyState(
+        icon: Icons.commit,
+        title: 'No commit selected',
+        message: 'Select a commit to see its details, changes, and files.',
       );
     }
     switch (_tab) {

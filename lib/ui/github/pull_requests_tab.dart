@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/github/github_api_state.dart';
 import 'package:gitopen/ui/github/github_providers.dart';
@@ -43,15 +44,13 @@ class _PullRequestsTabState extends ConsumerState<PullRequestsTab> {
       ),
       data: (prs) {
         if (prs.isEmpty) {
-          return Center(
-            child: Text(
-              'No open pull requests',
-              style: TextStyle(
-                color: palette.fg3,
-                fontSize: 12.5,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
+          return AppEmptyState(
+            icon: Icons.merge_type_outlined,
+            title: 'No open pull requests',
+            message: 'This repository has no open pull requests right now.',
+            actionIcon: Icons.refresh,
+            actionLabel: 'Refresh',
+            onAction: () => ref.invalidate(githubPullRequestsProvider(key)),
           );
         }
         final selected = _selectedNumber;
