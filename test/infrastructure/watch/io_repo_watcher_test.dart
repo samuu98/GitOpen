@@ -19,8 +19,9 @@ void main() {
         final first = watcher.changes(repo).first;
         // Give the OS watcher a beat to attach before mutating.
         await Future<void>.delayed(const Duration(milliseconds: 300));
-        await File(p.join(f.path, '.git', 'HEAD'))
-            .writeAsString('ref: refs/heads/master\n');
+        await File(
+          p.join(f.path, '.git', 'HEAD'),
+        ).writeAsString('ref: refs/heads/master\n');
         await first.timeout(const Duration(seconds: 10));
       } finally {
         await f.dispose();
@@ -39,5 +40,30 @@ void main() {
     } finally {
       dir.deleteSync(recursive: true);
     }
+  });
+
+  group('isTransientGitNoise', () {
+    test('ignores the index and any lock file', () {
+      expect(isTransientGitNoise(p.join('r', '.git', 'index')), isTrue);
+      expect(isTransientGitNoise(p.join('r', '.git', 'index.lock')), isTrue);
+      expect(isTransientGitNoise(p.join('r', '.git', 'HEAD.lock')), isTrue);
+      expect(isTransientGitNoise(p.join('r', '.git', 'config.lock')), isTrue);
+      expect(
+        isTransientGitNoise(p.join('r', '.git', 'packed-refs.lock')),
+        isTrue,
+      );
+    });
+
+    test('keeps meaningful bookkeeping files', () {
+      expect(isTransientGitNoise(p.join('r', '.git', 'HEAD')), isFalse);
+      expect(isTransientGitNoise(p.join('r', '.git', 'ORIG_HEAD')), isFalse);
+      expect(isTransientGitNoise(p.join('r', '.git', 'FETCH_HEAD')), isFalse);
+      expect(isTransientGitNoise(p.join('r', '.git', 'MERGE_HEAD')), isFalse);
+      expect(isTransientGitNoise(p.join('r', '.git', 'packed-refs')), isFalse);
+      expect(
+        isTransientGitNoise(p.join('r', '.git', 'logs', 'HEAD')),
+        isFalse,
+      );
+    });
   });
 }
