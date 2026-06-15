@@ -16,6 +16,7 @@ import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
 import 'package:gitopen/ui/commit_graph/local_changes_row.dart';
 import 'package:gitopen/ui/commit_graph/ref_decoration.dart';
+import 'package:gitopen/ui/commit_graph/ref_pill.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:intl/intl.dart';
 
@@ -146,5 +147,20 @@ void main() {
     await tester.pump();
 
     expect(find.text('view:changes'), findsOneWidget);
+  });
+
+  testWidgets('ref pill preserves branch and remote labels', (tester) async {
+    const decoration = RefDecoration(
+      name: 'main',
+      syncedRemotes: ['origin/main'],
+      isRemote: false,
+      isTag: false,
+      isCurrent: true,
+    );
+    await tester.pumpWidget(_host(const RefPill(decoration: decoration)));
+
+    expect(find.text('main'), findsOneWidget);
+    expect(find.text('origin/main'), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsOneWidget);
   });
 }

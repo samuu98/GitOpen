@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gitopen/ui/commit_graph/ref_decoration.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// Fork-style ref pill. Renders as a single pill split into two halves
@@ -8,13 +9,16 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 /// remote name(s) prefixed with ⇄ to signal the sync.
 class RefPill extends StatelessWidget {
   const RefPill({
-    required this.decoration, super.key,
+    required this.decoration,
+    super.key,
     this.onTap,
     this.onDoubleTap,
   });
   final RefDecoration decoration;
+
   /// Invoked when the user single-clicks the pill.
   final VoidCallback? onTap;
+
   /// Invoked when the user double-clicks the pill (typically: checkout).
   final VoidCallback? onDoubleTap;
 
@@ -22,6 +26,12 @@ class RefPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final appPalette = AppPalette.of(context);
     final palette = _palette(appPalette);
+    final spacing = AppSpacing.of(context);
+    final radii = AppRadii.of(context);
+    final sectionPadding = EdgeInsets.symmetric(
+      horizontal: spacing.sm,
+      vertical: spacing.xxs / 2,
+    );
 
     final localSide = _Section(
       icon: _leadingIcon(palette),
@@ -32,11 +42,11 @@ class RefPill extends StatelessWidget {
     final Widget pill;
     if (!decoration.isSynced) {
       pill = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+        padding: sectionPadding,
         decoration: BoxDecoration(
           color: palette.bg,
           border: Border.all(color: palette.border),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: radii.controlRadius,
         ),
         child: localSide,
       );
@@ -45,28 +55,16 @@ class RefPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: palette.bg,
           border: Border.all(color: palette.border),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: radii.controlRadius,
         ),
         child: IntrinsicHeight(
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 7,
-                  vertical: 1.5,
-                ),
-                child: localSide,
-              ),
+              Padding(padding: sectionPadding, child: localSide),
+              Container(width: 1, color: palette.border),
               Container(
-                width: 1,
-                color: palette.border,
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 7,
-                  vertical: 1.5,
-                ),
+                padding: sectionPadding,
                 color: palette.remoteTintBg,
                 child: _Section(
                   icon: Icon(Icons.sync_alt, size: 10, color: palette.remoteFg),
@@ -151,6 +149,7 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final typography = AppTypography.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -158,11 +157,9 @@ class _Section extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
+          style: typography.monoSmall.copyWith(
+            fontWeight: FontWeight.w600,
             color: fg,
-            fontFamily: 'monospace',
           ),
         ),
       ],

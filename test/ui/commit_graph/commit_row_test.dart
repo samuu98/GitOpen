@@ -126,4 +126,32 @@ void main() {
     await tester.pump();
     expect(pos, isNotNull);
   });
+
+  testWidgets('row keeps hoverable button semantics after polish', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        CommitRow(
+          node: _node(),
+          maxLane: 0,
+          refs: const [],
+          isSelected: false,
+          onTap: () {},
+        ),
+      ),
+    );
+
+    final semantics = tester.getSemantics(
+      find.bySemanticsLabel(RegExp('Commit aaaaaaa.*Fix crash.*Alice')),
+    );
+    expect(semantics.flagsCollection.isButton, isTrue);
+
+    final row = find.byType(CommitRow);
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: tester.getCenter(row));
+    addTearDown(gesture.removePointer);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Fix crash'), findsOneWidget);
+  });
 }
