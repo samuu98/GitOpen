@@ -31,8 +31,9 @@ PrivilegesRequiredOverridesAllowed=dialog
 ; one the Flutter Windows runner already embeds in the executable.
 SetupIconFile=..\..\windows\runner\resources\app_icon.ico
 ; Match the app's single-instance mutex so a silent in-app update waits for the
-; running instance to close before replacing files.
-AppMutex=GitOpen-SingleInstance-{A2D8F37C-2D31-4F3D-99A1-7D8B6C7E2A11}
+; running instance to close before replacing files. Inno treats `{` as a
+; constant, so the literal brace is escaped as `{{` (same as AppId above).
+AppMutex=GitOpen-SingleInstance-{{A2D8F37C-2D31-4F3D-99A1-7D8B6C7E2A11}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
