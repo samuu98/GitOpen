@@ -80,7 +80,7 @@ class GitHubReleaseUpdater {
     void Function(double progress)? onProgress,
   }) async {
     final file = await _download(asset, onProgress);
-    await _launch(file);
+    await _install(file);
   }
 
   Future<File> _download(
@@ -111,18 +111,52 @@ class GitHubReleaseUpdater {
     return file;
   }
 
-  Future<void> _launch(File file) async {
+  /// Installs [file] without a wizard. Windows: runs the Inno installer
+  /// silently (its `[Run]` step relaunches GitOpen). Linux: `pkexec dpkg -i`,
+  /// then schedules a relaunch once this process exits. On failure, opens the
+  /// package with the system handler and rethrows so the caller keeps the app
+  /// open.
+  Future<void> _install(File file) async {
     if (Platform.isWindows) {
-      await Process.start(file.path, const [], mode: ProcessStartMode.detached);
-    } else if (Platform.isLinux) {
       await Process.start(
-        'xdg-open',
-        [file.path],
+        file.path,
+        installerLaunchArgs(InstallerPlatform.windows),
         mode: ProcessStartMode.detached,
       );
-    } else {
-      await launchUrl(Uri.file(file.path));
+      return;
     }
+    if (Platform.isLinux) {
+      ProcessResult result;
+      try {
+        result = await Process.run('pkexec', ['dpkg', '-i', file.path]);
+      } on ProcessException {
+        await Process.start(
+          'xdg-open',
+          [file.path],
+          mode: ProcessStartMode.detached,
+        );
+        throw Exception('pkexec is unavailable; opened the package installer.');
+      }
+      if (result.exitCode != 0) {
+        await Process.start(
+          'xdg-open',
+          [file.path],
+          mode: ProcessStartMode.detached,
+        );
+        throw Exception(
+          'Silent install failed (exit ${result.exitCode}); '
+          'opened the package installer instead.',
+        );
+      }
+      final script = linuxRelaunchScript(pid, Platform.resolvedExecutable);
+      await Process.start(
+        'sh',
+        ['-c', script],
+        mode: ProcessStartMode.detached,
+      );
+      return;
+    }
+    await launchUrl(Uri.file(file.path));
   }
 
   InstallerPlatform _currentPlatform() {
