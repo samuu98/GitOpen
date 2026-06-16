@@ -27,13 +27,17 @@ void main() {
     // loose.txt — a file, not a directory.
     File(p.join(root.path, 'loose.txt')).writeAsStringSync('x');
 
-    final repos = await const IoRepoFolderScanner().findRepositories(root.path);
+    final repos =
+        await const IoRepoFolderScanner().findRepositories(root.path);
 
     expect(repos, [p.join(root.path, 'a'), p.join(root.path, 'c')]);
   });
 
   test('returns empty for a non-existent parent', () async {
     final missing = p.join(root.path, 'nope');
-    expect(await const IoRepoFolderScanner().findRepositories(missing), isEmpty);
+    expect(
+      await const IoRepoFolderScanner().findRepositories(missing),
+      isEmpty,
+    );
   });
 }
