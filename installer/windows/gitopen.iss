@@ -30,6 +30,9 @@ PrivilegesRequiredOverridesAllowed=dialog
 ; Brand the installer wizard with the app icon. Inno needs a .ico; reuse the
 ; one the Flutter Windows runner already embeds in the executable.
 SetupIconFile=..\..\windows\runner\resources\app_icon.ico
+; Match the app's single-instance mutex so a silent in-app update waits for the
+; running instance to close before replacing files.
+AppMutex=GitOpen-SingleInstance-{A2D8F37C-2D31-4F3D-99A1-7D8B6C7E2A11}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -48,5 +51,6 @@ Name: "{group}\Uninstall GitOpen"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\GitOpen"; Filename: "{app}\gitopen.exe"; Tasks: desktopicon
 
 [Run]
+; No `skipifsilent`, so an in-app silent update relaunches GitOpen afterward.
 Filename: "{app}\gitopen.exe"; Description: "Launch GitOpen"; \
-  Flags: nowait postinstall skipifsilent
+  Flags: nowait postinstall runasoriginaluser
