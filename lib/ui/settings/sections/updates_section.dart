@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/updates/app_release.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
+import 'package:gitopen/ui/services/app_quitter.dart';
 import 'package:gitopen/ui/settings/settings_widgets.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -157,6 +158,29 @@ class _UpdatesSectionState extends ConsumerState<UpdatesSection> {
   Future<void> _downloadAndInstall() async {
     final asset = _installer;
     if (asset == null) return;
+    final palette = AppPalette.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AppDialog(
+        title: 'Install update & restart',
+        content: Text(
+          'GitOpen will download the update, then close and reopen on the new '
+          'version. Continue?',
+          style: TextStyle(color: palette.fg1, fontSize: 12.5),
+        ),
+        actions: [
+          AppButton.secondary(
+            label: 'Cancel',
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          AppButton.primary(
+            label: 'Update & restart',
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     setState(() {
       _downloading = true;
       _progress = 0;
@@ -174,11 +198,12 @@ class _UpdatesSectionState extends ConsumerState<UpdatesSection> {
       if (!mounted) return;
       setState(() {
         _launched = true;
-        _status = 'Installer launched — quit GitOpen to finish updating.';
+        _status = 'Update installed — restarting GitOpen…';
       });
+      await ref.read(appQuitterProvider)();
     } on Object catch (e) {
       if (!mounted) return;
-      setState(() => _status = 'Download failed: $e');
+      setState(() => _status = 'Update failed: $e');
     } finally {
       if (mounted) setState(() => _downloading = false);
     }
