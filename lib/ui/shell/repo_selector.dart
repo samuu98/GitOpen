@@ -100,6 +100,23 @@ class _RepoSelectorState extends ConsumerState<RepoSelector> {
               return Colors.transparent;
             }),
           ),
+          leadingIcon: Icon(Icons.folder_copy, size: 16, color: palette.fg1),
+          onPressed: _openReposFolder,
+          child: Text(
+            'Open folder of repos...',
+            style: TextStyle(color: palette.fg0, fontSize: 12.5),
+          ),
+        ),
+        MenuItemButton(
+          style: ButtonStyle(
+            padding: WidgetStateProperty.all(
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) return palette.bg4;
+              return Colors.transparent;
+            }),
+          ),
           leadingIcon: Icon(Icons.download, size: 16, color: palette.fg1),
           onPressed: _cloneRepo,
           child: Text(
@@ -132,6 +149,35 @@ class _RepoSelectorState extends ConsumerState<RepoSelector> {
     final manager = ref.read(workspaceManagerProvider.notifier);
     final ws = await manager.open(path);
     ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
+  }
+
+  Future<void> _openReposFolder() async {
+    _menu.close();
+    final picker = ref.read(folderPickerProvider);
+    final parent = await picker.pickFolder('Open folder of repositories');
+    if (parent == null) return;
+    final paths =
+        await ref.read(repoFolderScannerProvider).findRepositories(parent);
+    if (!mounted) return;
+    if (paths.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No git repositories found in $parent')),
+      );
+      return;
+    }
+    final manager = ref.read(workspaceManagerProvider.notifier);
+    RepoId? firstId;
+    for (final path in paths) {
+      try {
+        final ws = await manager.open(path);
+        firstId ??= ws.location.id;
+      } on Object catch (_) {
+        // Skip a repo that fails to open; keep opening the rest.
+      }
+    }
+    if (firstId != null) {
+      ref.read(activeWorkspaceIdProvider.notifier).state = firstId;
+    }
   }
 
   Future<void> _cloneRepo() async {
