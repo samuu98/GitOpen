@@ -34,4 +34,26 @@ void main() {
       expect(selectInstallerAsset([exe], InstallerPlatform.linux), isNull);
     });
   });
+
+  group('installerLaunchArgs', () {
+    test('windows returns Inno silent flags', () {
+      expect(
+        installerLaunchArgs(InstallerPlatform.windows),
+        ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'],
+      );
+    });
+
+    test('linux and other have no installer args', () {
+      expect(installerLaunchArgs(InstallerPlatform.linux), isEmpty);
+      expect(installerLaunchArgs(InstallerPlatform.other), isEmpty);
+    });
+  });
+
+  group('linuxRelaunchScript', () {
+    test('waits for the pid to exit then execs the binary', () {
+      final script = linuxRelaunchScript(4321, '/opt/gitopen/gitopen');
+      expect(script, contains('kill -0 4321'));
+      expect(script, contains('exec "/opt/gitopen/gitopen"'));
+    });
+  });
 }
