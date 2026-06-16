@@ -27,9 +27,9 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; so a normal user can install without elevation.
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-; Inno Setup requires a .ico for SetupIconFile; assets ship only a .png,
-; so we leave the default installer icon for now. Add a .ico under
-; assets/icon/ later and set SetupIconFile= to embed a custom one.
+; Brand the installer wizard with the app icon. Inno needs a .ico; reuse the
+; one the Flutter Windows runner already embeds in the executable.
+SetupIconFile=..\..\windows\runner\resources\app_icon.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
