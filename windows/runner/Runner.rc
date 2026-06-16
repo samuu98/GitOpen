@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.gitopen" "\0"
-            VALUE "FileDescription", "gitopen" "\0"
+            VALUE "CompanyName", "GitOpen" "\0"
+            VALUE "FileDescription", "GitOpen - cross-platform desktop git client" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "gitopen" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.gitopen. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 s.porta & zN3utr4l. MIT License." "\0"
             VALUE "OriginalFilename", "gitopen.exe" "\0"
-            VALUE "ProductName", "gitopen" "\0"
+            VALUE "ProductName", "GitOpen" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
