@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:gitopen/application/watch/repo_change.dart';
 import 'package:gitopen/application/watch/repo_watcher.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
@@ -14,11 +15,13 @@ import 'package:path/path.dart' as p;
 /// commit), FETCH_HEAD/ORIG_HEAD/MERGE_HEAD (fetch/pull/merge), packed-refs,
 /// and logs/HEAD — the reflog touched by every HEAD-moving op. Loose-ref-only
 /// changes (e.g. `git branch x` with no checkout) are picked up by the
-/// focus-refresh instead.
+/// focus-refresh instead. The changed path is classified into a [RepoChange]
+/// (see [classifyGitChange]); unclassified paths (index, *.lock, config) are
+/// dropped.
 class IoRepoWatcher implements RepoWatcher {
   @override
-  Stream<void> changes(RepoLocation repo) {
-    final controller = StreamController<void>();
+  Stream<RepoChange> changes(RepoLocation repo) {
+    final controller = StreamController<RepoChange>();
     final subs = <StreamSubscription<FileSystemEvent>>[];
 
     controller
@@ -46,11 +49,12 @@ class IoRepoWatcher implements RepoWatcher {
           subs.add(
             t.watch().listen(
               (event) {
-                // Skip `.git/index` + lock churn (our own `git status`
-                // rewrites the index) or this watcher re-fires itself in a
-                // loop; see [isTransientGitNoise].
-                if (isTransientGitNoise(event.path)) return;
-                if (!controller.isClosed) controller.add(null);
+                // Classify the changed path; index/lock churn (our own
+                // `git status` rewrites the index) and irrelevant files
+                // classify to null and are dropped.
+                final kind = classifyGitChange(event.path);
+                if (kind == null) return;
+                if (!controller.isClosed) controller.add(kind);
               },
               onError: (Object e) {
                 appLog.w('repo watcher error on ${t.path}: $e');
@@ -89,14 +93,4 @@ class IoRepoWatcher implements RepoWatcher {
       return null;
     }
   }
-}
-
-/// True for git bookkeeping files that churn during normal read operations —
-/// notably `.git/index` (rewritten by `git status`) and any `*.lock` file.
-/// Auto-refreshing on these makes [IoRepoWatcher] re-trigger itself in a loop
-/// (status → index write → fs event → refresh → status …), so they are
-/// dropped. HEAD/refs/FETCH_HEAD/MERGE_HEAD/packed-refs/reflog still pass.
-bool isTransientGitNoise(String path) {
-  final name = p.basename(path);
-  return name == 'index' || name.endsWith('.lock');
 }
