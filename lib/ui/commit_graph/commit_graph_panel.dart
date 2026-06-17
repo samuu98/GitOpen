@@ -15,6 +15,7 @@ import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
+import 'package:gitopen/ui/commit_graph/commit_graph_search_field.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
 import 'package:gitopen/ui/commit_graph/local_changes_row.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
@@ -37,8 +38,6 @@ class CommitGraphPanel extends ConsumerStatefulWidget {
 
 class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
   final ScrollController _controller = ScrollController();
-  final TextEditingController _searchController = TextEditingController();
-  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -62,26 +61,8 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
 
   @override
   void dispose() {
-    _searchDebounce?.cancel();
-    _searchController.dispose();
     _controller.dispose();
     super.dispose();
-  }
-
-  /// Debounce search input so typing doesn't fire a `git log` per keystroke.
-  /// An empty field resolves to [CommitSearch.none], restoring the unfiltered
-  /// graph.
-  void _onSearchChanged(String raw) {
-    // Rebuild now so the clear (x) affordance toggles with the field content;
-    // the expensive provider update (which triggers `git log`) is debounced.
-    setState(() {});
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-      final parsed = CommitSearch.parse(raw);
-      if (ref.read(commitSearchProvider) != parsed) {
-        ref.read(commitSearchProvider.notifier).state = parsed;
-      }
-    });
   }
 
   void _scrollToSha(CommitSha sha, List<CommitNode> nodes) {
@@ -127,7 +108,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildSearchField(context, palette),
+          const CommitGraphSearchField(),
           Expanded(
             child: async.when(
               skipLoadingOnReload: true,
@@ -226,47 +207,6 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSearchField(BuildContext context, AppPalette palette) {
-    final hasText = _searchController.text.isNotEmpty;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-      child: SizedBox(
-        height: 30,
-        child: TextField(
-          controller: _searchController,
-          style: TextStyle(color: palette.fg0, fontSize: 12),
-          onChanged: _onSearchChanged,
-          decoration:
-              appInputDecoration(
-                context,
-                label: 'Search commits',
-                hint: 'message · author:name · touches:text',
-              ).copyWith(
-                prefixIcon: Icon(Icons.search, size: 16, color: palette.fg2),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 30,
-                ),
-                suffixIcon: hasText
-                    ? IconButton(
-                        icon: Icon(Icons.close, size: 16, color: palette.fg2),
-                        splashRadius: 14,
-                        tooltip: 'Clear search',
-                        onPressed: () {
-                          _searchDebounce?.cancel();
-                          _searchController.clear();
-                          ref.read(commitSearchProvider.notifier).state =
-                              CommitSearch.none;
-                          setState(() {});
-                        },
-                      )
-                    : null,
-              ),
-        ),
       ),
     );
   }
