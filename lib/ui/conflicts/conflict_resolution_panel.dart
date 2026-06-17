@@ -33,9 +33,12 @@ class ConflictResolutionPanel extends ConsumerWidget {
     return ColoredBox(
       color: palette.bg1,
       child: opAsync.when(
+        // Keep the conflict panel visible during background reloads.
+        skipLoadingOnReload: true,
         loading: () => const SizedBox.shrink(),
         error: (e, _) => Center(child: Text('$e')),
         data: (op) => filesAsync.when(
+          skipLoadingOnReload: true,
           loading: () => const SizedBox.shrink(),
           error: (e, _) => Center(child: Text('$e')),
           data: (files) {

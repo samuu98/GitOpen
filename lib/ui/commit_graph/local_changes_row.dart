@@ -14,6 +14,8 @@ class LocalChangesRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(repoStatusProvider(repo));
     return async.when(
+      // Keep the row visible during background reloads (auto-refresh).
+      skipLoadingOnReload: true,
       data: (status) {
         if (status.entries.isEmpty) return const SizedBox.shrink();
         final count = status.entries.length;

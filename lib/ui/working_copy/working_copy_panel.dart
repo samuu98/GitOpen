@@ -19,6 +19,8 @@ class WorkingCopyPanel extends ConsumerWidget {
     return ColoredBox(
       color: palette.bg1,
       child: async.when(
+        // Keep the change list visible during background reloads.
+        skipLoadingOnReload: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
