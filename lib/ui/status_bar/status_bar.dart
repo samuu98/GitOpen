@@ -42,6 +42,9 @@ class StatusBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(children: [
         branchesAsync.when(
+          // Keep the branch name during background reloads (auto-refresh on
+          // fetch / focus regain) instead of flashing 'loading...'.
+          skipLoadingOnReload: true,
           loading: () => Text(
             'loading...',
             style: TextStyle(color: p.fg2, fontSize: 11),
