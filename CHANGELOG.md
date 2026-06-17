@@ -5,6 +5,14 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.1.2] — 2026-06-17
+
+### Changed
+- Internal refactor: split the two largest UI files into focused units —
+  `file_row.dart` → `hunk_row.dart` + `state_badge.dart` + a `FileRowActions`
+  controller; `commit_graph_panel.dart` → `commit_graph_providers.dart` +
+  `commit_graph_search_field.dart`. No user-facing change.
+
 ## [1.1.1] — 2026-06-17
 
 ### Fixed
