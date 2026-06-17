@@ -5,6 +5,22 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.2.1] — 2026-06-17
+
+### Fixed
+- "Open folder of repositories" now scans recursively, so it finds repos
+  grouped under intermediate folders (e.g. `repos/Personal/<repo>`,
+  `repos/Novomatic/<repo>`). The previous scan only looked one level deep and,
+  combined with a silent per-repo error skip, opened nothing with no message.
+  It does not descend into a repo (so submodules aren't listed) and skips
+  hidden dirs and `node_modules`.
+
+### Changed
+- Repository and folder rows in the repo dropdown now have a direct trash
+  button (with a confirmation) instead of a three-dots menu. Folders can now
+  be removed too — their contents move up one level. Removal is
+  non-destructive: nothing is deleted from disk.
+
 ## [1.2.0] — 2026-06-17
 
 ### Added

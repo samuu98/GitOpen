@@ -16,10 +16,17 @@ permissions:
 
 jobs:
   build-and-test:
+    # Single-OS matrix on purpose. The suite is platform-agnostic Dart + the
+    # git CLI, and Linux runs it much faster than Windows (process spawn + I/O
+    # for the many real-git fixture tests). Windows-specific code is compiled
+    # and exercised by CD's native build, so one OS is enough for the PR gate.
+    # Kept as a matrix (not a plain job) so the required check name stays
+    # "build-and-test (ubuntu-latest)", and the per-step `if: ubuntu-latest`
+    # guards below keep re-adding Windows a one-line change.
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
 
     steps:

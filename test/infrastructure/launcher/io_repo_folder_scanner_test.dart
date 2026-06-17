@@ -40,4 +40,48 @@ void main() {
       isEmpty,
     );
   });
+
+  test('finds repos nested under intermediate non-repo folders', () async {
+    // The reported case: repos grouped one level down under container folders.
+    // root/Personal/GitOpen/.git  and  root/Novomatic/svc/.git
+    Directory(p.join(root.path, 'Personal', 'GitOpen', '.git'))
+        .createSync(recursive: true);
+    Directory(p.join(root.path, 'Novomatic', 'svc', '.git'))
+        .createSync(recursive: true);
+
+    final repos =
+        await const IoRepoFolderScanner().findRepositories(root.path);
+
+    expect(repos, [
+      p.join(root.path, 'Novomatic', 'svc'),
+      p.join(root.path, 'Personal', 'GitOpen'),
+    ]);
+  });
+
+  test('does not descend into a repo (ignores nested .git / submodules)',
+      () async {
+    Directory(p.join(root.path, 'repo', '.git')).createSync(recursive: true);
+    // A submodule with its own .git nested inside the repo must NOT surface.
+    Directory(p.join(root.path, 'repo', 'sub', '.git'))
+        .createSync(recursive: true);
+
+    final repos =
+        await const IoRepoFolderScanner().findRepositories(root.path);
+
+    expect(repos, [p.join(root.path, 'repo')]);
+  });
+
+  test('skips hidden directories and node_modules', () async {
+    Directory(p.join(root.path, '.hidden', 'r', '.git'))
+        .createSync(recursive: true);
+    Directory(p.join(root.path, 'node_modules', 'pkg', '.git'))
+        .createSync(recursive: true);
+    Directory(p.join(root.path, 'visible', '.git'))
+        .createSync(recursive: true);
+
+    final repos =
+        await const IoRepoFolderScanner().findRepositories(root.path);
+
+    expect(repos, [p.join(root.path, 'visible')]);
+  });
 }

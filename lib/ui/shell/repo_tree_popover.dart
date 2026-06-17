@@ -8,6 +8,7 @@ import 'package:gitopen/application/workspaces/repo_tree_node.dart';
 import 'package:gitopen/domain/repositories/folder_id.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/ui/dialogs/clone_dialog.dart';
+import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/shell/repo_tree_drag.dart';
 import 'package:gitopen/ui/shell/repo_tree_row.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -117,7 +118,11 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
   Widget _rowFor(VisibleRow row, RepoId? activeId) {
     final node = row.node;
     if (node is FolderNode) {
-      return FolderRow(folder: node.folder, depth: row.depth);
+      return FolderRow(
+        folder: node.folder,
+        depth: row.depth,
+        onRemove: () => _removeFolder(node.folder.id, node.folder.name),
+      );
     }
     node as RepoNode;
     return RepoRow(
@@ -128,7 +133,7 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
         ref.read(activeWorkspaceIdProvider.notifier).state = node.location.id;
         widget.onDismiss();
       },
-      onRemove: () => _removeRepo(node.location.id),
+      onRemove: () => _removeRepo(node.location.id, node.location.displayName),
     );
   }
 
@@ -286,7 +291,16 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
     if (mounted) setState(() => _addingFolder = false);
   }
 
-  Future<void> _removeRepo(RepoId id) async {
+  Future<void> _removeRepo(RepoId id, String name) async {
+    final ok = await ConfirmDialog.show(
+      context,
+      title: 'Remove repository',
+      body: "Remove '$name' from GitOpen? This only takes it off the list — "
+          'your files on disk are not touched.',
+      confirmLabel: 'Remove',
+      dangerous: true,
+    );
+    if (!ok || !mounted) return;
     final active = ref.read(activeWorkspaceIdProvider);
     await ref.read(workspaceManagerProvider.notifier).remove(id);
     await ref.read(repoOrganizerProvider.notifier).refresh();
@@ -295,6 +309,19 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
       ref.read(activeWorkspaceIdProvider.notifier).state =
           remaining.isEmpty ? null : remaining.first.location.id;
     }
+  }
+
+  Future<void> _removeFolder(FolderId id, String name) async {
+    final ok = await ConfirmDialog.show(
+      context,
+      title: 'Remove folder',
+      body: "Remove the folder '$name'? Repositories and folders inside it "
+          'move up to the level above. Nothing is deleted from disk.',
+      confirmLabel: 'Remove',
+      dangerous: true,
+    );
+    if (!ok || !mounted) return;
+    await ref.read(repoOrganizerProvider.notifier).removeFolder(id);
   }
 
   Future<void> _openRepo() async {

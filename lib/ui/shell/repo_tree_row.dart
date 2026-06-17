@@ -10,11 +10,18 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 /// Left padding for a row at [depth] in the tree.
 double rowIndent(int depth) => 10 + depth * 16.0;
 
-/// A collapsible folder header. Tapping it toggles its collapsed state.
+/// A collapsible folder header. Tapping it toggles its collapsed state; the
+/// trailing trash icon removes the folder (children move up to its parent).
 class FolderRow extends ConsumerWidget {
-  const FolderRow({required this.folder, required this.depth, super.key});
+  const FolderRow({
+    required this.folder,
+    required this.depth,
+    required this.onRemove,
+    super.key,
+  });
   final Folder folder;
   final int depth;
+  final Future<void> Function() onRemove;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,7 +31,7 @@ class FolderRow extends ConsumerWidget {
           .read(repoOrganizerProvider.notifier)
           .setCollapsed(folder.id, collapsed: !folder.collapsed),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(rowIndent(depth), 6, 12, 6),
+        padding: EdgeInsets.fromLTRB(rowIndent(depth), 6, 4, 6),
         child: Row(
           children: [
             Icon(
@@ -46,6 +53,7 @@ class FolderRow extends ConsumerWidget {
                 ),
               ),
             ),
+            _DeleteButton(onRemove: onRemove, tooltip: 'Remove folder'),
             Icon(Icons.drag_indicator, size: 15, color: palette.fg3),
           ],
         ),
@@ -108,7 +116,7 @@ class RepoRow extends StatelessWidget {
                 ],
               ),
             ),
-            _RowMenu(onRemove: onRemove),
+            _DeleteButton(onRemove: onRemove, tooltip: 'Remove from GitOpen'),
             Icon(Icons.drag_indicator, size: 15, color: palette.fg3),
           ],
         ),
@@ -117,25 +125,24 @@ class RepoRow extends StatelessWidget {
   }
 }
 
-class _RowMenu extends StatelessWidget {
-  const _RowMenu({required this.onRemove});
+/// A compact trash button used by both repo and folder rows. The actual
+/// confirmation + removal lives in the popover handler [onRemove].
+class _DeleteButton extends StatelessWidget {
+  const _DeleteButton({required this.onRemove, required this.tooltip});
   final Future<void> Function() onRemove;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    return PopupMenuButton<String>(
-      icon: Icon(Icons.more_horiz, size: 16, color: palette.fg2),
-      tooltip: 'Repository actions',
-      onSelected: (value) {
-        if (value == 'remove') unawaited(onRemove());
-      },
-      itemBuilder: (_) => const [
-        PopupMenuItem<String>(
-          value: 'remove',
-          child: Text('Remove from GitOpen'),
-        ),
-      ],
+    return IconButton(
+      icon: Icon(Icons.delete_outline, size: 16, color: palette.fg2),
+      tooltip: tooltip,
+      splashRadius: 16,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      onPressed: () => unawaited(onRemove()),
     );
   }
 }
