@@ -47,6 +47,11 @@ class Sidebar extends ConsumerWidget {
               final repo = activeWs.location;
               final async = ref.watch(sidebarDataProvider(repo));
               return async.when(
+                // Keep the current branches/refs on screen while an
+                // auto-refresh (fetch / focus regain) reloads in the
+                // background — otherwise the whole panel flickers to a
+                // spinner. Mirrors the commit graph panel.
+                skipLoadingOnReload: true,
                 data: (data) => _SidebarContent(data: data, repo: repo),
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),

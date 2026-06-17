@@ -5,6 +5,14 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.0.4] — 2026-06-17
+
+### Fixed
+- The sidebar no longer flickers to a spinner (branches/refs briefly
+  disappearing) when an auto-refresh runs — on every fetch and whenever the
+  window regains focus. The panel now keeps the current refs visible while the
+  reload happens in the background, matching the commit graph's behaviour.
+
 ## [1.0.0] — 2026-06-16
 
 First stable release. GitOpen is a cross-platform (Windows + Linux) desktop git
