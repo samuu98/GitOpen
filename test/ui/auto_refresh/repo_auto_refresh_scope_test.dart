@@ -6,22 +6,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/settings/app_settings_notifier.dart';
 import 'package:gitopen/application/settings/settings_store.dart';
+import 'package:gitopen/application/watch/repo_change.dart';
 import 'package:gitopen/application/watch/repo_watcher.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/auto_refresh/repo_auto_refresh_scope.dart';
 
 class _FakeWatcher implements RepoWatcher {
-  final controller = StreamController<void>.broadcast();
+  final controller = StreamController<RepoChange>.broadcast();
   int subscriptions = 0;
 
   /// Currently-listening subscriptions (listen − cancel).
   int active = 0;
 
   @override
-  Stream<void> changes(RepoLocation repo) {
+  Stream<RepoChange> changes(RepoLocation repo) {
     subscriptions++;
-    final single = StreamController<void>()
+    final single = StreamController<RepoChange>()
       ..onListen = (() => active++)
       ..onCancel = (() async => active--);
     controller.stream.listen(single.add, onDone: single.close);
@@ -69,8 +70,8 @@ void main() {
     expect(builds, 1);
 
     watcher.controller
-      ..add(null)
-      ..add(null); // burst → exactly one refresh
+      ..add(RepoChange.head)
+      ..add(RepoChange.head); // burst → exactly one refresh
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump();
     expect(builds, 2);

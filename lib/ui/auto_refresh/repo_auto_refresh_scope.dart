@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/git/repo_state_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/watch/debouncer.dart';
+import 'package:gitopen/application/watch/repo_change.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 
 /// Invisible host for a repo's auto-refresh: subscribes to the
@@ -27,7 +28,7 @@ class RepoAutoRefreshScope extends ConsumerStatefulWidget {
 }
 
 class _RepoAutoRefreshScopeState extends ConsumerState<RepoAutoRefreshScope> {
-  StreamSubscription<void>? _sub;
+  StreamSubscription<RepoChange>? _sub;
   late final Debouncer _debouncer =
       Debouncer(const Duration(milliseconds: 400), _refresh);
   late final AppLifecycleListener _lifecycle;
