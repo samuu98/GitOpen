@@ -5,6 +5,16 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.0.4] — 2026-06-17
+
+### Performance
+- Auto-refresh now refreshes only what changed. A fetch or window focus-regain
+  no longer re-logs the whole commit graph or re-reads every ref: the file
+  watcher classifies the changed `.git` path (HEAD / refs / fetch / merge
+  state) and only the affected providers are invalidated, and focus-regain
+  refreshes the working-tree status (with a HEAD-moved safety net) instead of
+  the entire read layer. Noticeably less work on large repos when alt-tabbing.
+
 ## [1.0.0] — 2026-06-16
 
 First stable release. GitOpen is a cross-platform (Windows + Linux) desktop git

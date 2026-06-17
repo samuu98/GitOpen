@@ -23,8 +23,7 @@ void main() {
         await File(
           p.join(f.path, '.git', 'HEAD'),
         ).writeAsString('ref: refs/heads/master\n');
-        final RepoChange event =
-            await first.timeout(const Duration(seconds: 10));
+        final event = await first.timeout(const Duration(seconds: 10));
         expect(event, RepoChange.head);
       } finally {
         await f.dispose();
