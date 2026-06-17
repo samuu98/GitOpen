@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gitopen/application/diff/build_patch_for_hunks.dart';
-import 'package:gitopen/application/diff/build_patch_for_lines.dart';
-import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
-import 'package:gitopen/domain/diff/diff_line.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
-import 'package:gitopen/ui/common/app_icon_button.dart';
-import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
-import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
-import 'package:gitopen/ui/toolbar/toolbar_prompt.dart';
-import 'package:gitopen/ui/working_copy/discard_changes.dart';
+import 'package:gitopen/ui/working_copy/file_row_actions.dart';
+import 'package:gitopen/ui/working_copy/hunk_row.dart';
+import 'package:gitopen/ui/working_copy/state_badge.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 bool _canExpandHunks(WorkingFileEntry entry) {
@@ -68,9 +62,16 @@ class _FileRowState extends ConsumerState<FileRow> {
   bool _hover = false;
   final Set<int> _checkedHunks = {};
   final Map<int, Set<int>> _checkedLines = {};
+  late final FileRowActions _actions = FileRowActions(ref);
 
   bool get _hasCheckedLines =>
       _checkedLines.values.any((selected) => selected.isNotEmpty);
+
+  /// The current line selection as `(hunk, lines)` pairs for the action calls.
+  List<LineSelection> _lineSelections(List<DiffHunk> allHunks) => [
+    for (final e in _checkedLines.entries)
+      if (e.value.isNotEmpty) (hunk: allHunks[e.key], lines: e.value),
+  ];
 
   void _toggleExpanded() {
     setState(() {
@@ -82,23 +83,8 @@ class _FileRowState extends ConsumerState<FileRow> {
     });
   }
 
-  Future<void> _discard() async {
-    final entry = widget.entry;
-    final isUntracked = entry.workingTreeState == WorkingFileState.untracked;
-    final confirmed = await ConfirmDialog.show(
-      context,
-      title: isUntracked ? 'Delete untracked file' : 'Discard changes',
-      body: isUntracked
-          ? 'Delete "${entry.path}"? The file is untracked and will be '
-                'removed from disk. This cannot be undone.'
-          : 'Discard all changes to "${entry.path}"? Local edits will be '
-                'lost and the file will be restored to its committed state.',
-      confirmLabel: isUntracked ? 'Delete' : 'Discard',
-      dangerous: true,
-    );
-    if (!confirmed) return;
-    await discardEntries(ref, widget.repo, [entry]);
-  }
+  Future<void> _discard() =>
+      _actions.discardFile(context, widget.repo, widget.entry);
 
   Future<void> _showContextMenu(Offset globalPos) async {
     final entry = widget.entry;
@@ -165,203 +151,94 @@ class _FileRowState extends ConsumerState<FileRow> {
     });
   }
 
-  Future<void> _toggleStage() async {
-    final write = ref.read(gitWriteOperationsProvider);
-    if (widget.isStaged) {
-      await write.unstageFiles(widget.repo, [widget.entry.path]);
-    } else {
-      await write.stageFiles(widget.repo, [widget.entry.path]);
-    }
-    ref.invalidate(workingCopyStatusProvider(widget.repo));
-  }
+  Future<void> _toggleStage() => _actions.toggleStage(
+    widget.repo,
+    widget.entry.path,
+    isStaged: widget.isStaged,
+  );
 
-  Future<void> _stashFile() async {
-    final msg = await appPromptText(
-      context,
-      'Stash file',
-      label: 'Message (optional)',
-    );
-    if (!mounted) return;
-    await ref
-        .read(gitActionsControllerProvider)
-        .stashSave(
-          context,
-          widget.repo,
-          msg?.trim() ?? '',
-          includeUntracked:
-              widget.entry.workingTreeState == WorkingFileState.untracked,
-          paths: [widget.entry.path],
-        );
-    ref
-      ..invalidate(workingCopyStatusProvider(widget.repo))
-      ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)))
-      ..invalidate(stagedFileDiffProvider((widget.repo, widget.entry.path)));
-  }
+  Future<void> _stashFile() =>
+      _actions.stash(context, widget.repo, widget.entry);
 
   Future<void> _stageSelectedHunks(List<DiffHunk> allHunks) async {
     final selected = _checkedHunks.toList()..sort();
     final hunksToStage = selected.map((i) => allHunks[i]).toList();
-    final patch = buildPatchForHunks(widget.entry.path, hunksToStage);
-    final write = ref.read(gitWriteOperationsProvider);
-    await write.stagePatch(widget.repo, patch);
+    await _actions.stageHunks(widget.repo, widget.entry.path, hunksToStage);
     setState(_checkedHunks.clear);
-    ref
-      ..invalidate(workingCopyStatusProvider(widget.repo))
-      ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)));
   }
 
   Future<void> _stageSelectedLines(List<DiffHunk> allHunks) async {
-    final patches = <String>[];
-    for (final entry in _checkedLines.entries) {
-      if (entry.value.isEmpty) continue;
-      final patch = buildPatchForLines(
-        widget.entry.path,
-        allHunks[entry.key],
-        entry.value,
-      );
-      if (patch.isNotEmpty) patches.add(patch);
-    }
-    if (patches.isEmpty) return;
-
-    final write = ref.read(gitWriteOperationsProvider);
-    for (final patch in patches) {
-      await write.stagePatch(widget.repo, patch);
-    }
+    await _actions.stageLines(
+      widget.repo,
+      widget.entry.path,
+      _lineSelections(allHunks),
+    );
     setState(_checkedLines.clear);
-    ref
-      ..invalidate(workingCopyStatusProvider(widget.repo))
-      ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)));
   }
 
   Future<void> _discardHunk(DiffHunk hunk, int index) async {
-    final confirmed = await ConfirmDialog.show(
+    final ok = await _actions.discardHunk(
       context,
-      title: 'Discard hunk',
-      body:
-          'Discard this hunk from "${widget.entry.path}"? Local edits in '
-          'the hunk will be lost.',
-      confirmLabel: 'Discard hunk',
-      dangerous: true,
+      widget.repo,
+      widget.entry.path,
+      hunk,
     );
-    if (!confirmed || !mounted) return;
-    final patch = buildPatchForHunks(widget.entry.path, [hunk]);
-    await ref
-        .read(gitActionsControllerProvider)
-        .discardHunk(context, widget.repo, patch);
-    if (!mounted) return;
+    if (!ok || !mounted) return;
     setState(() {
       _checkedHunks.remove(index);
       _checkedLines.remove(index);
     });
-    ref
-      ..invalidate(workingCopyStatusProvider(widget.repo))
-      ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)));
   }
 
-  // --- Unstage (staged rows) — reverse-apply the index-vs-HEAD patch via
-  // `git apply --cached --reverse`; non-destructive, so no confirm. ---
+  // --- Unstage (staged rows): non-destructive, no confirm. ---
 
   Future<void> _unstageSelectedHunks(List<DiffHunk> allHunks) async {
     final selected = _checkedHunks.toList()..sort();
-    final patch = buildPatchForHunks(
-      widget.entry.path,
-      selected.map((i) => allHunks[i]).toList(),
-    );
-    await ref.read(gitWriteOperationsProvider).unstagePatch(widget.repo, patch);
+    final hunks = selected.map((i) => allHunks[i]).toList();
+    await _actions.unstageHunks(widget.repo, widget.entry.path, hunks);
     setState(_checkedHunks.clear);
-    _invalidateDiffs();
   }
 
   Future<void> _unstageSelectedLines(List<DiffHunk> allHunks) async {
-    final patches = _patchesForCheckedLines(allHunks);
-    if (patches.isEmpty) return;
-    final write = ref.read(gitWriteOperationsProvider);
-    for (final patch in patches) {
-      await write.unstagePatch(widget.repo, patch);
-    }
+    await _actions.unstageLines(
+      widget.repo,
+      widget.entry.path,
+      _lineSelections(allHunks),
+    );
     setState(_checkedLines.clear);
-    _invalidateDiffs();
   }
 
   Future<void> _unstageHunk(DiffHunk hunk, int index) async {
-    final patch = buildPatchForHunks(widget.entry.path, [hunk]);
-    await ref.read(gitWriteOperationsProvider).unstagePatch(widget.repo, patch);
+    await _actions.unstageHunk(widget.repo, widget.entry.path, hunk);
     if (!mounted) return;
     setState(() {
       _checkedHunks.remove(index);
       _checkedLines.remove(index);
     });
-    _invalidateDiffs();
   }
 
-  // --- Discard selected lines/hunks (unstaged rows) — reverse-apply to the
-  // working tree via the shared discard flow (confirm + progress). ---
+  // --- Discard selected lines/hunks (unstaged rows): confirm + progress. ---
 
   Future<void> _discardSelectedHunks(List<DiffHunk> allHunks) async {
-    final confirmed = await ConfirmDialog.show(
-      context,
-      title: 'Discard selected hunks',
-      body:
-          'Discard the selected hunks from "${widget.entry.path}"? Local '
-          'edits in them will be lost.',
-      confirmLabel: 'Discard',
-      dangerous: true,
-    );
-    if (!confirmed || !mounted) return;
     final selected = _checkedHunks.toList()..sort();
-    final patch = buildPatchForHunks(
+    final hunks = selected.map((i) => allHunks[i]).toList();
+    final ok = await _actions.discardSelectedHunks(
+      context,
+      widget.repo,
       widget.entry.path,
-      selected.map((i) => allHunks[i]).toList(),
+      hunks,
     );
-    await ref
-        .read(gitActionsControllerProvider)
-        .discardHunk(context, widget.repo, patch);
-    if (!mounted) return;
-    setState(_checkedHunks.clear);
-    _invalidateDiffs();
+    if (ok) setState(_checkedHunks.clear);
   }
 
   Future<void> _discardSelectedLines(List<DiffHunk> allHunks) async {
-    final confirmed = await ConfirmDialog.show(
+    final ok = await _actions.discardSelectedLines(
       context,
-      title: 'Discard selected lines',
-      body:
-          'Discard the selected lines from "${widget.entry.path}"? Local '
-          'edits to them will be lost.',
-      confirmLabel: 'Discard',
-      dangerous: true,
+      widget.repo,
+      widget.entry.path,
+      _lineSelections(allHunks),
     );
-    if (!confirmed || !mounted) return;
-    final patches = _patchesForCheckedLines(allHunks);
-    if (patches.isEmpty) return;
-    final controller = ref.read(gitActionsControllerProvider);
-    for (final patch in patches) {
-      await controller.discardHunk(context, widget.repo, patch);
-      if (!mounted) return;
-    }
-    setState(_checkedLines.clear);
-    _invalidateDiffs();
-  }
-
-  List<String> _patchesForCheckedLines(List<DiffHunk> allHunks) {
-    final patches = <String>[];
-    for (final entry in _checkedLines.entries) {
-      if (entry.value.isEmpty) continue;
-      final patch = buildPatchForLines(
-        widget.entry.path,
-        allHunks[entry.key],
-        entry.value,
-      );
-      if (patch.isNotEmpty) patches.add(patch);
-    }
-    return patches;
-  }
-
-  void _invalidateDiffs() {
-    ref
-      ..invalidate(workingCopyStatusProvider(widget.repo))
-      ..invalidate(unstagedFileDiffProvider((widget.repo, widget.entry.path)))
-      ..invalidate(stagedFileDiffProvider((widget.repo, widget.entry.path)));
+    if (ok) setState(_checkedLines.clear);
   }
 
   /// Staged rows expand against the index-vs-HEAD diff (for unstaging);
@@ -620,278 +497,5 @@ class _FileRowState extends ConsumerState<FileRow> {
         );
       },
     );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class DiscardIconButton extends StatelessWidget {
-  const DiscardIconButton({
-    required this.isSelected,
-    required this.onPressed,
-    super.key,
-  });
-  final bool isSelected;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: AppIconButton(
-        icon: Icons.delete_outline,
-        tooltip: 'Discard changes',
-        danger: !isSelected,
-        onPressed: onPressed,
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class HunkRow extends StatelessWidget {
-  const HunkRow({
-    required this.hunk,
-    required this.index,
-    required this.staged,
-    required this.isChecked,
-    required this.onToggle,
-    required this.selectedLines,
-    required this.onToggleLine,
-    required this.onAction,
-    super.key,
-  });
-  final DiffHunk hunk;
-  final int index;
-
-  /// Whether this hunk belongs to a staged row. Drives the inline action:
-  /// staged → unstage the hunk; unstaged → discard it.
-  final bool staged;
-  final bool isChecked;
-  final VoidCallback onToggle;
-  final Set<int> selectedLines;
-  final ValueChanged<int> onToggleLine;
-
-  /// Inline per-hunk action: discard (unstaged) or unstage (staged).
-  final VoidCallback onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return ColoredBox(
-      color: palette.bg0,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            button: true,
-            selected: isChecked,
-            label:
-                '${isChecked ? 'Selected' : 'Unselected'} '
-                'hunk ${index + 1}, ${hunk.header}',
-            child: InkWell(
-              onTap: onToggle,
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  left: 32,
-                  right: 8,
-                  top: 3,
-                  bottom: 3,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isChecked
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
-                      size: 13,
-                      color: palette.fg2,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        hunk.header,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: palette.accentRemote,
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ),
-                    Tooltip(
-                      message: staged ? 'Unstage hunk' : 'Discard hunk',
-                      waitDuration: const Duration(milliseconds: 400),
-                      child: Semantics(
-                        button: true,
-                        label: staged
-                            ? 'Unstage hunk ${index + 1}'
-                            : 'Discard hunk ${index + 1}',
-                        child: InkWell(
-                          onTap: onAction,
-                          borderRadius: BorderRadius.circular(3),
-                          child: Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: Icon(
-                              staged ? Icons.remove_circle_outline : Icons.undo,
-                              size: 13,
-                              color: staged ? palette.fg2 : palette.accentErr,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          for (final (lineIndex, line) in hunk.lines.indexed)
-            _HunkLineRow(
-              line: line,
-              isChecked: selectedLines.contains(lineIndex),
-              onToggle: () => onToggleLine(lineIndex),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HunkLineRow extends StatelessWidget {
-  const _HunkLineRow({
-    required this.line,
-    required this.isChecked,
-    required this.onToggle,
-  });
-  final DiffLine line;
-  final bool isChecked;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    final selectable = line.kind != DiffLineKind.context;
-    final (prefix, bg) = switch (line.kind) {
-      DiffLineKind.addition => (
-        '+',
-        palette.accentCurrent.withValues(alpha: 0.08),
-      ),
-      DiffLineKind.deletion => ('-', palette.accentErr.withValues(alpha: 0.10)),
-      DiffLineKind.context => (' ', Colors.transparent),
-    };
-    final changeLabel = line.kind == DiffLineKind.addition
-        ? 'addition'
-        : 'deletion';
-    return InkWell(
-      onTap: selectable ? onToggle : null,
-      child: Semantics(
-        button: selectable,
-        selected: selectable ? isChecked : null,
-        label: selectable
-            ? '${isChecked ? 'Selected' : 'Unselected'} $changeLabel '
-                  'line ${line.content}'
-            : 'Context line ${line.content}',
-        child: Container(
-          color: bg,
-          padding: const EdgeInsets.only(
-            left: 50,
-            right: 12,
-            top: 1,
-            bottom: 1,
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 14,
-                child: selectable
-                    ? Icon(
-                        isChecked
-                            ? Icons.check_box
-                            : Icons.check_box_outline_blank,
-                        size: 12,
-                        color: palette.fg2,
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 6),
-              SizedBox(
-                width: 12,
-                child: Text(
-                  prefix,
-                  style: TextStyle(
-                    color: palette.fg3,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  line.content,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.fg1,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class StateBadge extends StatelessWidget {
-  const StateBadge({required this.state, super.key});
-  final WorkingFileState state;
-  @override
-  Widget build(BuildContext context) {
-    final p = AppPalette.of(context);
-    final (label, color) = _info(state, p);
-    if (label.isEmpty) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  (String, Color) _info(WorkingFileState s, AppPalette p) {
-    switch (s) {
-      case WorkingFileState.added:
-        return ('A', p.accentCurrent);
-      case WorkingFileState.modified:
-        return ('M', p.accentTag);
-      case WorkingFileState.deleted:
-        return ('D', p.accentErr);
-      case WorkingFileState.renamed:
-        return ('R', p.accentRemote);
-      case WorkingFileState.untracked:
-        return ('?', p.fg2);
-      case WorkingFileState.conflicted:
-        return ('U', p.accentWarn);
-      case WorkingFileState.ignored:
-        return ('I', p.fg3);
-      case WorkingFileState.unmodified:
-        return ('', Colors.transparent);
-    }
   }
 }

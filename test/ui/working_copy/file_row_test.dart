@@ -12,6 +12,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/file_row.dart';
+import 'package:gitopen/ui/working_copy/state_badge.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 class _FakeWrite implements GitWriteOperations {

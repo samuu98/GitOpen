@@ -8,7 +8,7 @@ import 'package:gitopen/application/watch/debouncer.dart';
 import 'package:gitopen/application/watch/repo_change.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
-import 'package:gitopen/ui/commit_graph/commit_graph_panel.dart';
+import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
 import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 

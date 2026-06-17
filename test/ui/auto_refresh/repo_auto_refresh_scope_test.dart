@@ -15,7 +15,7 @@ import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
 import 'package:gitopen/ui/auto_refresh/repo_auto_refresh_scope.dart';
-import 'package:gitopen/ui/commit_graph/commit_graph_panel.dart';
+import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
 
 class _FakeWatcher implements RepoWatcher {
   final controller = StreamController<RepoChange>.broadcast();
