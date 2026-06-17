@@ -5,7 +5,7 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
-## [1.0.4] — 2026-06-17
+## [1.0.6] — 2026-06-17
 
 ### Performance
 - Auto-refresh now refreshes only what changed. A fetch or window focus-regain
