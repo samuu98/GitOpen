@@ -187,7 +187,7 @@ class _RepoSelectorState extends ConsumerState<RepoSelector> {
 
   Future<void> _close(RepoId id) async {
     final manager = ref.read(workspaceManagerProvider.notifier);
-    await manager.close(id);
+    await manager.remove(id);
     final remaining = ref.read(workspaceManagerProvider);
     final active = ref.read(activeWorkspaceIdProvider);
     if (active == id) {
