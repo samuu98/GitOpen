@@ -25,8 +25,8 @@ void main() {
   group('buildRepoTree', () {
     test('nests repos under their folders', () {
       final tree = buildRepoTree(
-        [_folder('w', 'Work', order: 0)],
-        [_repo('a', parent: 'w', order: 0)],
+        [_folder('w', 'Work')],
+        [_repo('a', parent: 'w')],
       );
       expect(tree, hasLength(1));
       final work = tree.single as FolderNode;
@@ -37,7 +37,7 @@ void main() {
     test('interleaves folders and repos by shared sortOrder', () {
       final tree = buildRepoTree(
         [_folder('w', 'Work', order: 1)],
-        [_repo('a', order: 0), _repo('b', order: 2)],
+        [_repo('a'), _repo('b', order: 2)],
       );
       expect(tree.map((n) => n.sortOrder), [0, 1, 2]);
       expect(tree[0], isA<RepoNode>());
@@ -47,7 +47,7 @@ void main() {
 
     test('re-roots a folder whose parent is missing', () {
       final tree = buildRepoTree(
-        [_folder('child', 'Child', parent: 'ghost', order: 0)],
+        [_folder('child', 'Child', parent: 'ghost')],
         const [],
       );
       expect(tree, hasLength(1));
