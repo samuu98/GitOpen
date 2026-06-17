@@ -9,7 +9,7 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// Read-only HEAD reflog viewer. Clicking an entry reveals that commit in
 /// the graph (when it is still reachable from a ref) and closes the dialog.
-class ReflogDialog extends ConsumerWidget {
+class ReflogDialog extends ConsumerStatefulWidget {
   const ReflogDialog({required this.repo, super.key});
   final RepoLocation repo;
 
@@ -20,7 +20,17 @@ class ReflogDialog extends ConsumerWidget {
       );
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReflogDialog> createState() => _ReflogDialogState();
+}
+
+class _ReflogDialogState extends ConsumerState<ReflogDialog> {
+  // Created once so a rebuild doesn't re-run `git reflog` (the FutureBuilder
+  // anti-pattern documented in providers.dart).
+  late final Future<List<ReflogEntry>> _future =
+      ref.read(gitReadOperationsProvider).getReflog(widget.repo);
+
+  @override
+  Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     return AppDialog(
       title: 'Reflog',
@@ -29,7 +39,7 @@ class ReflogDialog extends ConsumerWidget {
       content: SizedBox(
         height: 380,
         child: FutureBuilder<List<ReflogEntry>>(
-          future: ref.read(gitReadOperationsProvider).getReflog(repo),
+          future: _future,
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) {
               return const Center(child: CircularProgressIndicator());

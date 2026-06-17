@@ -53,13 +53,13 @@ const int _graphPageSize = 300;
 
 /// Per-repo upper bound on how many commits the graph currently loads. Starts
 /// at [_graphPageSize] and grows by a page each time the user scrolls near the
-/// bottom; [_commitGraphDataProvider] re-runs and re-lays-out the larger
+/// bottom; [commitGraphDataProvider] re-runs and re-lays-out the larger
 /// window (keeping the visible graph via skipLoadingOnReload).
 final StateProviderFamily<int, RepoLocation> _graphLimitProvider =
     StateProvider.family<int, RepoLocation>((ref, repo) => _graphPageSize);
 
-class _GraphData {
-  _GraphData(
+class GraphData {
+  GraphData(
     this.nodes,
     this.refsBySha,
     this.maxLane, {
@@ -73,8 +73,8 @@ class _GraphData {
   final bool hasMore;
 }
 
-final FutureProviderFamily<_GraphData, RepoLocation>
-_commitGraphDataProvider = FutureProvider.family<_GraphData, RepoLocation>((
+final FutureProviderFamily<GraphData, RepoLocation>
+commitGraphDataProvider = FutureProvider.family<GraphData, RepoLocation>((
   ref,
   repo,
 ) async {
@@ -260,7 +260,7 @@ _commitGraphDataProvider = FutureProvider.family<_GraphData, RepoLocation>((
   // A full window back from git means there are (probably) older commits to
   // page in as the user keeps scrolling.
   final hasMore = commits.length >= takeCommits;
-  return _GraphData(nodes, refsBySha, maxLane, hasMore: hasMore);
+  return GraphData(nodes, refsBySha, maxLane, hasMore: hasMore);
 });
 
 class CommitGraphPanel extends ConsumerStatefulWidget {
@@ -288,7 +288,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     if (!_controller.hasClients) return;
     final pos = _controller.position;
     if (pos.pixels < pos.maxScrollExtent - 800) return;
-    final async = ref.read(_commitGraphDataProvider(widget.repo));
+    final async = ref.read(commitGraphDataProvider(widget.repo));
     final data = async.valueOrNull;
     if (data == null || !data.hasMore || async.isLoading) return;
     ref
@@ -341,13 +341,13 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
   @override
   Widget build(BuildContext context) {
     final repo = widget.repo;
-    final async = ref.watch(_commitGraphDataProvider(repo));
+    final async = ref.watch(commitGraphDataProvider(repo));
     final palette = AppPalette.of(context);
 
     // Listen for scroll requests from the sidebar / other panels.
     ref.listen<CommitSha?>(scrollRequestProvider, (prev, next) {
       if (next == null) return;
-      final data = ref.read(_commitGraphDataProvider(repo)).valueOrNull;
+      final data = ref.read(commitGraphDataProvider(repo)).valueOrNull;
       if (data == null) return;
       // Schedule after the current frame so the ListView has measured.
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -439,7 +439,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                                 isRemote: r.isRemote,
                               );
                               if (ok) {
-                                ref.invalidate(_commitGraphDataProvider(repo));
+                                ref.invalidate(commitGraphDataProvider(repo));
                               }
                             },
                           );

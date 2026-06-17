@@ -75,6 +75,8 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
     return ColoredBox(
       color: palette.bg1,
       child: async.when(
+        // Keep the current diff visible during background reloads.
+        skipLoadingOnReload: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Text(

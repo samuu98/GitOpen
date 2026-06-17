@@ -19,6 +19,36 @@ All notable changes to GitOpen are documented here. The format is based on
   without touching the working copy on disk. Removing a folder is
   non-destructive: its contents move up to the parent folder.
 
+## [1.0.6] — 2026-06-17
+
+### Performance
+- Auto-refresh now refreshes only what changed. A fetch or window focus-regain
+  no longer re-logs the whole commit graph or re-reads every ref: the file
+  watcher classifies the changed `.git` path (HEAD / refs / fetch / merge
+  state) and only the affected providers are invalidated, and focus-regain
+  refreshes the working-tree status (with a HEAD-moved safety net) instead of
+  the entire read layer. Noticeably less work on large repos when alt-tabbing.
+
+## [1.0.5] — 2026-06-17
+
+### Changed
+- Internal: the reflog dialog no longer rebuilds its `git reflog` future on
+  every widget rebuild (the future is created once), matching the codebase's
+  provider/Future conventions. No user-facing behaviour change.
+
+## [1.0.4] — 2026-06-17
+
+### Fixed
+- Panels no longer flicker to a spinner (content briefly disappearing) when an
+  auto-refresh runs — on every fetch and whenever the window regains focus.
+  Affected the sidebar, status-bar branch name, working-copy change list, file
+  diff preview, commit details/diff, the graph's uncommitted-changes row, and
+  the conflict panel: each now keeps its current content visible while the
+  reload happens in the background (`skipLoadingOnReload`), matching the commit
+  graph. Root cause: `AsyncValue.when()` re-shows its `loading` builder on every
+  dependency-triggered reload, and the auto-refresh invalidates the shared git
+  read layer those panels watch.
+
 ## [1.0.0] — 2026-06-16
 
 First stable release. GitOpen is a cross-platform (Windows + Linux) desktop git

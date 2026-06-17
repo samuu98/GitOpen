@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gitopen/application/watch/repo_change.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/watch/io_repo_watcher.dart';
@@ -10,7 +11,7 @@ import '../../_helpers/repo_fixture.dart';
 
 void main() {
   test(
-    'emits when .git/HEAD changes',
+    'emits a head change when .git/HEAD changes',
     () async {
       final f = await RepoFixture.withLinearHistory(1);
       try {
@@ -22,7 +23,8 @@ void main() {
         await File(
           p.join(f.path, '.git', 'HEAD'),
         ).writeAsString('ref: refs/heads/master\n');
-        await first.timeout(const Duration(seconds: 10));
+        final event = await first.timeout(const Duration(seconds: 10));
+        expect(event, RepoChange.head);
       } finally {
         await f.dispose();
       }
@@ -40,30 +42,5 @@ void main() {
     } finally {
       dir.deleteSync(recursive: true);
     }
-  });
-
-  group('isTransientGitNoise', () {
-    test('ignores the index and any lock file', () {
-      expect(isTransientGitNoise(p.join('r', '.git', 'index')), isTrue);
-      expect(isTransientGitNoise(p.join('r', '.git', 'index.lock')), isTrue);
-      expect(isTransientGitNoise(p.join('r', '.git', 'HEAD.lock')), isTrue);
-      expect(isTransientGitNoise(p.join('r', '.git', 'config.lock')), isTrue);
-      expect(
-        isTransientGitNoise(p.join('r', '.git', 'packed-refs.lock')),
-        isTrue,
-      );
-    });
-
-    test('keeps meaningful bookkeeping files', () {
-      expect(isTransientGitNoise(p.join('r', '.git', 'HEAD')), isFalse);
-      expect(isTransientGitNoise(p.join('r', '.git', 'ORIG_HEAD')), isFalse);
-      expect(isTransientGitNoise(p.join('r', '.git', 'FETCH_HEAD')), isFalse);
-      expect(isTransientGitNoise(p.join('r', '.git', 'MERGE_HEAD')), isFalse);
-      expect(isTransientGitNoise(p.join('r', '.git', 'packed-refs')), isFalse);
-      expect(
-        isTransientGitNoise(p.join('r', '.git', 'logs', 'HEAD')),
-        isFalse,
-      );
-    });
   });
 }

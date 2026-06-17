@@ -60,6 +60,8 @@ class CommitDetailsView extends ConsumerWidget {
     final async = ref.watch(_commitInfoProvider(key));
     final messageAsync = ref.watch(_commitFullMessageProvider(key));
     return async.when(
+      // Keep the commit details visible during background reloads.
+      skipLoadingOnReload: true,
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
