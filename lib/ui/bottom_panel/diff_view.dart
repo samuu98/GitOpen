@@ -83,6 +83,8 @@ class DiffView extends ConsumerWidget {
       ),
     );
     return async.when(
+      // Keep the current diff visible during background reloads.
+      skipLoadingOnReload: true,
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
