@@ -61,7 +61,7 @@ final class DriftRepoTreeStore implements RepoTreeStore {
   }
 
   @override
-  Future<void> setCollapsed(FolderId id, bool collapsed) async {
+  Future<void> setCollapsed(FolderId id, {required bool collapsed}) async {
     await (_db.update(_db.folders)..where((f) => f.id.equals(id.value)))
         .write(FoldersCompanion(collapsed: Value(collapsed)));
   }
@@ -107,8 +107,8 @@ final class DriftRepoTreeStore implements RepoTreeStore {
   @override
   Future<void> moveRepo(
     RepoId id, {
-    FolderId? toParent,
     required int atIndex,
+    FolderId? toParent,
   }) async {
     await _db.transaction(() async {
       await (_db.update(_db.repositories)..where((r) => r.id.equals(id.value)))
@@ -120,14 +120,18 @@ final class DriftRepoTreeStore implements RepoTreeStore {
   @override
   Future<void> moveFolder(
     FolderId id, {
-    FolderId? toParent,
     required int atIndex,
+    FolderId? toParent,
   }) async {
     if (await _wouldCycle(id, toParent)) return;
     await _db.transaction(() async {
       await (_db.update(_db.folders)..where((f) => f.id.equals(id.value)))
           .write(FoldersCompanion(parentId: Value(toParent?.value)));
-      await _resequence(toParent, moved: _MovedRef.folder(id), atIndex: atIndex);
+      await _resequence(
+        toParent,
+        moved: _MovedRef.folder(id),
+        atIndex: atIndex,
+      );
     });
   }
 
@@ -172,9 +176,9 @@ final class DriftRepoTreeStore implements RepoTreeStore {
       for (final f in folders)
         _MovedRef.folder(FolderId(f.id)).withOrder(f.sortOrder),
       for (final r in repos) _MovedRef.repo(RepoId(r.id)).withOrder(r.tabOrder),
-    ]..sort((a, b) => a.order.compareTo(b.order));
-
-    siblings.removeWhere((s) => s.sameTarget(moved));
+    ]
+      ..sort((a, b) => a.order.compareTo(b.order))
+      ..removeWhere((s) => s.sameTarget(moved));
     final index = atIndex.clamp(0, siblings.length);
     siblings.insert(index, moved);
 

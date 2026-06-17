@@ -38,9 +38,9 @@ List<RepoTreeNode> buildRepoTree(
 
   List<RepoTreeNode> nodesUnder(FolderId? parent) {
     final nodes = <RepoTreeNode>[
-      for (final f in childFolders[parent] ?? const [])
+      for (final f in childFolders[parent] ?? const <Folder>[])
         FolderNode(f, nodesUnder(f.id)),
-      for (final r in childRepos[parent] ?? const [])
+      for (final r in childRepos[parent] ?? const <PlacedRepo>[])
         RepoNode(r.location, r.sortOrder),
     ]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     return nodes;

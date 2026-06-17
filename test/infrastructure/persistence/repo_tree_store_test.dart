@@ -22,7 +22,7 @@ void main() {
       final sut = DriftRepoTreeStore(db);
       final f = await sut.createFolder(name: 'Work');
       await sut.renameFolder(f.id, 'Job');
-      await sut.setCollapsed(f.id, true);
+      await sut.setCollapsed(f.id, collapsed: true);
       final loaded = (await sut.loadFolders()).single;
       expect(loaded.name, 'Job');
       expect(loaded.collapsed, isTrue);

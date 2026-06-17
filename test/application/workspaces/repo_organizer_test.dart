@@ -35,7 +35,7 @@ class _FakeStore implements RepoTreeStore {
   @override
   Future<void> renameFolder(FolderId id, String name) async {}
   @override
-  Future<void> setCollapsed(FolderId id, bool collapsed) async {}
+  Future<void> setCollapsed(FolderId id, {required bool collapsed}) async {}
   @override
   Future<void> removeFolder(FolderId id) async {
     folders.removeWhere((f) => f.id == id);
@@ -44,14 +44,14 @@ class _FakeStore implements RepoTreeStore {
   @override
   Future<void> moveRepo(
     RepoId id, {
-    FolderId? toParent,
     required int atIndex,
+    FolderId? toParent,
   }) async {}
   @override
   Future<void> moveFolder(
     FolderId id, {
-    FolderId? toParent,
     required int atIndex,
+    FolderId? toParent,
   }) async {}
 }
 

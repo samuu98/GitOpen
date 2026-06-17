@@ -3,12 +3,16 @@ import 'package:gitopen/infrastructure/persistence/workspace_persistence_impl.da
 import '../../_helpers/in_memory_db.dart';
 
 void main() {
-  test('roundtrip open paths', () async {
-    final db = newInMemoryDb();
-    final sut = DriftWorkspacePersistence(db);
-    await sut.saveOpenPaths(['/a', '/b']);
-    final read = await sut.getOpenPaths();
-    expect(read, ['/a', '/b']);
-    await db.close();
+  group('DriftWorkspacePersistence', () {
+    test('round-trips the last active repo id', () async {
+      final db = newInMemoryDb();
+      final sut = DriftWorkspacePersistence(db);
+      expect(await sut.getLastActiveRepoId(), isNull);
+      await sut.saveLastActiveRepoId('abc123');
+      expect(await sut.getLastActiveRepoId(), 'abc123');
+      await sut.saveLastActiveRepoId(null);
+      expect(await sut.getLastActiveRepoId(), isNull);
+      await db.close();
+    });
   });
 }

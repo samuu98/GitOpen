@@ -12,7 +12,7 @@ import 'package:gitopen/application/main_view_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/settings/app_settings.dart';
 import 'package:gitopen/application/settings/settings_open_provider.dart';
-import 'package:gitopen/application/workspaces/workspace.dart';
+import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
 import 'package:gitopen/ui/auto_refresh/repo_auto_refresh_scope.dart';
@@ -90,21 +90,19 @@ Future<void> main() async {
 
 Future<void> _rehydrate(ProviderContainer container) async {
   try {
-    final persistence = container.read(workspacePersistenceProvider);
     final manager = container.read(workspaceManagerProvider.notifier);
-    final paths = await persistence.getOpenPaths();
-    for (final p in paths) {
-      try {
-        await manager.open(p);
-      } on Object catch (e) {
-        _log.w('Failed to reopen workspace $p: $e');
-      }
-    }
+    await manager.loadAll();
+    await container.read(repoOrganizerProvider.notifier).refresh();
+
+    final persistence = container.read(workspacePersistenceProvider);
+    final lastId = await persistence.getLastActiveRepoId();
     final workspaces = container.read(workspaceManagerProvider);
-    if (workspaces.isNotEmpty) {
-      container.read(activeWorkspaceIdProvider.notifier).state =
-          workspaces.first.location.id;
-    }
+    final restored = workspaces
+        .where((w) => w.location.id.value == lastId)
+        .map((w) => w.location.id)
+        .firstOrNull;
+    container.read(activeWorkspaceIdProvider.notifier).state =
+        restored ?? (workspaces.isEmpty ? null : workspaces.first.location.id);
   } on Object catch (e) {
     _log.w('Rehydration failed: $e');
   }
@@ -121,18 +119,14 @@ void _subscribeRepoSwitch(ProviderContainer container) {
 }
 
 void _subscribePersistence(ProviderContainer container) {
-  container.listen<List<Workspace>>(
-    workspaceManagerProvider,
-    (previous, next) async {
-      final persistence = container.read(workspacePersistenceProvider);
-      final paths = next.map((w) => w.location.path).toList();
-      try {
-        await persistence.saveOpenPaths(paths);
-      } on Object catch (e) {
-        _log.w('Persist failed: $e');
-      }
-    },
-  );
+  container.listen<RepoId?>(activeWorkspaceIdProvider, (previous, next) async {
+    final persistence = container.read(workspacePersistenceProvider);
+    try {
+      await persistence.saveLastActiveRepoId(next?.value);
+    } on Object catch (e) {
+      _log.w('Persist active repo failed: $e');
+    }
+  });
 }
 
 Future<void> _checkForUpdatesQuietly(ProviderContainer container) async {

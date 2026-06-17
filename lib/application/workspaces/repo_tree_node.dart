@@ -3,7 +3,7 @@ import 'package:gitopen/domain/repositories/folder_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 
 /// A repo plus where it sits in the tree (its parent folder + order within
-/// that parent's shared sort space). Input to [buildRepoTree].
+/// that parent's shared sort space). Input to `buildRepoTree`.
 class PlacedRepo {
   const PlacedRepo({
     required this.location,

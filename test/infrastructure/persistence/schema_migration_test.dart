@@ -6,8 +6,8 @@ import 'package:sqlite3/sqlite3.dart';
 void main() {
   test('v2 -> v3 migration keeps repos at root and adds folders', () async {
     // Build a schema-v2 database by hand on a shared in-memory connection.
-    final raw = sqlite3.openInMemory();
-    raw.execute('''
+    final raw = sqlite3.openInMemory()
+      ..execute('''
       CREATE TABLE repositories (
         id TEXT NOT NULL PRIMARY KEY,
         path TEXT NOT NULL UNIQUE,
@@ -17,14 +17,14 @@ void main() {
         tab_order INTEGER NOT NULL,
         created_utc TEXT NOT NULL
       );
-    ''');
-    raw.execute('''
+    ''')
+      ..execute('''
       CREATE TABLE settings (
         key TEXT NOT NULL PRIMARY KEY,
         value_json TEXT NOT NULL
       );
-    ''');
-    raw.execute('''
+    ''')
+      ..execute('''
       CREATE TABLE activity_log (
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
         repo_id TEXT NOT NULL,
@@ -34,14 +34,14 @@ void main() {
         started_utc TEXT NOT NULL,
         succeeded INTEGER NOT NULL
       );
-    ''');
-    raw.execute('''
+    ''')
+      ..execute('''
       INSERT INTO repositories
         (id, path, display_name, color, last_opened_utc, tab_order, created_utc)
       VALUES ('r1', '/tmp/a', 'a', NULL, '2026-01-01T00:00:00.000Z', 5,
               '2026-01-01T00:00:00.000Z');
-    ''');
-    raw.execute('PRAGMA user_version = 2');
+    ''')
+      ..execute('PRAGMA user_version = 2');
 
     final db = AppDatabase.forTesting(NativeDatabase.opened(raw));
     // Any query forces Drift to run onUpgrade(2 -> 3).

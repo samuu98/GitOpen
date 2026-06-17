@@ -30,23 +30,23 @@ final class RepoOrganizer extends StateNotifier<List<RepoTreeNode>> {
   Future<void> removeFolder(FolderId id) =>
       _mutate(() => _store.removeFolder(id));
 
-  Future<void> setCollapsed(FolderId id, bool collapsed) =>
-      _mutate(() => _store.setCollapsed(id, collapsed));
+  Future<void> setCollapsed(FolderId id, {required bool collapsed}) =>
+      _mutate(() => _store.setCollapsed(id, collapsed: collapsed));
 
   Future<void> moveRepo(
     RepoId id, {
-    FolderId? toParent,
     required int atIndex,
+    FolderId? toParent,
   }) =>
-      _mutate(() => _store.moveRepo(id, toParent: toParent, atIndex: atIndex));
+      _mutate(() => _store.moveRepo(id, atIndex: atIndex, toParent: toParent));
 
   Future<void> moveFolder(
     FolderId id, {
-    FolderId? toParent,
     required int atIndex,
+    FolderId? toParent,
   }) =>
       _mutate(
-        () => _store.moveFolder(id, toParent: toParent, atIndex: atIndex),
+        () => _store.moveFolder(id, atIndex: atIndex, toParent: toParent),
       );
 
   Future<void> _mutate(Future<void> Function() op) async {
