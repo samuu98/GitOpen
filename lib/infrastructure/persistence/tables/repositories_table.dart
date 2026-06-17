@@ -6,7 +6,11 @@ class Repositories extends Table {
   TextColumn get displayName => text()();
   TextColumn get color => text().nullable()();
   DateTimeColumn get lastOpenedUtc => dateTime()();
+  // Order within this repo's parent folder (shared with sibling folders).
+  // Historically named "tabOrder"; kept to avoid a column rename migration.
   IntColumn get tabOrder => integer()();
+  // Null parentFolderId == root-level repo.
+  TextColumn get parentFolderId => text().nullable()();
   DateTimeColumn get createdUtc => dateTime()();
 
   @override

@@ -5,6 +5,20 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.1.0] — 2026-06-17
+
+### Repository organization
+- The repository dropdown is now a **persistent catalog**: every repo you have
+  opened stays listed and organized, and a single active repo is restored on
+  launch (replacing the old per-session open set).
+- Organize repositories into **nested folders** and **reorder** them by drag &
+  drop — drag a repo within or between folders, drop onto a folder to file it
+  inside, and reorder or reparent the folders themselves. The tree, collapse
+  state and order persist across restarts.
+- "Close" became **Remove from GitOpen**, which forgets a repo from the catalog
+  without touching the working copy on disk. Removing a folder is
+  non-destructive: its contents move up to the parent folder.
+
 ## [1.0.6] — 2026-06-17
 
 ### Performance

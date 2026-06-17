@@ -54,12 +54,22 @@ void main() {
       expect(sut.state, hasLength(1));
     });
 
-    test('close removes the workspace', () async {
+    test('loadAll populates state from the registry', () async {
+      final registry = _FakeRegistry();
+      await registry.add('/x');
+      await registry.add('/y');
+      final sut = WorkspaceManager(registry);
+      await sut.loadAll();
+      expect(sut.state, hasLength(2));
+    });
+
+    test('remove deletes from the registry and state', () async {
       final registry = _FakeRegistry();
       final sut = WorkspaceManager(registry);
       final ws = await sut.open('/x');
-      await sut.close(ws.location.id);
+      await sut.remove(ws.location.id);
       expect(sut.state, isEmpty);
+      expect(await registry.list(), isEmpty);
     });
   });
 }

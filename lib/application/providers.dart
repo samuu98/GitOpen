@@ -23,6 +23,9 @@ import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/settings/app_settings.dart';
 import 'package:gitopen/application/settings/app_settings_notifier.dart';
 import 'package:gitopen/application/watch/repo_watcher.dart';
+import 'package:gitopen/application/workspaces/repo_organizer.dart';
+import 'package:gitopen/application/workspaces/repo_tree_node.dart';
+import 'package:gitopen/application/workspaces/repo_tree_store.dart';
 import 'package:gitopen/application/workspaces/repository_registry.dart';
 import 'package:gitopen/application/workspaces/workspace.dart';
 import 'package:gitopen/application/workspaces/workspace_manager.dart';
@@ -49,6 +52,7 @@ import 'package:gitopen/infrastructure/logging/app_logger.dart';
 import 'package:gitopen/infrastructure/logging/app_logger_port.dart';
 import 'package:gitopen/infrastructure/operations/activity_log_repository.dart';
 import 'package:gitopen/infrastructure/persistence/database.dart';
+import 'package:gitopen/infrastructure/persistence/repo_tree_store_impl.dart';
 import 'package:gitopen/infrastructure/persistence/repository_registry_impl.dart';
 import 'package:gitopen/infrastructure/persistence/settings_repository.dart';
 import 'package:gitopen/infrastructure/persistence/workspace_persistence_impl.dart';
@@ -105,6 +109,17 @@ final workspacePersistenceProvider = Provider<WorkspacePersistence>((ref) {
 final workspaceManagerProvider =
     StateNotifierProvider<WorkspaceManager, List<Workspace>>((ref) {
       return WorkspaceManager(ref.watch(repositoryRegistryProvider));
+    });
+
+final repoTreeStoreProvider = Provider<RepoTreeStore>((ref) {
+  return DriftRepoTreeStore(ref.watch(appDatabaseProvider));
+});
+
+/// The folder/repo tree the dropdown watches. Mutations persist via
+/// [RepoTreeStore] then rebuild the tree.
+final repoOrganizerProvider =
+    StateNotifierProvider<RepoOrganizer, List<RepoTreeNode>>((ref) {
+      return RepoOrganizer(ref.watch(repoTreeStoreProvider));
     });
 
 final folderPickerProvider = Provider<FolderPicker>(
