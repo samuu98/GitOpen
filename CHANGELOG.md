@@ -5,6 +5,15 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.1.1] — 2026-06-17
+
+### Fixed
+- Remotes and their branches now appear in the sidebar. `getRemotes` parsed
+  `git remote -v` expecting a second TAB before `(fetch)`, but git writes a
+  SPACE there — so every line was skipped and the REMOTES section always showed
+  "Add remote…" even with a configured remote. Now splits the line on the last
+  space.
+
 ## [1.1.0] — 2026-06-17
 
 ### Repository organization

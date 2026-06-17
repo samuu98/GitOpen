@@ -243,10 +243,12 @@ final class GitCliRefReader {
       if (tab < 0) continue;
       final name = line.substring(0, tab);
       final rest = line.substring(tab + 1);
-      final tab2 = rest.lastIndexOf('\t');
-      if (tab2 < 0) continue;
-      final url = rest.substring(0, tab2);
-      final qualifier = rest.substring(tab2 + 1);
+      // `git remote -v` prints `name<TAB>url<SPACE>(fetch|push)` — a SPACE
+      // before the direction, not a second tab. Split on the last space.
+      final sep = rest.lastIndexOf(' ');
+      if (sep < 0) continue;
+      final url = rest.substring(0, sep);
+      final qualifier = rest.substring(sep + 1).trim();
       if (qualifier == '(fetch)' || !remoteUrls.containsKey(name)) {
         remoteUrls[name] = url;
       }
