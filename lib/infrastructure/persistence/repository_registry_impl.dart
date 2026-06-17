@@ -22,18 +22,32 @@ final class DriftRepositoryRegistry implements RepositoryRegistry {
       );
     }
     final id = RepoId.newId();
-    final allRows = await _db.select(_db.repositories).get();
-    final count = allRows.length;
     final now = DateTime.now().toUtc();
     await _db.into(_db.repositories).insert(RepositoriesCompanion.insert(
           id: id.value,
           path: path,
           displayName: _displayName(path),
           lastOpenedUtc: now,
-          tabOrder: count,
+          tabOrder: await _nextRootOrder(),
           createdUtc: now,
         ));
     return RepoLocation(id, path, _displayName(path));
+  }
+
+  /// Next free order at the root (shared between root folders and root repos),
+  /// so a newly added repo lands after existing root-level children.
+  Future<int> _nextRootOrder() async {
+    final folders = await (_db.select(_db.folders)
+          ..where((f) => f.parentId.isNull()))
+        .get();
+    final repos = await (_db.select(_db.repositories)
+          ..where((r) => r.parentFolderId.isNull()))
+        .get();
+    final orders = <int>[
+      ...folders.map((f) => f.sortOrder),
+      ...repos.map((r) => r.tabOrder),
+    ];
+    return orders.isEmpty ? 0 : (orders.reduce((a, b) => a > b ? a : b) + 1);
   }
 
   @override
