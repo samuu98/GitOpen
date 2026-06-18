@@ -1,9 +1,12 @@
-/// Outcome of probing whether a git host is reachable with the credential.
+import 'package:gitopen/application/auth/auth_profile.dart';
+
+/// Outcome of probing whether a credential actually authenticates.
 typedef CredentialTestResult = ({bool ok, String message});
 
-/// Tests connectivity for a git host, so the UI never has to shell out to
-/// `git` itself (keeps `dart:io` out of the widget layer).
+/// Validates a saved [AuthProfile]'s credential against its host, so the UI
+/// never has to shell out or make HTTP calls itself.
 abstract interface class CredentialTester { // ignore: one_member_abstracts
-  /// Probes [host] (e.g. `github.com`) and reports success + a message.
-  Future<CredentialTestResult> test(String host);
+  /// Authenticates [profile] against its host and reports success + a message
+  /// safe to show the user.
+  Future<CredentialTestResult> test(AuthProfile profile);
 }

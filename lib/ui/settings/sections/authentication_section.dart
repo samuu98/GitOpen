@@ -213,7 +213,7 @@ class _ProfileRow extends StatelessWidget {
             onPressed: () async {
               final result = await refreshKey
                   .read(credentialTesterProvider)
-                  .test(profile.host);
+                  .test(profile);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(result.message)),

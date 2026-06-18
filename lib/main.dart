@@ -284,6 +284,10 @@ class _ShellState extends ConsumerState<Shell> {
           child: Builder(
             builder: (context) {
               final palette = AppPalette.of(context);
+              final shellBody = shellBodyFor(
+                settingsOpen: settingsOpen,
+                hasActiveRepo: active != null,
+              );
               return Scaffold(
                 backgroundColor: palette.bg1,
                 body: WindowBorder(
@@ -297,7 +301,11 @@ class _ShellState extends ConsumerState<Shell> {
                           Expanded(
                             child: Row(
                               children: [
-                                const Sidebar(),
+                                // The branches/remotes/tags sidebar is hidden
+                                // while Settings is open, so the settings page
+                                // gets the full width.
+                                if (shellBody != ShellBody.settings)
+                                  const Sidebar(),
                                 Expanded(
                                   child: Container(
                                     color: palette.bg1,
@@ -305,10 +313,7 @@ class _ShellState extends ConsumerState<Shell> {
                                     // Settings must win over the empty/welcome
                                     // state, else a catalog with no repos makes
                                     // the Settings button unreachable.
-                                    child: switch (shellBodyFor(
-                                      settingsOpen: settingsOpen,
-                                      hasActiveRepo: active != null,
-                                    )) {
+                                    child: switch (shellBody) {
                                       ShellBody.settings =>
                                         const SettingsPage(),
                                       ShellBody.welcome =>

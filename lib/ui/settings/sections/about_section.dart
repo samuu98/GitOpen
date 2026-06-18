@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/ui/settings/settings_widgets.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-class AboutSection extends StatelessWidget {
+class AboutSection extends ConsumerWidget {
   const AboutSection({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
+    final version = ref.watch(appVersionProvider).valueOrNull ?? '…';
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
       child: Column(
@@ -55,7 +58,7 @@ class AboutSection extends StatelessWidget {
                             TextStyle(color: palette.fg2, fontSize: 12.5),
                       ),
                       const SizedBox(height: 14),
-                      const _Meta(label: 'Version', value: '0.3.0-dev'),
+                      _Meta(label: 'Version', value: version),
                       const SizedBox(height: 4),
                       const _Meta(label: 'License', value: 'MIT'),
                       const SizedBox(height: 4),

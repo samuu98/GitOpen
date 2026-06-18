@@ -29,9 +29,11 @@ class GitHubDeviceFlow {
 
   /// Requests a device + user code from GitHub.
   ///
-  /// [scope] defaults to `'repo'` which grants full repository access.
+  /// [scope] defaults to `'repo read:org user:email'`: repository access for
+  /// fetch/push, org-repo visibility, and `user:email` so the per-folder
+  /// identity resolver can match the account by its verified emails.
   Future<DeviceCodeResponse> requestDeviceCode({
-    String scope = 'repo',
+    String scope = 'repo read:org user:email',
   }) async {
     if (clientId.isEmpty) {
       throw StateError('GitHub Client ID not configured. Settings → GitHub.');

@@ -5,6 +5,28 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.5.1] — 2026-06-18
+
+### Fixed
+- **Testing a saved credential now actually validates it.** The "Test" button
+  previously ran an anonymous `git ls-remote https://github.com` against the
+  host root — which always failed with "repository not found" and never even
+  used the token. It now authenticates the profile's token against the GitHub
+  API (`GET /user`): success reports the authenticated login (and warns if it
+  differs from the profile's username), and failures report the real reason
+  (401 invalid token, 403 scope/rate-limit, network error).
+- The **About** page showed a stale hard-coded `0.3.0-dev`; it now reads the
+  running version from the app package.
+
+### Changed
+- GitHub sign-in via OAuth Device Flow now requests `repo read:org user:email`
+  instead of `repo` alone. The added `user:email` scope lets the per-folder
+  identity resolver match an account by its verified emails, and `read:org`
+  exposes organization repositories — so logging in with GitHub is now a full
+  alternative to a manually created PAT.
+- The branches/remotes/tags sidebar is now hidden while the Settings page is
+  open, giving settings the full window width.
+
 ## [1.5.0] — 2026-06-18
 
 ### Added

@@ -36,7 +36,7 @@ import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
-import 'package:gitopen/infrastructure/auth/git_credential_tester.dart';
+import 'package:gitopen/infrastructure/auth/github_credential_tester.dart';
 import 'package:gitopen/infrastructure/auth/github_device_flow.dart';
 import 'package:gitopen/infrastructure/auth/github_user_service.dart';
 import 'package:gitopen/infrastructure/auth/secure_auth_profile_store.dart';
@@ -382,7 +382,7 @@ final repoLauncherProvider = Provider<RepoLauncher>((ref) {
 });
 
 final credentialTesterProvider = Provider<CredentialTester>((ref) {
-  return const GitCredentialTester();
+  return GitHubApiCredentialTester();
 });
 
 final gitHubUserServiceProvider = Provider<GitHubUserService>((ref) {
