@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gitopen/application/branch_visibility_provider.dart';
 import 'package:gitopen/application/commit_graph/commit_graph_layout.dart';
 import 'package:gitopen/application/commit_graph/commit_node.dart';
@@ -36,7 +37,7 @@ const int graphPageSize = 300;
 /// at [graphPageSize] and grows by a page each time the user scrolls near the
 /// bottom; [commitGraphDataProvider] re-runs and re-lays-out the larger
 /// window (keeping the visible graph via skipLoadingOnReload).
-final StateProviderFamily<int, RepoLocation> graphLimitProvider =
+final graphLimitProvider =
     StateProvider.family<int, RepoLocation>((ref, repo) => graphPageSize);
 
 class GraphData {
@@ -54,8 +55,8 @@ class GraphData {
   final bool hasMore;
 }
 
-final FutureProviderFamily<GraphData, RepoLocation>
-commitGraphDataProvider = FutureProvider.family<GraphData, RepoLocation>((
+final commitGraphDataProvider =
+    FutureProvider.family<GraphData, RepoLocation>((
   ref,
   repo,
 ) async {

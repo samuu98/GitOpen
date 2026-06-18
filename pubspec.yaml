@@ -1,7 +1,7 @@
 name: gitopen
 description: "Cross-platform desktop git client"
 publish_to: 'none'
-version: 1.7.2+54
+version: 1.7.3+55
 
 environment:
   sdk: ^3.11.5
@@ -20,7 +20,7 @@ dependencies:
   file_selector: ^1.1.0
   flutter:
     sdk: flutter
-  flutter_riverpod: ^2.6.1 # state management
+  flutter_riverpod: ^3.3.2 # state management
   highlight: ^0.7.0
   http: ^1.6.0
   intl: ^0.20.0

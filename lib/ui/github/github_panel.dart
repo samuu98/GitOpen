@@ -24,7 +24,7 @@ class _GitHubPanelState extends ConsumerState<GitHubPanel> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final slug = ref.watch(githubSlugProvider(widget.repo)).valueOrNull;
+    final slug = ref.watch(githubSlugProvider(widget.repo)).value;
     if (slug == null) {
       return Center(
         child: Text(
@@ -41,7 +41,7 @@ class _GitHubPanelState extends ConsumerState<GitHubPanel> {
     if (profileAsync.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    final token = githubTokenOf(profileAsync.valueOrNull?.spec);
+    final token = githubTokenOf(profileAsync.value?.spec);
     if (token == null) return GitHubSignInCta(repo: widget.repo);
     return Column(
       children: [

@@ -53,7 +53,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     final pos = _controller.position;
     if (pos.pixels < pos.maxScrollExtent - 800) return;
     final async = ref.read(commitGraphDataProvider(widget.repo));
-    final data = async.valueOrNull;
+    final data = async.value;
     if (data == null || !data.hasMore || async.isLoading) return;
     ref
         .read(graphLimitProvider(widget.repo).notifier)
@@ -93,7 +93,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     // Listen for scroll requests from the sidebar / other panels.
     ref.listen<CommitSha?>(scrollRequestProvider, (prev, next) {
       if (next == null) return;
-      final data = ref.read(commitGraphDataProvider(repo)).valueOrNull;
+      final data = ref.read(commitGraphDataProvider(repo)).value;
       if (data == null) return;
       // Schedule after the current frame so the ListView has measured.
       WidgetsBinding.instance.addPostFrameCallback((_) {

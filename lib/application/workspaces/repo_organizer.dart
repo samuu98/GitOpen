@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gitopen/application/workspaces/build_repo_tree.dart';
 import 'package:gitopen/application/workspaces/repo_tree_node.dart';
 import 'package:gitopen/application/workspaces/repo_tree_store.dart';

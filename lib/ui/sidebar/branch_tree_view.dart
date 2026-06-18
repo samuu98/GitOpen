@@ -419,7 +419,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                       builder: (context, ref, _) {
                         final div = ref
                             .watch(branchDivergenceProvider(widget.repo))
-                            .valueOrNull?[branch.name];
+                            .value?[branch.name];
                         return DivergenceBadge(
                           ahead: div?.ahead ?? 0,
                           behind: div?.behind ?? 0,

@@ -17,11 +17,7 @@ import 'package:gitopen/ui/common/truncated_diff_banner.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-final AutoDisposeFutureProviderFamily<
-  DiffResult,
-  ({RepoLocation repo, CommitSha sha, bool ignoreWhitespace})
->
-_diffProvider = FutureProvider.family
+final _diffProvider = FutureProvider.family
     .autoDispose<
       DiffResult,
       ({RepoLocation repo, CommitSha sha, bool ignoreWhitespace})
@@ -38,16 +34,7 @@ _diffProvider = FutureProvider.family
 
 /// Uncapped single-file diff, fetched when the user asks for the full
 /// content of a truncated file.
-final AutoDisposeFutureProviderFamily<
-  FileDiff?,
-  ({
-    RepoLocation repo,
-    CommitSha sha,
-    String path,
-    bool ignoreWhitespace,
-  })
->
-_fullFileProvider = FutureProvider.family
+final _fullFileProvider = FutureProvider.family
     .autoDispose<
       FileDiff?,
       ({
@@ -157,7 +144,7 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
             ),
           )
         : null;
-    final shown = full?.valueOrNull ?? file;
+    final shown = full?.value ?? file;
     return Container(
       margin: EdgeInsets.only(bottom: spacing.md),
       decoration: BoxDecoration(

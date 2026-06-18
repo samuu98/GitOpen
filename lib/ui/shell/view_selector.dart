@@ -20,8 +20,8 @@ class ViewSelector extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
     final current = ref.watch(mainViewProvider);
-    final isGitHub = ref.watch(githubSlugProvider(repo)).valueOrNull != null;
-    final lfs = ref.watch(gitLfsStatusProvider(repo)).valueOrNull;
+    final isGitHub = ref.watch(githubSlugProvider(repo)).value != null;
+    final lfs = ref.watch(gitLfsStatusProvider(repo)).value;
     final usesLfs = lfs != null && (lfs.isRepoConfigured || lfs.hasAttributes);
     return Container(
       height: 30,

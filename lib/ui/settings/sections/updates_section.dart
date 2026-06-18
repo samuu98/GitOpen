@@ -27,7 +27,7 @@ class _UpdatesSectionState extends ConsumerState<UpdatesSection> {
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final s = ref.watch(appSettingsProvider);
-    final version = ref.watch(appVersionProvider).valueOrNull;
+    final version = ref.watch(appVersionProvider).value;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
       child: Column(

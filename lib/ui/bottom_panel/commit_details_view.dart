@@ -16,11 +16,7 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:intl/intl.dart';
 
 /// Headline metadata for the details panel — author/committer/parents.
-final AutoDisposeFutureProviderFamily<
-  CommitInfo?,
-  ({RepoLocation repo, CommitSha sha})
->
-_commitInfoProvider = FutureProvider.family
+final _commitInfoProvider = FutureProvider.family
     .autoDispose<CommitInfo?, ({RepoLocation repo, CommitSha sha})>((
       ref,
       key,
@@ -35,11 +31,7 @@ _commitInfoProvider = FutureProvider.family
 /// Full commit body, fetched separately so the bulk graph load doesn't pay
 /// for it.  Cached per (repo, sha) and disposed when the details view
 /// stops watching this commit.
-final AutoDisposeFutureProviderFamily<
-  String?,
-  ({RepoLocation repo, CommitSha sha})
->
-_commitFullMessageProvider = FutureProvider.family
+final _commitFullMessageProvider = FutureProvider.family
     .autoDispose<String?, ({RepoLocation repo, CommitSha sha})>((ref, key) {
       return ref
           .watch(gitReadOperationsProvider)
@@ -68,7 +60,7 @@ class CommitDetailsView extends ConsumerWidget {
       ),
       data: (c) {
         if (c == null) return const SizedBox.shrink();
-        final fullMessage = messageAsync.valueOrNull ?? c.summary;
+        final fullMessage = messageAsync.value ?? c.summary;
         final (summary, body) = _splitMessage(fullMessage);
         final sameSignature = _sameSignature(c.author, c.committer);
         return SingleChildScrollView(

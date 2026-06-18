@@ -50,7 +50,7 @@ class _StashDropdownState extends ConsumerState<StashDropdown> {
 
   List<Widget> _buildStashMenuItems(RepoLocation repo) {
     final selected = ref.watch(selectedFileProvider);
-    final status = ref.watch(workingCopyStatusProvider(repo)).valueOrNull;
+    final status = ref.watch(workingCopyStatusProvider(repo)).value;
     final selectedEntry = selected == null
         ? null
         : _entryForSelection(status ?? const [], selected.path);
@@ -178,11 +178,7 @@ class _StashDropdownState extends ConsumerState<StashDropdown> {
   }
 }
 
-final AutoDisposeFutureProviderFamily<
-  DiffResult,
-  ({RepoLocation repo, int index})
->
-_stashDiffProvider = FutureProvider.family
+final _stashDiffProvider = FutureProvider.family
     .autoDispose<DiffResult, ({RepoLocation repo, int index})>(
       (ref, key) => ref
           .watch(gitReadOperationsProvider)

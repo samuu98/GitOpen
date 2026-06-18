@@ -13,7 +13,7 @@ class DetachedHeadBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final status = ref.watch(repoStatusProvider(repo)).valueOrNull;
+    final status = ref.watch(repoStatusProvider(repo)).value;
     if (status == null || !status.isDetached) {
       return const SizedBox.shrink();
     }

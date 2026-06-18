@@ -10,7 +10,7 @@ class AboutSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
-    final version = ref.watch(appVersionProvider).valueOrNull ?? '…';
+    final version = ref.watch(appVersionProvider).value ?? '…';
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
       child: Column(

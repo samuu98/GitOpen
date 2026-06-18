@@ -10,7 +10,7 @@ import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/settings/settings_widgets.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-final AutoDisposeFutureProvider<List<AuthProfile>> _profilesProvider =
+final _profilesProvider =
     FutureProvider.autoDispose<List<AuthProfile>>((ref) async {
   // Watching the binding map ensures the list refreshes when a binding
   // change indirectly mutates settings; the store itself is the source

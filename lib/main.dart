@@ -375,7 +375,7 @@ class _RepoBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final view = ref.watch(mainViewProvider);
     final repoStateAsync = ref.watch(repoStateProvider(repo));
-    final inProgressOp = repoStateAsync.valueOrNull;
+    final inProgressOp = repoStateAsync.value;
     // Every in-progress sequencer op (merge, cherry-pick, revert AND rebase)
     // routes to the conflict panel — a paused `git rebase` previously left
     // the user with no continue/abort UI at all.

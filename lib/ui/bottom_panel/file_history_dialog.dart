@@ -12,8 +12,7 @@ import 'package:intl/intl.dart';
 typedef FileKey = ({RepoLocation repo, String path});
 
 /// Commits that touched a given path, newest first (`git log --follow`).
-final AutoDisposeFutureProviderFamily<List<CommitInfo>, FileKey>
-    fileHistoryProvider =
+final fileHistoryProvider =
     FutureProvider.family.autoDispose<List<CommitInfo>, FileKey>(
         (ref, key) async {
   final git = ref.watch(gitReadOperationsProvider);
@@ -22,8 +21,7 @@ final AutoDisposeFutureProviderFamily<List<CommitInfo>, FileKey>
 });
 
 /// Per-line blame for a path at HEAD (`git blame --porcelain`).
-final AutoDisposeFutureProviderFamily<List<BlameLine>, FileKey>
-    fileBlameProvider =
+final fileBlameProvider =
     FutureProvider.family.autoDispose<List<BlameLine>, FileKey>(
         (ref, key) async {
   final git = ref.watch(gitReadOperationsProvider);

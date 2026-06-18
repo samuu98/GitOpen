@@ -5,6 +5,16 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.7.3] — 2026-06-18
+
+### Changed
+- **Migrated to Riverpod 3** (`flutter_riverpod` 3.3.2). The legacy
+  `StateProvider` / `StateNotifier` APIs now come from
+  `flutter_riverpod/legacy.dart`; the removed `*ProviderFamily` type aliases are
+  inferred; `AsyncValue.valueOrNull` → `.value` (v3's null-safe getter). No
+  behaviour change intended — full test suite green, release build and launch
+  verified. Toolchain also moved to the latest stable Flutter (3.44.2).
+
 ## [1.7.2] — 2026-06-18
 
 ### Changed

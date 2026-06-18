@@ -141,7 +141,7 @@ class _RepoAutoRefreshScopeState extends ConsumerState<RepoAutoRefreshScope> {
         ref.watch(appSettingsProvider.select((s) => s.autoRefresh));
     // Keep _lastHeadSha current as status reloads, for the focus safety net.
     ref.listen(repoStatusProvider(widget.repo), (_, next) {
-      final sha = next.valueOrNull?.headSha;
+      final sha = next.value?.headSha;
       if (sha != null) _lastHeadSha = sha;
     });
     _syncSubscription(enabled: enabled);

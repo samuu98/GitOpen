@@ -104,9 +104,9 @@ class RepoInfoDialog extends ConsumerWidget {
               ),
               _InfoRow(
                 label: 'Git LFS',
-                value: _lfsLabel(lfsAsync.valueOrNull),
+                value: _lfsLabel(lfsAsync.value),
                 muted:
-                    !(lfsAsync.valueOrNull?.isRepoConfigured ?? false),
+                    !(lfsAsync.value?.isRepoConfigured ?? false),
                 actions: [
                   _ActionButton(
                     icon: Icons.chevron_right,

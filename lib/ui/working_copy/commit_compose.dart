@@ -24,8 +24,7 @@ class CommitCompose extends ConsumerStatefulWidget {
 
 /// Lookup of the effective author identity for the active repo — driving
 /// the small "Committing as …" header in the compose panel.
-final AutoDisposeFutureProviderFamily<({String? email, String? name}),
-        RepoLocation> _composeIdentityProvider =
+final _composeIdentityProvider =
     FutureProvider.autoDispose.family<({String? name, String? email}),
             RepoLocation>(
   (ref, repo) => ref.read(gitIdentityServiceProvider).readEffective(repo),
@@ -87,7 +86,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _IdentityStrip(identity: identityAsync.valueOrNull, amend: _amend),
+          _IdentityStrip(identity: identityAsync.value, amend: _amend),
           const SizedBox(height: 8),
           _MessageField(
             controller: _ctl,

@@ -69,11 +69,11 @@ class StatusBar extends ConsumerWidget {
               // (cheap, single `git status` call), NOT from for-each-ref's
               // `upstream:track` atom which becomes O(N×commits) on repos
               // with many local branches that diverge a lot from upstream.
-              if ((statusAsync.valueOrNull?.ahead ?? 0) > 0)
-                Text(' ↑${statusAsync.valueOrNull!.ahead}',
+              if ((statusAsync.value?.ahead ?? 0) > 0)
+                Text(' ↑${statusAsync.value!.ahead}',
                     style: t.caption.copyWith(color: p.accentCurrent)),
-              if ((statusAsync.valueOrNull?.behind ?? 0) > 0)
-                Text(' ↓${statusAsync.valueOrNull!.behind}',
+              if ((statusAsync.value?.behind ?? 0) > 0)
+                Text(' ↓${statusAsync.value!.behind}',
                     style: t.caption.copyWith(color: p.accentTag)),
             ]);
           },
@@ -89,12 +89,12 @@ class StatusBar extends ConsumerWidget {
             ),
           ),
         ),
-        if (inProgressAsync.valueOrNull != null &&
-            inProgressAsync.valueOrNull != InProgressOp.none) ...[
+        if (inProgressAsync.value != null &&
+            inProgressAsync.value != InProgressOp.none) ...[
           Icon(Icons.warning_amber, size: 12, color: p.accentTag),
           const SizedBox(width: 4),
           Text(
-            inProgressAsync.valueOrNull!.name,
+            inProgressAsync.value!.name,
             style: t.caption.copyWith(color: p.accentTag),
           ),
           const SizedBox(width: 12),
@@ -137,7 +137,7 @@ class _ActiveAccountChip extends ConsumerWidget {
     final p = AppPalette.of(context);
     final t = AppTypography.of(context);
     final async = ref.watch(repoActiveProfileProvider(repo));
-    final current = async.valueOrNull;
+    final current = async.value;
     final label = current?.username ?? 'no account';
     final color = current == null ? p.fg2 : p.fg1;
     return InkWell(

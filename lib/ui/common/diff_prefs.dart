@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gitopen/ui/common/app_icon_button.dart';
 
 /// Whether diff views highlight the changed region inside paired

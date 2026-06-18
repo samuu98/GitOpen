@@ -11,11 +11,7 @@ import 'package:gitopen/ui/common/file_list_mode_toggle.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-final AutoDisposeFutureProviderFamily<
-  List<FileTreeEntry>,
-  ({RepoLocation repo, CommitSha sha})
->
-_fileTreeProvider = FutureProvider.family
+final _fileTreeProvider = FutureProvider.family
     .autoDispose<List<FileTreeEntry>, ({RepoLocation repo, CommitSha sha})>((
       ref,
       key,

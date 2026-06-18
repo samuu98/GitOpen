@@ -172,7 +172,7 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
 
       // Checkout entries for the cached local branches (skip the current one).
       final branches =
-          ref.read(branchesProvider(repo)).valueOrNull ?? const <Branch>[];
+          ref.read(branchesProvider(repo)).value ?? const <Branch>[];
       for (final b in branches.where((b) => !b.isRemote && !b.isCurrent)) {
         commands.add(
           PaletteCommand(

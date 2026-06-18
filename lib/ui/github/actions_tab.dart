@@ -26,7 +26,7 @@ class GitHubActionsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final branch = ref
         .watch(repoStatusProvider(repo))
-        .valueOrNull
+        .value
         ?.currentBranch;
     final key = (slug: slug, token: token, branch: branch);
     final async = ref.watch(githubWorkflowRunsProvider(key));

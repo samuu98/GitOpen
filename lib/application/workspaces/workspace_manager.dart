@@ -1,5 +1,5 @@
 import 'package:collection/collection.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gitopen/application/workspaces/repository_registry.dart';
 import 'package:gitopen/application/workspaces/workspace.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';

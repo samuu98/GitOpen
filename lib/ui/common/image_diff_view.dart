@@ -11,11 +11,7 @@ import 'package:gitopen/domain/files/file_revision.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-final AutoDisposeFutureProviderFamily<
-  FileContent,
-  ({RepoLocation repo, FileRevision revision, String path})
->
-_fileBytesProvider = FutureProvider.family
+final _fileBytesProvider = FutureProvider.family
     .autoDispose<
       FileContent,
       ({RepoLocation repo, FileRevision revision, String path})

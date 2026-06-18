@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gitopen/application/auth/account_emails.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_profile_store.dart';
@@ -85,8 +86,8 @@ final gitHubApiProvider = Provider<GitHubApi>((ref) => GitHubRestApi());
 
 /// The repo's GitHub `owner/repo` slug, or null when `origin` is missing or
 /// not a github.com URL - null hides the GitHub view.
-final AutoDisposeFutureProviderFamily<RepoSlug?, RepoLocation>
-githubSlugProvider = FutureProvider.family.autoDispose<RepoSlug?, RepoLocation>(
+final githubSlugProvider =
+    FutureProvider.family.autoDispose<RepoSlug?, RepoLocation>(
   (ref, repo) async {
     final url = await ref
         .watch(remoteUrlReaderProvider)
@@ -161,13 +162,12 @@ final gitLfsServiceProvider = Provider<GitLfsService>((ref) {
   );
 });
 
-final FutureProviderFamily<GitLfsStatus, RepoLocation> gitLfsStatusProvider =
+final gitLfsStatusProvider =
     FutureProvider.family<GitLfsStatus, RepoLocation>((ref, repo) {
       return ref.watch(gitLfsOperationsProvider).status(repo);
     });
 
-final FutureProviderFamily<List<GitLfsTrackedPattern>, RepoLocation>
-gitLfsTrackedPatternsProvider =
+final gitLfsTrackedPatternsProvider =
     FutureProvider.family<List<GitLfsTrackedPattern>, RepoLocation>((
       ref,
       repo,
@@ -175,7 +175,7 @@ gitLfsTrackedPatternsProvider =
       return ref.watch(gitLfsOperationsProvider).trackedPatterns(repo);
     });
 
-final FutureProviderFamily<List<GitLfsFile>, RepoLocation> gitLfsFilesProvider =
+final gitLfsFilesProvider =
     FutureProvider.family<List<GitLfsFile>, RepoLocation>((
       ref,
       repo,
@@ -252,14 +252,14 @@ final authResolverProvider = Provider<AuthResolver>((ref) {
 /// status bar reads this) as well as the working-tree entries used by the
 /// changes panel.  Centralised so multiple consumers don't each spawn a
 /// `git status` of their own.
-final FutureProviderFamily<RepoStatus, RepoLocation> repoStatusProvider =
+final repoStatusProvider =
     FutureProvider.family<RepoStatus, RepoLocation>((ref, repo) {
       return ref.watch(gitReadOperationsProvider).getStatus(repo);
     });
 
 /// Local branches only — always fast.  This is what the UI awaits on
 /// initial repo load so the graph and sidebar render immediately.
-final FutureProviderFamily<List<Branch>, RepoLocation> localBranchesProvider =
+final localBranchesProvider =
     FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) {
       appLog.i('branches: loading locals for ${repo.displayName}');
       return ref.watch(gitReadOperationsProvider).getLocalBranches(repo);
@@ -267,16 +267,15 @@ final FutureProviderFamily<List<Branch>, RepoLocation> localBranchesProvider =
 
 /// Ahead/behind per local branch — loaded in parallel so it never blocks the
 /// initial branch render; the sidebar badges fill in when it resolves.
-final FutureProviderFamily<Map<String, ({int ahead, int behind})>, RepoLocation>
-    branchDivergenceProvider = FutureProvider.family<
-        Map<String, ({int ahead, int behind})>, RepoLocation>((ref, repo) {
+final branchDivergenceProvider = FutureProvider.family<
+    Map<String, ({int ahead, int behind})>, RepoLocation>((ref, repo) {
   return ref.watch(gitReadOperationsProvider).localBranchDivergence(repo);
 });
 
 /// Remote tracking branches — may take seconds (or time out at 3s on
 /// huge monorepos).  Loaded in parallel and consumed without `await` by
 /// UI that wants to render incrementally.
-final FutureProviderFamily<List<Branch>, RepoLocation> remoteBranchesProvider =
+final remoteBranchesProvider =
     FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) {
       appLog.i('branches: loading remotes for ${repo.displayName}');
       return ref.watch(gitReadOperationsProvider).getRemoteBranches(repo);
@@ -291,7 +290,7 @@ final FutureProviderFamily<List<Branch>, RepoLocation> remoteBranchesProvider =
 /// re-emitted when remotes arrived; that caused every downstream provider
 /// (graph, sidebar) to RE-RUN from scratch, doubling the `git log` cost
 /// and blocking the UI on big repos.  Always await both `.future`s here.
-final FutureProviderFamily<List<Branch>, RepoLocation> branchesProvider =
+final branchesProvider =
     FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) async {
       final locals = await ref.watch(localBranchesProvider(repo).future);
       final remotes = await ref.watch(remoteBranchesProvider(repo).future);
@@ -300,13 +299,12 @@ final FutureProviderFamily<List<Branch>, RepoLocation> branchesProvider =
 
 /// Submodules registered in the superproject (`git submodule status`).
 /// Family-keyed by [RepoLocation] like the other ref providers.
-final FutureProviderFamily<List<Submodule>, RepoLocation> submodulesProvider =
+final submodulesProvider =
     FutureProvider.family<List<Submodule>, RepoLocation>((ref, repo) {
       return ref.watch(gitReadOperationsProvider).getSubmodules(repo);
     });
 
-final AutoDisposeFutureProviderFamily<AuthProfile?, RepoLocation>
-repoActiveProfileProvider = FutureProvider.autoDispose
+final repoActiveProfileProvider = FutureProvider.autoDispose
     .family<AuthProfile?, RepoLocation>((ref, repo) async {
       ref.watch(appSettingsProvider.select((s) => s.authRepoBindings));
       appLog.i('auth: resolveForRepo(${repo.displayName}) starting');
@@ -364,7 +362,7 @@ typedef RepoInfo = ({
   String? userEmail,
 });
 
-final FutureProviderFamily<RepoInfo, RepoLocation> repoInfoProvider =
+final repoInfoProvider =
     FutureProvider.family<RepoInfo, RepoLocation>((ref, repo) async {
   final originUrl =
       await ref.watch(remoteUrlReaderProvider).remoteUrl(repo, 'origin');

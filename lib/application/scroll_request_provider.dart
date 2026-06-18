@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 
 /// Set to a commit SHA to request the commit graph to scroll that commit

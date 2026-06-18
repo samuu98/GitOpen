@@ -20,8 +20,7 @@ import 'package:intl/intl.dart';
 
 typedef _Key = ({RepoLocation repo, CommitSha from, CommitSha to});
 
-final AutoDisposeFutureProviderFamily<({int left, int right}), _Key>
-_divergenceProvider = FutureProvider.family
+final _divergenceProvider = FutureProvider.family
     .autoDispose<({int left, int right}), _Key>(
       (ref, key) => ref
           .watch(gitReadOperationsProvider)
@@ -29,8 +28,8 @@ _divergenceProvider = FutureProvider.family
     );
 
 /// Commits reachable only from `from` (left list). Capped at 100.
-final AutoDisposeFutureProviderFamily<List<CommitInfo>, _Key>
-_onlyFromProvider = FutureProvider.family.autoDispose<List<CommitInfo>, _Key>(
+final _onlyFromProvider =
+    FutureProvider.family.autoDispose<List<CommitInfo>, _Key>(
   (ref, key) => ref
       .watch(gitReadOperationsProvider)
       .getCommits(
@@ -41,7 +40,7 @@ _onlyFromProvider = FutureProvider.family.autoDispose<List<CommitInfo>, _Key>(
 );
 
 /// Commits reachable only from `to` (right list). Capped at 100.
-final AutoDisposeFutureProviderFamily<List<CommitInfo>, _Key> _onlyToProvider =
+final _onlyToProvider =
     FutureProvider.family.autoDispose<List<CommitInfo>, _Key>(
       (ref, key) => ref
           .watch(gitReadOperationsProvider)
@@ -55,7 +54,7 @@ final AutoDisposeFutureProviderFamily<List<CommitInfo>, _Key> _onlyToProvider =
           .toList(),
     );
 
-final AutoDisposeFutureProviderFamily<DiffResult, _Key> _compareDiffProvider =
+final _compareDiffProvider =
     FutureProvider.family.autoDispose<DiffResult, _Key>(
       (ref, key) => ref
           .watch(gitReadOperationsProvider)
@@ -110,7 +109,7 @@ class CompareRefsDialog extends ConsumerWidget {
                     child: _CommitListColumn(
                       title:
                           'Only on ${from.name} '
-                          '(${divergence.valueOrNull?.left ?? '…'})',
+                          '(${divergence.value?.left ?? '…'})',
                       provider: _onlyFromProvider(key),
                     ),
                   ),
@@ -119,7 +118,7 @@ class CompareRefsDialog extends ConsumerWidget {
                     child: _CommitListColumn(
                       title:
                           'Only on ${to.name} '
-                          '(${divergence.valueOrNull?.right ?? '…'})',
+                          '(${divergence.value?.right ?? '…'})',
                       provider: _onlyToProvider(key),
                     ),
                   ),
@@ -154,7 +153,7 @@ class CompareRefsDialog extends ConsumerWidget {
 class _CommitListColumn extends ConsumerWidget {
   const _CommitListColumn({required this.title, required this.provider});
   final String title;
-  final AutoDisposeFutureProvider<List<CommitInfo>> provider;
+  final FutureProvider<List<CommitInfo>> provider;
 
   static final DateFormat _dateFmt = DateFormat('yyyy-MM-dd');
 

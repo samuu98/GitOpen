@@ -8,3 +8,12 @@ analyzer:
     # Doc-comment coverage is a larger, dedicated effort — don't block the
     # build on it in this foundation slice.
     public_member_api_docs: ignore
+
+linter:
+  rules:
+    # Riverpod 3 unified its provider types (autoDispose/family folded into the
+    # base types), so the public types of `FutureProvider.family<…>` etc. are
+    # intentionally opaque/verbose. Let provider declarations infer their type
+    # rather than spelling out internal Riverpod type names.
+    specify_nonobvious_property_types: false
+    specify_nonobvious_local_variable_types: false

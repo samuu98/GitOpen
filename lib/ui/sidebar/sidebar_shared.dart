@@ -57,7 +57,7 @@ class SidebarData {
   final List<Worktree> worktrees;
 }
 
-final FutureProviderFamily<SidebarData, RepoLocation> sidebarDataProvider =
+final sidebarDataProvider =
     FutureProvider.family<SidebarData, RepoLocation>((ref, repo) async {
   final logger = ref.read(loggerProvider);
   final git = ref.watch(gitReadOperationsProvider);

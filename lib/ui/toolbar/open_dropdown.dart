@@ -29,7 +29,7 @@ class _OpenDropdownState extends ConsumerState<OpenDropdown> {
       controller: _menuController,
       style: appMenuStyle(context),
       menuChildren: widget.enabled && widget.repo != null
-          ? _buildMenuItems(widget.repo!, editorsAsync.valueOrNull ?? const [])
+          ? _buildMenuItems(widget.repo!, editorsAsync.value ?? const [])
           : const [],
       child: ToolbarDropdownButton(
         icon: Icons.open_in_new,

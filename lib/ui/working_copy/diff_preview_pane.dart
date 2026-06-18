@@ -20,11 +20,7 @@ import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 // ---------------------------------------------------------------------------
 
 /// Uncapped single-file working-copy diff for "Load full diff".
-final AutoDisposeFutureProviderFamily<
-  FileDiff?,
-  ({RepoLocation repo, String path, bool staged})
->
-_fullWorkingFileProvider = FutureProvider.family
+final _fullWorkingFileProvider = FutureProvider.family
     .autoDispose<FileDiff?, ({RepoLocation repo, String path, bool staged})>((
       ref,
       key,
@@ -135,7 +131,7 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
                   )),
                 )
               : null;
-          final shown = full?.valueOrNull ?? fileDiff;
+          final shown = full?.value ?? fileDiff;
           final language = languageForPath(sel.path);
           return ListView(
             padding: const EdgeInsets.all(8),

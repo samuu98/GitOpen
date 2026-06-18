@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gitopen/application/git_identity/git_identity.dart';
 import 'package:gitopen/application/settings/app_settings.dart';
 import 'package:gitopen/application/settings/settings_store.dart';

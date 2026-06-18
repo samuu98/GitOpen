@@ -4,8 +4,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 
 enum InProgressOp { none, merge, cherryPick, rebase, revert }
 
-final AutoDisposeFutureProviderFamily<InProgressOp, RepoLocation>
-    repoStateProvider =
+final repoStateProvider =
     FutureProvider.family.autoDispose<InProgressOp, RepoLocation>(
         (ref, repo) async {
   final probe = ref.watch(gitDirProbeProvider);

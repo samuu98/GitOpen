@@ -350,7 +350,7 @@ class _CheckChip extends ConsumerWidget {
     final async = ref.watch(
       githubChecksProvider((slug: slug, token: token, sha: sha)),
     );
-    final summary = async.valueOrNull;
+    final summary = async.value;
     if (summary == null || summary.state == CheckState.none) {
       return const SizedBox.shrink();
     }

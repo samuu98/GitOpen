@@ -9,8 +9,7 @@ import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-final AutoDisposeFutureProviderFamily<List<String>, RepoLocation>
-    _conflictsProvider =
+final _conflictsProvider =
     FutureProvider.family.autoDispose<List<String>, RepoLocation>(
         (ref, repo) async {
   final git = ref.watch(gitReadOperationsProvider);

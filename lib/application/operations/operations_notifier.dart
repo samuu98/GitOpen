@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gitopen/application/operations/activity_log_store.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';

@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 /// Set of `Branch.fullName` values that are CURRENTLY HIDDEN.
 /// We invert (track hidden, not visible) so that fresh repos default to

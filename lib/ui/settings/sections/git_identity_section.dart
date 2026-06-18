@@ -10,10 +10,8 @@ import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/settings/settings_widgets.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-final AutoDisposeFutureProviderFamily<({String? email, String? name}),
-        RepoLocation> _activeRepoIdentityProvider =
-    FutureProvider.autoDispose
-        .family<({String? name, String? email}), RepoLocation>(
+final _activeRepoIdentityProvider = FutureProvider.autoDispose
+    .family<({String? name, String? email}), RepoLocation>(
   (ref, repo) async {
     return ref.watch(gitIdentityServiceProvider).readEffective(repo);
   },

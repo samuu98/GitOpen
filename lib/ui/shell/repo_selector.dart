@@ -28,7 +28,7 @@ class _RepoSelectorState extends ConsumerState<RepoSelector> {
         workspaces.firstWhereOrNull((w) => w.location.id == activeId);
     final status = active == null
         ? null
-        : ref.watch(repoStatusProvider(active.location)).valueOrNull;
+        : ref.watch(repoStatusProvider(active.location)).value;
 
     return CompositedTransformTarget(
       link: _link,
