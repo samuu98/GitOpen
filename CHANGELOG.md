@@ -5,6 +5,15 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.5.0] — 2026-06-18
+
+### Added
+- A **Repository** info panel, opened from the info button next to the active
+  repo name in the title bar. It shows the repo's local folder path, its
+  `origin` remote URL, and the effective git identity (user name and email)
+  for that repo. Each row has a copy button; the path can be opened in the
+  file manager and the origin URL opened in the browser.
+
 ## [1.4.1] — 2026-06-18
 
 ### Fixed

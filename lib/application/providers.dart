@@ -355,6 +355,28 @@ final gitIdentityServiceProvider = Provider<GitIdentityService>((ref) {
   return GitIdentityService(runner: ref.watch(gitProcessRunnerProvider));
 });
 
+/// Local path + origin URL + effective git identity for a repo — what the
+/// title-bar Repository info panel shows. Read on demand when the panel opens.
+typedef RepoInfo = ({
+  String path,
+  String? originUrl,
+  String? userName,
+  String? userEmail,
+});
+
+final FutureProviderFamily<RepoInfo, RepoLocation> repoInfoProvider =
+    FutureProvider.family<RepoInfo, RepoLocation>((ref, repo) async {
+  final originUrl =
+      await ref.watch(remoteUrlReaderProvider).remoteUrl(repo, 'origin');
+  final id = await ref.watch(gitIdentityServiceProvider).readEffective(repo);
+  return (
+    path: repo.path,
+    originUrl: originUrl,
+    userName: id.name,
+    userEmail: id.email,
+  );
+});
+
 final repoLauncherProvider = Provider<RepoLauncher>((ref) {
   return SystemRepoLauncher();
 });

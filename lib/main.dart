@@ -22,6 +22,7 @@ import 'package:gitopen/ui/commit_graph/detached_head_banner.dart';
 import 'package:gitopen/ui/common/app_scroll_configuration.dart';
 import 'package:gitopen/ui/common/vertical_splitter.dart';
 import 'package:gitopen/ui/conflicts/conflict_resolution_panel.dart';
+import 'package:gitopen/ui/dialogs/repo_info_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/github/github_panel.dart';
 import 'package:gitopen/ui/lfs/lfs_panel.dart';
@@ -394,6 +395,11 @@ class _TitleBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
+    final workspaces = ref.watch(workspaceManagerProvider);
+    final activeId = ref.watch(activeWorkspaceIdProvider);
+    final active = activeId == null
+        ? null
+        : workspaces.firstWhereOrNull((w) => w.location.id == activeId);
     return WindowTitleBarBox(
       child: ColoredBox(
         color: palette.bg3,
@@ -405,6 +411,14 @@ class _TitleBar extends ConsumerWidget {
             Expanded(child: MoveWindow()),
             // Repo selector dropdown — non-draggable interactive area.
             const RepoSelector(),
+            // Repository info (path / remote / git user) for the active repo.
+            if (active != null)
+              IconButton(
+                icon: Icon(Icons.info_outline, size: 15, color: palette.fg2),
+                tooltip: 'Repository info',
+                onPressed: () =>
+                    RepoInfoDialog.show(context, repo: active.location),
+              ),
             const SizedBox(width: 8),
             // Fetch / Pull / Push toolbar buttons.
             const GitToolbar(),
