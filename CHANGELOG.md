@@ -5,6 +5,16 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.7.2] — 2026-06-18
+
+### Changed
+- **Dependency refresh** to the latest compatible versions — drift / drift_dev
+  2.34, package_info_plus 9, sqlite3_flutter_libs 0.6, very_good_analysis 10.3,
+  msix 3.17, plus ~20 transitive packages (analyzer, xml 7, image 4.9, …).
+  Riverpod is intentionally kept on 2.x (3.x is a breaking migration tracked
+  separately) and win32 on 5.x (6.x isn't yet resolvable with the current
+  constraint graph).
+
 ## [1.7.1] — 2026-06-18
 
 ### Changed

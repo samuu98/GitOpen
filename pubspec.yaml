@@ -1,7 +1,7 @@
 name: gitopen
 description: "Cross-platform desktop git client"
 publish_to: 'none'
-version: 1.7.1+53
+version: 1.7.2+54
 
 environment:
   sdk: ^3.11.5
@@ -25,10 +25,10 @@ dependencies:
   http: ^1.6.0
   intl: ^0.20.0
   logger: ^2.5.0
-  package_info_plus: ^8.1.0 # read the installed app version for update checks
+  package_info_plus: ^9.0.1 # read the installed app version for update checks
   path: ^1.9.1
   path_provider: ^2.1.5
-  sqlite3_flutter_libs: ^0.5.26
+  sqlite3_flutter_libs: ^0.6.0+eol
   url_launcher: ^6.3.2
   win32: ^5.15.0
 
