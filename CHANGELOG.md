@@ -5,6 +5,18 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.3.0] — 2026-06-18
+
+### Added
+- Delete a branch's local and remote side together. The branch context menu's
+  **Delete** now opens a dialog with a checkbox for the local branch and one
+  for its tracked remote branch (both checked by default when present); the
+  local checkbox is disabled when it is the checked-out branch. Deleting the
+  remote runs `push --delete` through the authenticated path (so it works with
+  the right account), and an unmerged local branch offers a force retry. Works
+  from both a local branch (deletes its upstream too) and a remote branch
+  (deletes the tracking local too).
+
 ## [1.2.2] — 2026-06-17
 
 ### Fixed

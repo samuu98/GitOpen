@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/branch_visibility_provider.dart';
+import 'package:gitopen/application/git/branch_deletion.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
@@ -8,6 +9,7 @@ import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/compare_refs_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/dialogs/delete_branch_dialog.dart';
 import 'package:gitopen/ui/dialogs/interactive_rebase_dialog.dart';
 import 'package:gitopen/ui/dialogs/merge_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
@@ -245,16 +247,38 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         _refresh();
 
       case 'delete':
+        final all = await ref.read(branchesProvider(widget.repo).future);
         if (!context.mounted) return;
-        final confirmed = await ConfirmDialog.show(
+        final targets = branchDeletionTargets(branch, all);
+        final selection = await DeleteBranchDialog.show(
           context,
-          title: 'Delete branch',
-          body: 'Delete "$branchName"? This cannot be undone.',
-          confirmLabel: 'Delete',
-          dangerous: true,
+          targets: targets,
         );
-        if (!confirmed || !context.mounted) return;
-        await actions.deleteBranch(context, widget.repo, branchName);
+        if (selection == null || !selection.any || !context.mounted) return;
+        final outcome = await actions.deleteBranchTargets(
+          context,
+          widget.repo,
+          remoteRef: selection.deleteRemote ? targets.remoteRef : null,
+          localName: selection.deleteLocal ? targets.localName : null,
+        );
+        if (outcome.localNeedsForce && context.mounted) {
+          final force = await ConfirmDialog.show(
+            context,
+            title: 'Force delete branch',
+            body: 'Branch "${targets.localName}" is not fully merged. '
+                'Delete it anyway? Unmerged commits will be lost.',
+            confirmLabel: 'Force delete',
+            dangerous: true,
+          );
+          if (force && context.mounted) {
+            await actions.deleteBranchTargets(
+              context,
+              widget.repo,
+              localName: targets.localName,
+              forceLocal: true,
+            );
+          }
+        }
         _refresh();
 
       case 'upstream':

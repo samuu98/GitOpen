@@ -41,6 +41,7 @@ class _FakeWrite implements GitWriteOperations {
   String? lastPushBranch;
   bool? lastPushTags;
   bool? lastPushForce;
+  String? lastDeleteRemoteRef;
 
   Stream<GitProgress> _next() {
     final s = _streams[calls < _streams.length ? calls : _streams.length - 1];
@@ -72,6 +73,16 @@ class _FakeWrite implements GitWriteOperations {
     lastPushBranch = branch;
     lastPushTags = pushTags;
     lastPushForce = forceWithLease;
+    return _next();
+  }
+
+  @override
+  Stream<GitProgress> deleteRemoteBranch(
+    RepoLocation r,
+    String remoteRef, {
+    AuthSpec? auth,
+  }) {
+    lastDeleteRemoteRef = remoteRef;
     return _next();
   }
 
@@ -194,6 +205,36 @@ void main() {
     expect(result.outcome, ActionOutcome.failed);
     expect(prompt.calls, 0);
     expect(progress.events.any((e) => e.startsWith('failure')), isTrue);
+  });
+
+  test('deleteRemoteBranch streams to success and routes the ref', () async {
+    final write = _FakeWrite([_ok]);
+    final result = await service(write).deleteRemoteBranch(
+      repo,
+      'origin/feature',
+      prompt: _FakePrompt(null),
+      progress: _FakeProgress(),
+    );
+
+    expect(result.outcome, ActionOutcome.success);
+    expect(write.lastDeleteRemoteRef, 'origin/feature');
+  });
+
+  test('deleteRemoteBranch retries after an auth failure', () async {
+    final write =
+        _FakeWrite([() => _err('fatal: Authentication failed'), _ok]);
+    final prompt = _FakePrompt(_chosen);
+
+    final result = await service(write).deleteRemoteBranch(
+      repo,
+      'origin/feature',
+      prompt: prompt,
+      progress: _FakeProgress(),
+    );
+
+    expect(result.outcome, ActionOutcome.success);
+    expect(prompt.calls, 1);
+    expect(write.calls, 2); // initial + retry
   });
 
   test('pushTag pushes the single tag ref to the named remote', () async {

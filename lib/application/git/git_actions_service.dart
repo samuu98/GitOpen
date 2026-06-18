@@ -191,6 +191,24 @@ final class GitActionsService {
     );
   }
 
+  /// `git push <remote> --delete <branch>` — deletes [remoteRef]
+  /// (`<remote>/<branch>`) on the server, with progress + auth-retry.
+  Future<ActionResult> deleteRemoteBranch(
+    RepoLocation repo,
+    String remoteRef, {
+    required AuthPrompt prompt,
+    required ProgressSink progress,
+  }) {
+    return _runStream(
+      OpKind.push,
+      'Deleting $remoteRef',
+      repo,
+      (auth) => _write.deleteRemoteBranch(repo, remoteRef, auth: auth),
+      prompt: prompt,
+      progress: progress,
+    );
+  }
+
   /// `git fetch <remote>` with progress + auth-retry.
   Future<ActionResult> fetchRemote(
     RepoLocation repo,

@@ -353,4 +353,12 @@ final class GitCliWriteOperations implements GitWriteOperations {
   @override
   Stream<GitProgress> clone(String url, String destination, {AuthSpec? auth}) =>
       _sync.clone(url, destination, auth: auth);
+
+  @override
+  Stream<GitProgress> deleteRemoteBranch(
+    RepoLocation r,
+    String remoteRef, {
+    AuthSpec? auth,
+  }) =>
+      _sync.deleteRemoteBranch(r, remoteRef, auth: auth);
 }

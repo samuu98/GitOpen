@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/git/branch_deletion.dart';
 import 'package:gitopen/application/git/git_action_ports.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
@@ -292,6 +293,51 @@ class GitActionsController {
         .read(gitActionsServiceProvider)
         .deleteBranch(repo, name, force: force),
   );
+
+  /// `git push <remote> --delete <branch>` with progress + auth-retry.
+  Future<ActionResult> deleteRemoteBranch(
+    BuildContext context,
+    RepoLocation repo,
+    String remoteRef,
+  ) {
+    return _run(
+      context,
+      repo,
+      (prompt, progress) => _ref
+          .read(gitActionsServiceProvider)
+          .deleteRemoteBranch(
+            repo,
+            remoteRef,
+            prompt: prompt,
+            progress: progress,
+          ),
+    );
+  }
+
+  /// Deletes the selected sides of a branch (remote then local). The sides are
+  /// independent — a failure on one does not skip the other. Returns whether
+  /// the LOCAL delete failed only because the branch is not fully merged, so
+  /// the caller can offer a force retry.
+  Future<({bool localNeedsForce})> deleteBranchTargets(
+    BuildContext context,
+    RepoLocation repo, {
+    String? remoteRef,
+    String? localName,
+    bool forceLocal = false,
+  }) async {
+    if (remoteRef != null) {
+      await deleteRemoteBranch(context, repo, remoteRef);
+    }
+    var localNeedsForce = false;
+    if (localName != null && context.mounted) {
+      final result =
+          await deleteBranch(context, repo, localName, force: forceLocal);
+      localNeedsForce = !forceLocal &&
+          result.outcome == ActionOutcome.failed &&
+          isNotFullyMergedError(result.message ?? '');
+    }
+    return (localNeedsForce: localNeedsForce);
+  }
 
   /// `git branch --set-upstream-to=<upstream> <branch>`.
   Future<ActionResult> setUpstream(

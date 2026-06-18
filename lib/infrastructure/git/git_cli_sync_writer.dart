@@ -109,6 +109,23 @@ final class GitCliSyncWriter {
     }
   }
 
+  /// `git push <remote> --delete <branch>` with progress + in-app credential
+  /// injection (deleting a remote branch is a push and needs auth). [remoteRef]
+  /// is `<remote>/<branch>` (e.g. "origin/feature").
+  Stream<GitProgress> deleteRemoteBranch(
+    RepoLocation r,
+    String remoteRef, {
+    AuthSpec? auth,
+  }) async* {
+    final slash = remoteRef.indexOf('/');
+    final remoteName = slash < 0 ? remoteRef : remoteRef.substring(0, slash);
+    final branch = slash < 0 ? '' : remoteRef.substring(slash + 1);
+    final args = ['push', '--progress', remoteName, '--delete', branch];
+    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+      yield p;
+    }
+  }
+
   Stream<GitProgress> _runProgressStream(
     String cwd,
     List<String> args, {
