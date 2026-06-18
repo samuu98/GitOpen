@@ -85,9 +85,31 @@ class _SidebarContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final localBranches = data.branches.where((b) => !b.isRemote).toList();
     final localTree = BranchTree.build(localBranches);
+    final pinnedSet = ref.watch(
+      appSettingsProvider
+          .select((s) => s.pinnedBranches[repo.id.value] ?? const <String>[]),
+    );
+    final pinnedBranches =
+        localBranches.where((b) => pinnedSet.contains(b.fullName)).toList();
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
+        if (pinnedBranches.isNotEmpty)
+          _Section(
+            title: 'PINNED',
+            initiallyOpen: true,
+            child: BranchTreeView(
+              nodes: [
+                for (final b in pinnedBranches)
+                  BranchTreeNode(
+                    name: b.name,
+                    fullPath: b.fullName,
+                    branch: b,
+                  ),
+              ],
+              repo: repo,
+            ),
+          ),
         _Section(
           title: 'LOCAL BRANCHES',
           initiallyOpen: true,

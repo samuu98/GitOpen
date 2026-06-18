@@ -125,9 +125,20 @@ void main() {
       );
     });
 
-    test('props enumerates all fourteen fields', () {
+    test('props enumerates all fifteen fields', () {
       const state = AppSettingsState();
-      expect(state.props, hasLength(14));
+      expect(state.props, hasLength(15));
+    });
+
+    test('pinnedBranches defaults empty and copyWith overrides it', () {
+      const state = AppSettingsState();
+      expect(state.pinnedBranches, isEmpty);
+      final updated = state.copyWith(
+        pinnedBranches: const {
+          'repo-1': ['refs/heads/main'],
+        },
+      );
+      expect(updated.pinnedBranches['repo-1'], ['refs/heads/main']);
     });
   });
 
@@ -194,6 +205,22 @@ void main() {
     final fresh = AppSettingsNotifier(SettingsRepository(db));
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(fresh.state.keybindings['commit'], combo);
+    await db.close();
+  });
+
+  test('togglePinnedBranch pins, persists, and unpins', () async {
+    final db = newInMemoryDb();
+    final notifier = AppSettingsNotifier(SettingsRepository(db));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await notifier.togglePinnedBranch('repo-1', 'refs/heads/main');
+    expect(notifier.state.pinnedBranches['repo-1'], ['refs/heads/main']);
+    // Persisted across a fresh notifier on the same DB.
+    final fresh = AppSettingsNotifier(SettingsRepository(db));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(fresh.state.pinnedBranches['repo-1'], ['refs/heads/main']);
+    // Toggling the same branch again unpins it and drops the empty repo key.
+    await fresh.togglePinnedBranch('repo-1', 'refs/heads/main');
+    expect(fresh.state.pinnedBranches.containsKey('repo-1'), isFalse);
     await db.close();
   });
 }

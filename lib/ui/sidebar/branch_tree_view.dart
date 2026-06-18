@@ -39,11 +39,16 @@ class BranchTreeView extends ConsumerStatefulWidget {
 
 class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
   final Set<String> _collapsed = {};
+  List<String> _pinned = const [];
 
   @override
   Widget build(BuildContext context) {
-    // Watch hidden refs so the tree re-renders when visibility changes.
+    // Watch hidden refs + pinned branches so the tree re-renders on change.
     ref.watch(hiddenRefsProvider);
+    _pinned = ref.watch(
+      appSettingsProvider
+          .select((s) => s.pinnedBranches[widget.repo.id.value] ?? const []),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -420,6 +425,35 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                           behind: div?.behind ?? 0,
                         );
                       },
+                    ),
+                  // Pin (favourite) star for local branches — always shown,
+                  // faint when off; click toggles the PINNED sidebar section.
+                  if (branch != null && !branch.isRemote && fullName != null)
+                    Semantics(
+                      button: true,
+                      label: _pinned.contains(fullName)
+                          ? 'Unpin ${n.name}'
+                          : 'Pin ${n.name}',
+                      child: GestureDetector(
+                        onTap: () => ref
+                            .read(appSettingsProvider.notifier)
+                            .togglePinnedBranch(
+                              widget.repo.id.value,
+                              fullName,
+                            ),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Icon(
+                            _pinned.contains(fullName)
+                                ? Icons.star
+                                : Icons.star_border,
+                            size: 13,
+                            color: _pinned.contains(fullName)
+                                ? AppPalette.of(context).accentTag
+                                : AppPalette.of(context).fg3,
+                          ),
+                        ),
+                      ),
                     ),
                   // Visibility eye icon — always visible, click toggles.
                   if (fullName != null)

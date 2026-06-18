@@ -23,6 +23,7 @@ final class AppSettingsState extends Equatable {
     this.keybindings = const {},
     this.gitIdentities = const [],
     this.authRepoBindings = const {},
+    this.pinnedBranches = const {},
   });
   final AppTheme theme;
   final String? externalEditorPath;
@@ -54,6 +55,10 @@ final class AppSettingsState extends Equatable {
   /// per host" fallback in [AuthResolver].
   final Map<String, String> authRepoBindings;
 
+  /// Per-repository pinned (favourite) local branches: `RepoLocation.id` →
+  /// list of branch `fullName`s, surfaced in a "PINNED" sidebar section.
+  final Map<String, List<String>> pinnedBranches;
+
   AppSettingsState copyWith({
     AppTheme? theme,
     String? externalEditorPath,
@@ -69,6 +74,7 @@ final class AppSettingsState extends Equatable {
     Map<String, LogicalKeySet>? keybindings,
     List<GitIdentity>? gitIdentities,
     Map<String, String>? authRepoBindings,
+    Map<String, List<String>>? pinnedBranches,
   }) {
     return AppSettingsState(
       theme: theme ?? this.theme,
@@ -85,6 +91,7 @@ final class AppSettingsState extends Equatable {
       keybindings: keybindings ?? this.keybindings,
       gitIdentities: gitIdentities ?? this.gitIdentities,
       authRepoBindings: authRepoBindings ?? this.authRepoBindings,
+      pinnedBranches: pinnedBranches ?? this.pinnedBranches,
     );
   }
 
@@ -104,5 +111,6 @@ final class AppSettingsState extends Equatable {
     keybindings,
     gitIdentities,
     authRepoBindings,
+    pinnedBranches,
   ];
 }

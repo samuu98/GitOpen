@@ -16,6 +16,7 @@ class KeybindingsSection extends ConsumerWidget {
     ('refresh', 'Refresh'),
     ('openRepoSelector', 'Open Repo Selector'),
     ('openSettings', 'Open Settings'),
+    ('commandPalette', 'Command Palette'),
   ];
 
   @override

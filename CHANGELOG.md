@@ -5,6 +5,17 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.7.0] — 2026-06-18
+
+### Added
+- **Command palette** (`Ctrl+P`, rebindable in Settings → Keybindings): fuzzy-filter
+  and run common actions — fetch / pull / push / commit / refresh, new branch,
+  open-on-remote, switch view (Graph / Changes / GitHub / LFS), or check out any
+  local branch. ↑/↓ to move, Enter to run, Esc to dismiss. (Inspired by upstream
+  samuu98/GitOpen, reimplemented against GitOpen's own actions.)
+- **Pinned branches**: a star toggle on local branch rows pins favourites into a
+  dedicated "PINNED" section at the top of the sidebar, persisted per repository.
+
 ## [1.6.1] — 2026-06-18
 
 ### Changed

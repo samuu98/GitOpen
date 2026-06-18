@@ -17,6 +17,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
 import 'package:gitopen/ui/auto_refresh/repo_auto_refresh_scope.dart';
 import 'package:gitopen/ui/bottom_panel/bottom_panel.dart';
+import 'package:gitopen/ui/command_palette/command_palette.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_panel.dart';
 import 'package:gitopen/ui/commit_graph/detached_head_banner.dart';
 import 'package:gitopen/ui/common/app_scroll_configuration.dart';
@@ -215,6 +216,10 @@ class _OpenSettingsIntent extends Intent {
   const _OpenSettingsIntent();
 }
 
+class _CommandPaletteIntent extends Intent {
+  const _CommandPaletteIntent();
+}
+
 class Shell extends ConsumerStatefulWidget {
   const Shell({super.key});
 
@@ -238,6 +243,14 @@ class _ShellState extends ConsumerState<Shell> {
         .fetch(context, active.location);
   }
 
+  /// Opens the command palette and runs the chosen command with the Shell's
+  /// own (live) context + ref, so actions outlive the dismissed palette.
+  Future<void> _openCommandPalette() async {
+    final cmd = await CommandPalette.show(context);
+    if (cmd == null || !mounted) return;
+    await cmd.run(context, ref);
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeId = ref.watch(activeWorkspaceIdProvider);
@@ -257,6 +270,8 @@ class _ShellState extends ConsumerState<Shell> {
         if (bindings['fetch'] != null) bindings['fetch']!: const _FetchIntent(),
         if (bindings['openSettings'] != null)
           bindings['openSettings']!: const _OpenSettingsIntent(),
+        if (bindings['commandPalette'] != null)
+          bindings['commandPalette']!: const _CommandPaletteIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -276,6 +291,12 @@ class _ShellState extends ConsumerState<Shell> {
             onInvoke: (_) {
               final notifier = ref.read(settingsOpenProvider.notifier);
               notifier.state = !notifier.state;
+              return null;
+            },
+          ),
+          _CommandPaletteIntent: CallbackAction<_CommandPaletteIntent>(
+            onInvoke: (_) {
+              unawaited(_openCommandPalette());
               return null;
             },
           ),

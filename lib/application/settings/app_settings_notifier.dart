@@ -18,6 +18,7 @@ const _defaultBindings = <String, List<LogicalKeyboardKey>>{
   'refresh': [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.keyR],
   'openRepoSelector': [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.keyT],
   'openSettings': [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.comma],
+  'commandPalette': [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.keyP],
 };
 
 class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
@@ -55,7 +56,33 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
       keybindings: _decodeBindings(all['keybindings']) ?? state.keybindings,
       gitIdentities: _decodeIdentities(all['git_identities']),
       authRepoBindings: _decodeStringMap(all['auth_repo_bindings']),
+      pinnedBranches: _decodeStringListMap(all['pinned_branches']),
     );
+  }
+
+  /// Pins/unpins [fullName] for [repoId]; an empty list drops the repo key.
+  Future<void> togglePinnedBranch(String repoId, String fullName) async {
+    final next = <String, List<String>>{
+      for (final e in state.pinnedBranches.entries)
+        e.key: List<String>.from(e.value),
+    };
+    final list = next.putIfAbsent(repoId, () => <String>[]);
+    if (!list.remove(fullName)) list.add(fullName);
+    if (list.isEmpty) next.remove(repoId);
+    state = state.copyWith(pinnedBranches: next);
+    await _repo.put('pinned_branches', next);
+  }
+
+  Map<String, List<String>> _decodeStringListMap(dynamic v) {
+    if (v is! Map) return const {};
+    final result = <String, List<String>>{};
+    v.forEach((k, val) {
+      if (k is String && val is List) {
+        final items = val.whereType<String>().toList();
+        if (items.isNotEmpty) result[k] = items;
+      }
+    });
+    return result;
   }
 
   Future<void> setAuthBinding(String repoId, String? profileId) async {
