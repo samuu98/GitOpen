@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/auth/account_emails.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_profile_store.dart';
 import 'package:gitopen/application/auth/auth_resolver.dart';
@@ -327,7 +328,20 @@ final appSettingsProvider =
     });
 
 final updaterProvider = Provider<GitHubReleaseUpdater>((ref) {
-  return GitHubReleaseUpdater();
+  return GitHubReleaseUpdater(
+    // Authenticate the update check with a saved GitHub token when available
+    // (5000 req/h vs the shared 60/h unauthenticated per-IP limit — the latter
+    // is easily exhausted behind a corporate NAT).
+    token: () async {
+      final profiles =
+          await ref.read(authProfileStoreProvider).forHost('github.com');
+      for (final p in profiles) {
+        final t = githubApiToken(p.spec);
+        if (t != null && t.isNotEmpty) return t;
+      }
+      return null;
+    },
+  );
 });
 
 /// The installed app version (e.g. `0.1.25`), read from the platform package

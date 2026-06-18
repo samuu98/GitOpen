@@ -5,6 +5,17 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.4.1] — 2026-06-18
+
+### Fixed
+- The update check no longer reports "You are up to date" when the check
+  actually failed. A non-200 from GitHub (rate limit, offline, server error)
+  now surfaces a real error instead of masquerading as current.
+- Update checks are now authenticated with a saved GitHub token when one
+  exists (5000 req/h) instead of the shared 60 req/h unauthenticated per-IP
+  limit — which is easily exhausted behind a corporate NAT, the reason the
+  check kept failing.
+
 ## [1.4.0] — 2026-06-18
 
 ### Added

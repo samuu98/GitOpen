@@ -6,6 +6,20 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 
+/// Thrown when the update check cannot reach GitHub (non-200). Distinguishes a
+/// failed check from "no newer version" so the UI never reports a failure as
+/// "up to date".
+class UpdateCheckException implements Exception {
+  UpdateCheckException(this.statusCode);
+  final int statusCode;
+
+  @override
+  String toString() => statusCode == 403
+      ? 'GitHub rate limit reached (HTTP 403) — try again later, or sign in '
+          'to GitHub in Settings so checks are authenticated.'
+      : 'update check failed (HTTP $statusCode)';
+}
+
 /// Checks GitHub Releases for a newer version of GitOpen and can download +
 /// launch the platform installer in-app, so the user never has to open the
 /// browser to update.
@@ -14,10 +28,17 @@ class GitHubReleaseUpdater {
     this.owner = 'zN3utr4l',
     this.repo = 'GitOpen',
     http.Client? client,
-  }) : _client = client ?? http.Client();
+    Future<String?> Function()? token,
+  })  : _client = client ?? http.Client(),
+        _token = token;
   final String owner;
   final String repo;
   final http.Client _client;
+
+  /// Resolves a GitHub token to authenticate the API call (5000 req/h instead
+  /// of the shared 60/h unauthenticated per-IP limit — important on corporate
+  /// NAT). Null/absent → unauthenticated.
+  final Future<String?> Function()? _token;
 
   /// Fetches the latest GitHub release (version + assets). Returns null on a
   /// non-200 response, a missing tag, or a parse failure.
@@ -25,11 +46,18 @@ class GitHubReleaseUpdater {
     final uri = Uri.parse(
       'https://api.github.com/repos/$owner/$repo/releases/latest',
     );
-    final response = await _client.get(
-      uri,
-      headers: {'Accept': 'application/vnd.github+json'},
-    );
-    if (response.statusCode != 200) return null;
+    final headers = {'Accept': 'application/vnd.github+json'};
+    final token = await _token?.call();
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    final response = await _client.get(uri, headers: headers);
+    // A non-200 (rate limit, offline, server error) is a CHECK FAILURE, not
+    // "up to date" — throw so the UI reports it honestly instead of pretending
+    // the app is current.
+    if (response.statusCode != 200) {
+      throw UpdateCheckException(response.statusCode);
+    }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final tag = body['tag_name'] as String?;

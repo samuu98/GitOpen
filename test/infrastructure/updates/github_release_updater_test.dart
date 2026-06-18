@@ -44,10 +44,29 @@ void main() {
       expect(await updater.checkForUpdates('1.1.0'), isNull);
     });
 
-    test('returns null on non-200 response', () async {
-      final client = MockClient((_) async => _jsonResponse({}, status: 404));
+    test('throws on a non-200 response (not silently "up to date")', () {
+      final client = MockClient((_) async => _jsonResponse({}, status: 403));
       final updater = _makeUpdater(client);
-      expect(await updater.checkForUpdates('1.0.0'), isNull);
+      expect(
+        updater.checkForUpdates('1.0.0'),
+        throwsA(isA<UpdateCheckException>()),
+      );
+    });
+
+    test('sends the Authorization header when a token is provided', () async {
+      String? sentAuth;
+      final client = MockClient((req) async {
+        sentAuth = req.headers['Authorization'];
+        return _jsonResponse({'tag_name': 'v1.0.0'});
+      });
+      final updater = GitHubReleaseUpdater(
+        owner: 'o',
+        repo: 'r',
+        client: client,
+        token: () async => 'gho_x',
+      );
+      await updater.checkForUpdates('1.0.0');
+      expect(sentAuth, 'Bearer gho_x');
     });
 
     test('returns null when tag_name is absent', () async {
