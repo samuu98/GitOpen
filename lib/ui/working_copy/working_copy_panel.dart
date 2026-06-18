@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
+import 'package:gitopen/ui/common/skeleton.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/commit_compose.dart';
 import 'package:gitopen/ui/working_copy/diff_preview_pane.dart';
@@ -21,7 +22,7 @@ class WorkingCopyPanel extends ConsumerWidget {
       child: async.when(
         // Keep the change list visible during background reloads.
         skipLoadingOnReload: true,
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const SkeletonList(rows: 8),
         error: (e, _) => Center(
           child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
         ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/skeleton.dart';
 import 'package:gitopen/ui/dialogs/add_worktree_dialog.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/branch_tree_view.dart';
@@ -54,8 +55,7 @@ class Sidebar extends ConsumerWidget {
                 // spinner. Mirrors the commit graph panel.
                 skipLoadingOnReload: true,
                 data: (data) => _SidebarContent(data: data, repo: repo),
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+                loading: () => const SkeletonList(rows: 10),
                 error: (e, _) => Center(
                   child: Padding(
                     padding: const EdgeInsets.all(16),

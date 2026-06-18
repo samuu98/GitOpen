@@ -19,6 +19,7 @@ import 'package:gitopen/ui/commit_graph/commit_graph_search_field.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
 import 'package:gitopen/ui/commit_graph/local_changes_row.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/common/skeleton.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/branch_create_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
@@ -194,7 +195,8 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                   ],
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () =>
+                  const SkeletonList(rows: 18, rowHeight: 11, gap: 15),
               error: (e, _) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),

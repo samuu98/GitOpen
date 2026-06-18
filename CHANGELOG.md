@@ -5,6 +5,14 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.7.1] — 2026-06-18
+
+### Changed
+- Loading states now show **skeleton placeholders** — pulsing grey bars shaped
+  like the content — instead of a bare spinner, in the commit graph, the sidebar
+  and the working-copy panel. The bar count adapts to the panel height, so the
+  layout no longer jumps when the data arrives.
+
 ## [1.7.0] — 2026-06-18
 
 ### Added
