@@ -5,6 +5,16 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.5.2] — 2026-06-18
+
+### Fixed
+- Sidebar tree indentation regressed so a section header (e.g. REMOTES) sat
+  *more* indented than its own children (`origin`), and empty-state hints like
+  "No tags" were under-indented. The indent scheme is now driven by shared
+  constants in one place (`sidebar_shared.dart`) — section chevrons, tree
+  nodes, flat rows and empty hints all reference them — with a regression test
+  locking the hierarchy so it can't drift again.
+
 ## [1.5.1] — 2026-06-18
 
 ### Fixed

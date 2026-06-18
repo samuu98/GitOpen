@@ -7,6 +7,7 @@ import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:path/path.dart' as p;
 
@@ -42,7 +43,8 @@ class WorktreeRow extends ConsumerWidget {
         child: InkWell(
           onTap: _isThisCheckout ? null : () => _open(ref),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
+            padding: const EdgeInsets.only(
+                left: kSidebarRowIndent, right: 26, top: 3, bottom: 3),
             child: Row(
               children: [
                 SizedBox(

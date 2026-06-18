@@ -226,8 +226,12 @@ class _SectionState extends State<_Section> {
         InkWell(
           onTap: () => setState(() => _open = !_open),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: const EdgeInsets.only(
+              left: kSidebarChevronIndent,
+              right: 14,
+              top: 6,
+              bottom: 6,
+            ),
             child: Row(children: [
               Icon(
                 _open ? Icons.expand_more : Icons.chevron_right,
@@ -264,7 +268,12 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        padding: const EdgeInsets.only(
+          left: kSidebarRowIndent,
+          right: 14,
+          top: 4,
+          bottom: 4,
+        ),
         child: Text(text,
             style: TextStyle(
                 color: AppPalette.of(context).fg3,

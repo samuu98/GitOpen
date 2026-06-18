@@ -41,7 +41,8 @@ class TagRow extends ConsumerWidget {
             if (ok) onRefresh();
           },
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 3),
+            padding: const EdgeInsets.only(
+                left: kSidebarRowIndent, right: 26, top: 3, bottom: 3),
             child: Text(
               tag.name,
               overflow: TextOverflow.ellipsis,

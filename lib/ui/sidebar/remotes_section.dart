@@ -9,6 +9,7 @@ import 'package:gitopen/ui/dialogs/remote_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/branch_tree_view.dart';
+import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// The "+" affordance in the REMOTES section header.
@@ -108,7 +109,7 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
               child: Container(
                 color: _hover ? palette.bg3 : Colors.transparent,
                 padding: const EdgeInsets.only(
-                  left: 6,
+                  left: kSidebarChevronIndent,
                   right: 6,
                   top: 3,
                   bottom: 3,
