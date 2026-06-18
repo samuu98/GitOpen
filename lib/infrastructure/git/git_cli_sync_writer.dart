@@ -24,7 +24,7 @@ final class GitCliSyncWriter {
     bool all = false,
     AuthSpec? auth,
   }) async* {
-    final args = <String>['fetch', '--progress'];
+    final args = <String>['fetch', '--prune', '--progress'];
     if (all) {
       args.add('--all');
     } else if (remote != null) {
@@ -154,8 +154,9 @@ final class GitCliSyncWriter {
       'cmd: git $redacted',
     );
     final stderrBuf = StringBuffer();
+    Process? proc;
     try {
-      final proc = await Process.start(
+      proc = await Process.start(
         _runner.executable,
         effectiveArgs,
         workingDirectory: cwd,
@@ -187,6 +188,9 @@ final class GitCliSyncWriter {
       appLog.d('git[progress] exit=0');
     } finally {
       helper.dispose();
+      // If the consumer cancelled the stream mid-flight (the user hit Cancel),
+      // the process is still running — kill it. No-op if it already exited.
+      proc?.kill();
     }
   }
 }

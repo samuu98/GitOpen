@@ -536,16 +536,21 @@ class GitActionsController {
     RepoLocation repo,
     Future<ActionResult> Function(AuthPrompt prompt, ProgressSink progress) op,
   ) async {
-    final result = await op(
-      DialogAuthPrompt(context, _ref),
-      OperationsProgressSink(_ref),
-    );
-    _invalidate(repo, result.invalidate);
-    final message = result.message;
-    if (message != null && context.mounted) {
-      _showSnack(context, message, result.severity);
+    final busy = _ref.read(busyProvider.notifier)..begin();
+    try {
+      final result = await op(
+        DialogAuthPrompt(context, _ref),
+        OperationsProgressSink(_ref),
+      );
+      _invalidate(repo, result.invalidate);
+      final message = result.message;
+      if (message != null && context.mounted) {
+        _showSnack(context, message, result.severity);
+      }
+      return result;
+    } finally {
+      busy.end();
     }
-    return result;
   }
 
   Future<ActionResult> _runLocal(
@@ -553,13 +558,18 @@ class GitActionsController {
     RepoLocation repo,
     Future<ActionResult> Function() op,
   ) async {
-    final result = await op();
-    _invalidate(repo, result.invalidate);
-    final message = result.message;
-    if (message != null && context.mounted) {
-      _showSnack(context, message, result.severity);
+    final busy = _ref.read(busyProvider.notifier)..begin();
+    try {
+      final result = await op();
+      _invalidate(repo, result.invalidate);
+      final message = result.message;
+      if (message != null && context.mounted) {
+        _showSnack(context, message, result.severity);
+      }
+      return result;
+    } finally {
+      busy.end();
     }
-    return result;
   }
 
   void _invalidate(RepoLocation repo, Set<RepoDataScope> scopes) {

@@ -18,6 +18,7 @@ import 'package:gitopen/application/github/github_slug.dart';
 import 'package:gitopen/application/launcher/folder_picker.dart';
 import 'package:gitopen/application/launcher/repo_folder_scanner.dart';
 import 'package:gitopen/application/launcher/repo_launcher.dart';
+import 'package:gitopen/application/operations/busy_notifier.dart';
 import 'package:gitopen/application/operations/operations_notifier.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/settings/app_settings.dart';
@@ -210,6 +211,11 @@ final operationsProvider =
       return OperationsNotifier(ref.watch(activityLogRepositoryProvider));
     });
 
+/// Counts in-flight git actions so the UI can block interaction while one runs.
+final busyProvider = StateNotifierProvider<BusyNotifier, BusyState>(
+  (ref) => BusyNotifier(),
+);
+
 final authProfileStoreProvider = Provider<AuthProfileStore>(
   (ref) => SecureAuthProfileStore(),
 );
@@ -257,6 +263,14 @@ final FutureProviderFamily<List<Branch>, RepoLocation> localBranchesProvider =
       appLog.i('branches: loading locals for ${repo.displayName}');
       return ref.watch(gitReadOperationsProvider).getLocalBranches(repo);
     });
+
+/// Ahead/behind per local branch — loaded in parallel so it never blocks the
+/// initial branch render; the sidebar badges fill in when it resolves.
+final FutureProviderFamily<Map<String, ({int ahead, int behind})>, RepoLocation>
+    branchDivergenceProvider = FutureProvider.family<
+        Map<String, ({int ahead, int behind})>, RepoLocation>((ref, repo) {
+  return ref.watch(gitReadOperationsProvider).localBranchDivergence(repo);
+});
 
 /// Remote tracking branches — may take seconds (or time out at 3s on
 /// huge monorepos).  Loaded in parallel and consumed without `await` by

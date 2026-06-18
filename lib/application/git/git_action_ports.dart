@@ -17,8 +17,15 @@ abstract interface class AuthPrompt { // ignore: one_member_abstracts
 /// Sink for an operation's lifecycle + progress, implemented over the
 /// operations notifier (which drives the toast / activity-panel UI).
 abstract interface class ProgressSink {
-  /// Registers a new running operation and returns its id.
-  String start(OpKind kind, String label, {RepoLocation? repo});
+  /// Registers a new running operation and returns its id. [onCancel], when
+  /// provided, is invoked if the user cancels the operation (network ops kill
+  /// the git process); omit it for non-cancelable (local) operations.
+  String start(
+    OpKind kind,
+    String label, {
+    RepoLocation? repo,
+    void Function()? onCancel,
+  });
 
   /// Feeds progress for the operation [id] while it runs.
   void progress(String id, double? fraction, String phase);

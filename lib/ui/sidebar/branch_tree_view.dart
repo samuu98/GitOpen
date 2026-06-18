@@ -6,6 +6,7 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/common/divergence_badge.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/compare_refs_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
@@ -407,6 +408,19 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                       ),
                     ),
                   ),
+                  // Ahead/behind badge for local branches with an upstream.
+                  if (branch != null && !branch.isRemote)
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final div = ref
+                            .watch(branchDivergenceProvider(widget.repo))
+                            .valueOrNull?[branch.name];
+                        return DivergenceBadge(
+                          ahead: div?.ahead ?? 0,
+                          behind: div?.behind ?? 0,
+                        );
+                      },
+                    ),
                   // Visibility eye icon — always visible, click toggles.
                   if (fullName != null)
                     Semantics(

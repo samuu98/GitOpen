@@ -107,6 +107,12 @@ final class GitCliReadOperations implements GitReadOperations {
       _guard(() => _refs.getLocalBranches(repo));
 
   @override
+  Future<Map<String, ({int ahead, int behind})>> localBranchDivergence(
+    RepoLocation repo,
+  ) =>
+      _guard(() => _refs.localBranchDivergence(repo));
+
+  @override
   Future<List<Branch>> getRemoteBranches(RepoLocation repo) =>
       _guard(() => _refs.getRemoteBranches(repo));
 

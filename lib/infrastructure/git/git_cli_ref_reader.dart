@@ -11,6 +11,7 @@ import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/infrastructure/git/ahead_behind.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
 
@@ -42,6 +43,33 @@ final class GitCliRefReader {
       ...await getLocalBranches(repo),
       ...await getRemoteBranches(repo),
     ];
+  }
+
+  /// Ahead/behind of each LOCAL branch vs its upstream, keyed by short name.
+  /// Uses `%(upstream:track)` (kept OUT of the fast [_forEachRef] for perf) and
+  /// a hard timeout — on a huge repo it returns whatever parsed in time, or an
+  /// empty map on error/timeout. Only diverged branches are included.
+  Future<Map<String, ({int ahead, int behind})>> localBranchDivergence(
+    RepoLocation repo,
+  ) async {
+    const fmt = '%(refname:short)%00%(upstream:track)';
+    try {
+      final out = await _runner
+          .run(repo.path, ['for-each-ref', '--format=$fmt', 'refs/heads'])
+          .timeout(const Duration(seconds: 3));
+      final map = <String, ({int ahead, int behind})>{};
+      for (final line in const LineSplitter().convert(out)) {
+        if (line.isEmpty) continue;
+        final parts = line.split('\x00');
+        final name = parts[0];
+        final track = parts.length > 1 ? parts[1] : '';
+        final ab = parseAheadBehind(track);
+        if (ab.ahead != 0 || ab.behind != 0) map[name] = ab;
+      }
+      return map;
+    } on Object {
+      return const {};
+    }
   }
 
   /// Streamed `for-each-ref` for one scope.
@@ -271,7 +299,6 @@ final class GitCliRefReader {
     }
 
     if (branchOut.trim().isNotEmpty) {
-      final aheadBehindRe = RegExp(r'(?:ahead (\d+))?(?:.*?behind (\d+))?');
       for (final line in branchOut.split('\n')) {
         if (line.isEmpty) continue;
         final fields = _nulFields(line, 5);
@@ -299,15 +326,9 @@ final class GitCliRefReader {
         // Skip the HEAD symbolic ref (e.g., refs/remotes/origin/HEAD)
         if (withoutPrefix.endsWith('/HEAD')) continue;
 
-        var ahead = 0;
-        var behind = 0;
-        if (track.isNotEmpty) {
-          final m = aheadBehindRe.firstMatch(track);
-          if (m != null) {
-            ahead = int.tryParse(m.group(1) ?? '') ?? 0;
-            behind = int.tryParse(m.group(2) ?? '') ?? 0;
-          }
-        }
+        final ab = parseAheadBehind(track);
+        final ahead = ab.ahead;
+        final behind = ab.behind;
 
         remoteBranches[remoteName]!.add(Branch(
           name: withoutPrefix,

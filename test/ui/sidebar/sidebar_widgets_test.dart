@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
+import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/refs/stash.dart';
@@ -12,8 +13,9 @@ import 'package:gitopen/ui/sidebar/branch_tree_view.dart';
 import 'package:gitopen/ui/sidebar/stash_row.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-Widget _host(Widget child) {
+Widget _host(Widget child, {List<Override> overrides = const []}) {
   return ProviderScope(
+    overrides: overrides,
     child: MaterialApp(
       theme: ThemeData(extensions: [AppPalette.dark()]),
       home: Scaffold(
@@ -49,7 +51,16 @@ void main() {
       _branch('feature/login', sha: 'bbbbbbbb'),
     ]);
 
-    await tester.pumpWidget(_host(BranchTreeView(nodes: nodes, repo: repo)));
+    await tester.pumpWidget(
+      _host(
+        BranchTreeView(nodes: nodes, repo: repo),
+        overrides: [
+          branchDivergenceProvider(repo).overrideWith(
+            (ref) async => const <String, ({int ahead, int behind})>{},
+          ),
+        ],
+      ),
+    );
 
     expect(find.text('main'), findsOneWidget);
     expect(find.text('feature'), findsOneWidget);

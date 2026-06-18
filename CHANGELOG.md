@@ -5,6 +5,24 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.4.0] — 2026-06-18
+
+### Added
+- Ahead/behind badges (`↑ to push ↓ to pull`) on diverged local branches in
+  the sidebar and next to the active repo name in the title bar.
+- A modal overlay blocks interaction while a git operation runs (fetch, pull,
+  push, checkout, merge, rebase, …) so you can't navigate or start another
+  action mid-operation; network operations show a Cancel button that aborts the
+  underlying git process.
+
+### Changed
+- `git fetch` now prunes — remote branches deleted on the server (e.g. after a
+  merged PR) no longer linger in the sidebar.
+
+### Fixed
+- Remote-branch ahead/behind parsing (a latent all-optional regex always
+  reported 0/0).
+
 ## [1.3.0] — 2026-06-18
 
 ### Added

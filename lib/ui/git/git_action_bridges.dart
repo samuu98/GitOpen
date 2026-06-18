@@ -52,8 +52,13 @@ class OperationsProgressSink implements ProgressSink {
   OperationsNotifier get _ops => _ref.read(operationsProvider.notifier);
 
   @override
-  String start(OpKind kind, String label, {RepoLocation? repo}) =>
-      _ops.start(kind, label, repo: repo);
+  String start(
+    OpKind kind,
+    String label, {
+    RepoLocation? repo,
+    void Function()? onCancel,
+  }) =>
+      _ops.start(kind, label, repo: repo, onCancel: onCancel);
 
   @override
   void progress(String id, double? fraction, String phase) =>

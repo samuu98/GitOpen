@@ -34,6 +34,40 @@ void main() {
     }
   });
 
+  test('fetch prunes a remote branch deleted on the remote', () async {
+    final seed = await RepoFixture.withLinearHistory(1);
+    final bareDir = Directory.systemTemp.createTempSync('gitopen-test-bare-');
+    await Process.run(
+        'git', ['clone', '--bare', '--local', seed.path, bareDir.path]);
+    try {
+      await Process.run('git', ['remote', 'add', 'origin', bareDir.path],
+          workingDirectory: seed.path);
+      await Process.run('git', ['branch', 'feature'],
+          workingDirectory: seed.path);
+      await Process.run('git', ['push', 'origin', 'feature'],
+          workingDirectory: seed.path);
+      await Process.run('git', ['fetch', 'origin'],
+          workingDirectory: seed.path);
+      // Delete it on the remote, then fetch (with prune) from the work repo.
+      await Process.run('git', ['-C', bareDir.path, 'branch', '-D', 'feature']);
+
+      final sut = GitCliWriteOperations();
+      await sut
+          .fetch(RepoLocation(RepoId.newId(), seed.path, 'w'), remote: 'origin')
+          .drain<void>();
+
+      final refs = await Process.run(
+        'git',
+        ['for-each-ref', '--format=%(refname)', 'refs/remotes/origin/feature'],
+        workingDirectory: seed.path,
+      );
+      expect((refs.stdout as String).trim(), isEmpty); // pruned
+    } finally {
+      await seed.dispose();
+      bareDir.deleteSync(recursive: true);
+    }
+  });
+
   test('fetchRefspec materialises a remote ref as a local branch', () async {
     // Origin with an extra non-branch ref (like GitHub's refs/pull/N/head).
     final origin = await RepoFixture.withLinearHistory(2);

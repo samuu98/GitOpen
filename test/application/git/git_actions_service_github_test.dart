@@ -54,7 +54,13 @@ final class _NoPrompt implements AuthPrompt {
 
 final class _NullSink implements ProgressSink {
   @override
-  String start(OpKind kind, String label, {RepoLocation? repo}) => 'op';
+  String start(
+    OpKind kind,
+    String label, {
+    RepoLocation? repo,
+    void Function()? onCancel,
+  }) =>
+      'op';
 
   @override
   void progress(String id, double? fraction, String phase) {}

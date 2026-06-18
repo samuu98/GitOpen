@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/branch_visibility_provider.dart';
+import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
@@ -37,14 +38,23 @@ const _remote = Branch(
   behind: 0,
 );
 
+const _repo = RepoLocation(RepoId('t'), 'unused', 't');
+
 Widget _host(List<Branch> branches) => ProviderScope(
+  overrides: [
+    // The ahead/behind badge watches this; stub it so the widget test does
+    // not spawn a real `git for-each-ref` (which hangs FakeAsync).
+    branchDivergenceProvider(_repo).overrideWith(
+      (ref) async => const <String, ({int ahead, int behind})>{},
+    ),
+  ],
   child: MaterialApp(
     theme: ThemeData(extensions: [AppPalette.dark()]),
     home: Scaffold(
       body: SingleChildScrollView(
         child: BranchTreeView(
           nodes: BranchTree.build(branches),
-          repo: RepoLocation(RepoId.newId(), 'unused', 't'),
+          repo: _repo,
         ),
       ),
     ),

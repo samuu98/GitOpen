@@ -75,6 +75,13 @@ abstract interface class GitReadOperations {
   /// Local branches only (`refs/heads`) — always fast.
   Future<List<Branch>> getLocalBranches(RepoLocation repo);
 
+  /// Ahead/behind per local branch vs its upstream (short name -> pair).
+  /// Empty for branches in sync or without an upstream. Computed separately
+  /// from [getLocalBranches] (it's slower) so the fast branch load isn't held.
+  Future<Map<String, ({int ahead, int behind})>> localBranchDivergence(
+    RepoLocation repo,
+  );
+
   /// Remote tracking branches (`refs/remotes`).  May time out on repos
   /// with very large unpruned remote ref sets — implementations are
   /// expected to return whatever partial list they got rather than hang.

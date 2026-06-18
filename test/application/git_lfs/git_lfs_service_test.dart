@@ -157,7 +157,13 @@ final class _FakeProgressSink implements ProgressSink {
   final phases = <String>[];
 
   @override
-  String start(OpKind kind, String label, {RepoLocation? repo}) => 'op';
+  String start(
+    OpKind kind,
+    String label, {
+    RepoLocation? repo,
+    void Function()? onCancel,
+  }) =>
+      'op';
 
   @override
   void progress(String id, double? fraction, String phase) {

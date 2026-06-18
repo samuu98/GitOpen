@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/ui/common/divergence_badge.dart';
 import 'package:gitopen/ui/shell/repo_tree_popover.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -25,6 +26,9 @@ class _RepoSelectorState extends ConsumerState<RepoSelector> {
     final activeId = ref.watch(activeWorkspaceIdProvider);
     final active =
         workspaces.firstWhereOrNull((w) => w.location.id == activeId);
+    final status = active == null
+        ? null
+        : ref.watch(repoStatusProvider(active.location)).valueOrNull;
 
     return CompositedTransformTarget(
       link: _link,
@@ -34,6 +38,8 @@ class _RepoSelectorState extends ConsumerState<RepoSelector> {
         child: _SelectorButton(
           label: active?.location.displayName ?? 'No repository',
           isEmpty: active == null,
+          ahead: status?.ahead ?? 0,
+          behind: status?.behind ?? 0,
           onTap: _portal.toggle,
         ),
       ),
@@ -69,9 +75,13 @@ class _SelectorButton extends StatefulWidget {
     required this.label,
     required this.isEmpty,
     required this.onTap,
+    this.ahead = 0,
+    this.behind = 0,
   });
   final String label;
   final bool isEmpty;
+  final int ahead;
+  final int behind;
   final VoidCallback onTap;
 
   @override
@@ -117,6 +127,7 @@ class _SelectorButtonState extends State<_SelectorButton> {
                   ),
                 ),
               ),
+              DivergenceBadge(ahead: widget.ahead, behind: widget.behind),
               const SizedBox(width: 6),
               Icon(Icons.expand_more, size: 16, color: palette.fg2),
             ],

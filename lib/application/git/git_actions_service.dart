@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_spec.dart';
 import 'package:gitopen/application/git/auth_failure_classifier.dart';
@@ -596,11 +598,39 @@ final class GitActionsService {
     AuthProfile? profile,
     bool profileResolved = false,
   }) async {
-    final id = progress.start(kind, label, repo: repo);
     final resolved = profileResolved ? profile : await _resolveProfile(repo);
+    StreamSubscription<GitProgress>? sub;
+    final done = Completer<void>();
+    var cancelled = false;
+    // Register the cancel BEFORE listening so the operations UI can kill the
+    // op: cancelling the subscription tears down the git process stream (whose
+    // sync-writer finally kills the process), and we complete `done` so the
+    // await below returns.
+    final id = progress.start(
+      kind,
+      label,
+      repo: repo,
+      onCancel: () {
+        cancelled = true;
+        unawaited(sub?.cancel());
+        if (!done.isCompleted) done.complete();
+      },
+    );
+    sub = streamFactory(resolved?.spec).listen(
+      (ev) => progress.progress(id, ev.fraction, ev.phase),
+      onError: (Object e, StackTrace s) {
+        if (!done.isCompleted) done.completeError(e, s);
+      },
+      onDone: () {
+        if (!done.isCompleted) done.complete();
+      },
+      cancelOnError: true,
+    );
     try {
-      await for (final ev in streamFactory(resolved?.spec)) {
-        progress.progress(id, ev.fraction, ev.phase);
+      await done.future;
+      if (cancelled) {
+        progress.failure(id, 'Cancelled');
+        return const ActionResult(ActionOutcome.failed);
       }
       progress.success(id);
       return const ActionResult.reads(ActionOutcome.success);

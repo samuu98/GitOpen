@@ -113,7 +113,12 @@ class _FakeProgress implements ProgressSink {
   int _n = 0;
 
   @override
-  String start(OpKind kind, String label, {RepoLocation? repo}) {
+  String start(
+    OpKind kind,
+    String label, {
+    RepoLocation? repo,
+    void Function()? onCancel,
+  }) {
     final id = 'op${_n++}';
     events.add('start:$id');
     return id;
