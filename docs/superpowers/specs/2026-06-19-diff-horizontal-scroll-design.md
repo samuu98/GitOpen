@@ -76,11 +76,16 @@ Why each piece:
 
 ### Scroll region boundaries
 
+The scroll wraps only a hunk's **code lines**. File/hunk headers, the
+selection checkboxes' hunk header, and the discard/unstage action button stay
+fixed — they use `Expanded`/full-width layout that cannot live inside an
+unbounded horizontal scroll, and keeping them fixed is also the better UX.
+
 | View | Scroll boundary |
 |---|---|
-| Commit diff | **One region per file** — all hunks of a file share one horizontal scroll position. Wrap the file block's hunk content in `_FileDiffBlock`. |
-| Working-copy preview | **One region per file** — wrap the `Column` of `HunkRow`s built in `FileRow` (around `file_row.dart:482`). |
-| Side-by-side | **Per cell** — each side (`_SplitCell`) gets its own horizontal scroll, so left and right scroll independently. Standard for side-by-side diffs. |
+| Commit diff | **Per hunk** — wrap the line column inside `HunkLines`. The hunk's `@@` header (rendered by `_hunk` in `diff_view.dart`) stays fixed above it. |
+| Working-copy preview | **Per hunk** — wrap the `_HunkLineRow` list inside `HunkRow`. The hunk header row (checkbox + `@@` + discard/unstage) stays fixed. |
+| Side-by-side | **Per hunk** — wrap the whole split structure in `SplitHunkLines`; both sides scroll together. |
 
 ## Design decisions
 
@@ -104,10 +109,15 @@ Why each piece:
   with full-width row backgrounds. Used by all three call sites.
 - `DiffLineRow` / `_SplitCell` (`diff_line_row.dart`): content `Text` becomes
   natural-width, non-clipped. No behavioural change beyond width.
-- `_HunkLineRow` (`hunk_row.dart`): same width change; checkboxes/prefix
-  unchanged.
-- Call sites (`diff_view.dart`, `file_row.dart`): wrap their per-file row
-  columns in `DiffHorizontalScroll`.
+- `HunkLines` (`diff_line_row.dart`): wraps its unified line column in
+  `DiffHorizontalScroll(IntrinsicWidth(Column(stretch, …)))`.
+- `SplitHunkLines` (`diff_line_row.dart`): replaces the two `Expanded` cells
+  with fixed-width `SizedBox`es (widths precomputed with a `TextPainter` over
+  each side's longest line, so the columns align across rows) and wraps the
+  whole row column in `DiffHorizontalScroll`. Accepted cosmetic trade-off:
+  short side-by-side diffs no longer stretch to fill the pane.
+- `_HunkLineRow` / `HunkRow` (`hunk_row.dart`): same width change; the line
+  list is wrapped in `DiffHorizontalScroll`; checkboxes/prefix/header unchanged.
 
 ## Error / edge handling
 
@@ -127,7 +137,7 @@ available):
    the viewport width.
 3. Row background (addition/deletion tint) **spans the full content width** when
    the widest line exceeds the viewport.
-4. Side-by-side: each cell scrolls independently.
+4. Side-by-side: a long line makes the hunk horizontally scrollable.
 
 Manual check: run the app, open a commit with long lines in **Changes**, and a
 working-copy file with long lines; confirm horizontal scrolling in both unified
