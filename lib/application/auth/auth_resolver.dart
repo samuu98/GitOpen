@@ -33,15 +33,22 @@ class AuthResolver {
     String? Function(String repoId)? bindingLookup,
     RepoIdentityReader? identity,
     LoggerPort? log,
-  })  : _remoteUrl = remoteUrl,
-        _bindingLookup = bindingLookup ?? ((_) => null),
-        _identity = identity,
-        _log = log;
+  }) : _remoteUrl = remoteUrl,
+       _bindingLookup = bindingLookup ?? ((_) => null),
+       _identity = identity,
+       _log = log;
   final AuthProfileStore _store;
   final RemoteUrlReader _remoteUrl;
   final String? Function(String repoId) _bindingLookup;
   final RepoIdentityReader? _identity;
   final LoggerPort? _log;
+
+  // Cache the two slow git reads (each spawns a subprocess) keyed by repo so
+  // repeated network ops skip them. These are stable git *facts* — not the
+  // resolved credential — so account/profile changes need no invalidation; only
+  // a remote-url or repo-email change does (see [clearCache]).
+  final Map<String, String?> _remoteUrlCache = {};
+  final Map<String, String?> _emailCache = {};
 
   /// Returns the resolved profile (with its `AuthSpec`) for a repo, or null
   /// if no candidate can be picked unambiguously.
@@ -52,12 +59,16 @@ class AuthResolver {
     final sw = Stopwatch()..start();
     // 1. Per-repo binding wins.
     final boundId = _bindingLookup(repo.id.value);
-    _log?.d('authResolver: bindingLookup=$boundId '
-        '(${sw.elapsedMilliseconds}ms)');
+    _log?.d(
+      'authResolver: bindingLookup=$boundId '
+      '(${sw.elapsedMilliseconds}ms)',
+    );
     if (boundId != null) {
       final bound = await _store.get(boundId);
-      _log?.d('authResolver: store.get done in ${sw.elapsedMilliseconds}ms '
-          '(found=${bound != null})');
+      _log?.d(
+        'authResolver: store.get done in ${sw.elapsedMilliseconds}ms '
+        '(found=${bound != null})',
+      );
       if (bound != null) return bound;
     }
 
@@ -66,16 +77,22 @@ class AuthResolver {
     _log?.d('authResolver: host="$host" (${sw.elapsedMilliseconds}ms)');
     if (host == null) return null;
     final candidates = await _store.forHost(host);
-    _log?.d('authResolver: store.forHost done in '
-        '${sw.elapsedMilliseconds}ms (candidates=${candidates.length})');
+    _log?.d(
+      'authResolver: store.forHost done in '
+      '${sw.elapsedMilliseconds}ms (candidates=${candidates.length})',
+    );
 
     // 3. Identity (email) match — host-scoped. The repo's effective git
     // user.email (set per-folder via .gitconfig) selects the owning account.
+    // Only matters when >1 candidate shares the host; otherwise the email read
+    // (a git subprocess) can't change the result, so skip it.
     final identity = _identity;
-    if (identity != null) {
-      final email = (await identity.effectiveEmail(repo))?.trim().toLowerCase();
-      _log?.d('authResolver: effectiveEmail="$email" '
-          '(${sw.elapsedMilliseconds}ms)');
+    if (identity != null && candidates.length > 1) {
+      final email = (await _cachedEmail(repo, identity))?.trim().toLowerCase();
+      _log?.d(
+        'authResolver: effectiveEmail="$email" '
+        '(${sw.elapsedMilliseconds}ms)',
+      );
       if (email != null && email.isNotEmpty) {
         final matches = candidates
             .where((p) => p.emails.contains(email))
@@ -95,12 +112,43 @@ class AuthResolver {
     RepoLocation repo,
     String remote,
   ) async {
-    final url = await _remoteUrl.remoteUrl(repo, remote);
+    final url = await _cachedRemoteUrl(repo, remote);
     if (url == null) return null;
     final https = RegExp('^https?://([^/]+)').firstMatch(url);
     if (https != null) return https.group(1);
     final ssh = RegExp('^git@([^:]+):').firstMatch(url);
     if (ssh != null) return ssh.group(1);
     return null;
+  }
+
+  Future<String?> _cachedRemoteUrl(RepoLocation repo, String remote) async {
+    final key = '${repo.id.value}|$remote';
+    if (_remoteUrlCache.containsKey(key)) return _remoteUrlCache[key];
+    final url = await _remoteUrl.remoteUrl(repo, remote);
+    _remoteUrlCache[key] = url;
+    return url;
+  }
+
+  Future<String?> _cachedEmail(
+    RepoLocation repo,
+    RepoIdentityReader identity,
+  ) async {
+    final key = repo.id.value;
+    if (_emailCache.containsKey(key)) return _emailCache[key];
+    final email = await identity.effectiveEmail(repo);
+    _emailCache[key] = email;
+    return email;
+  }
+
+  /// Drops the cached git facts (remote url + email) for [repoId], or for all
+  /// repos when null. Call after a remote-url or repo-identity change.
+  void clearCache([String? repoId]) {
+    if (repoId == null) {
+      _remoteUrlCache.clear();
+      _emailCache.clear();
+      return;
+    }
+    _remoteUrlCache.removeWhere((k, _) => k.startsWith('$repoId|'));
+    _emailCache.remove(repoId);
   }
 }

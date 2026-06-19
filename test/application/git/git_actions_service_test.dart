@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_spec.dart';
@@ -24,8 +26,8 @@ const _chosen = AuthProfile(
 );
 
 Stream<GitProgress> _ok() => Stream<GitProgress>.fromIterable(
-      const [GitProgress(phase: 'done', rawLine: '', fraction: 1)],
-    );
+  const [GitProgress(phase: 'done', rawLine: '', fraction: 1)],
+);
 Stream<GitProgress> _err(String stderr) =>
     Stream<GitProgress>.error(StateError(stderr));
 
@@ -152,8 +154,9 @@ void main() {
     final prompt = _FakePrompt(null);
     final progress = _FakeProgress();
 
-    final result =
-        await service(write).fetch(repo, prompt: prompt, progress: progress);
+    final result = await service(
+      write,
+    ).fetch(repo, prompt: prompt, progress: progress);
 
     expect(result.outcome, ActionOutcome.success);
     expect(result.invalidate, contains(RepoDataScope.reads));
@@ -162,13 +165,47 @@ void main() {
     expect(progress.events.any((e) => e.startsWith('success')), isTrue);
   });
 
+  test('registers the operation before resolving the auth profile', () async {
+    final write = _FakeWrite([_ok]);
+    final progress = _FakeProgress();
+    final resolveEntered = Completer<void>();
+    final allowResolve = Completer<AuthProfile?>();
+    final svc = GitActionsService(
+      write: write,
+      resolveProfile: (_) {
+        resolveEntered.complete();
+        return allowResolve.future;
+      },
+      errorText: (e) => e.toString(),
+    );
+
+    final future = svc.fetch(
+      repo,
+      prompt: _FakePrompt(null),
+      progress: progress,
+    );
+    // We are now suspended inside resolveProfile (it returns a pending future).
+    await resolveEntered.future;
+    // The operation must already be registered — its label drives the overlay,
+    // so it can't wait for auth resolution to finish.
+    final startedDuringResolve = progress.events.any(
+      (e) => e.startsWith('start'),
+    );
+
+    allowResolve.complete(null);
+    await future;
+
+    expect(startedDuringResolve, isTrue);
+  });
+
   test('auth failure → prompt → retry succeeds', () async {
     final write = _FakeWrite([() => _err('fatal: Authentication failed'), _ok]);
     final prompt = _FakePrompt(_chosen);
     final progress = _FakeProgress();
 
-    final result =
-        await service(write).fetch(repo, prompt: prompt, progress: progress);
+    final result = await service(
+      write,
+    ).fetch(repo, prompt: prompt, progress: progress);
 
     expect(result.outcome, ActionOutcome.success);
     expect(prompt.calls, 1);
@@ -181,8 +218,9 @@ void main() {
     final prompt = _FakePrompt(null);
     final progress = _FakeProgress();
 
-    final result =
-        await service(write).fetch(repo, prompt: prompt, progress: progress);
+    final result = await service(
+      write,
+    ).fetch(repo, prompt: prompt, progress: progress);
 
     expect(result.outcome, ActionOutcome.failed);
     expect(prompt.calls, 1);
@@ -204,8 +242,9 @@ void main() {
     final prompt = _FakePrompt(_chosen);
     final progress = _FakeProgress();
 
-    final result =
-        await service(write).fetch(repo, prompt: prompt, progress: progress);
+    final result = await service(
+      write,
+    ).fetch(repo, prompt: prompt, progress: progress);
 
     expect(result.outcome, ActionOutcome.failed);
     expect(prompt.calls, 0);
@@ -226,8 +265,7 @@ void main() {
   });
 
   test('deleteRemoteBranch retries after an auth failure', () async {
-    final write =
-        _FakeWrite([() => _err('fatal: Authentication failed'), _ok]);
+    final write = _FakeWrite([() => _err('fatal: Authentication failed'), _ok]);
     final prompt = _FakePrompt(_chosen);
 
     final result = await service(write).deleteRemoteBranch(
@@ -247,8 +285,9 @@ void main() {
     final prompt = _FakePrompt(null);
     final progress = _FakeProgress();
 
-    final result = await service(write)
-        .pushTag(repo, 'v1.2.3', prompt: prompt, progress: progress);
+    final result = await service(
+      write,
+    ).pushTag(repo, 'v1.2.3', prompt: prompt, progress: progress);
 
     expect(result.outcome, ActionOutcome.success);
     expect(write.lastPushRemote, 'origin');
@@ -262,8 +301,9 @@ void main() {
     final prompt = _FakePrompt(_chosen);
     final progress = _FakeProgress();
 
-    final result = await service(write)
-        .fetchRemote(repo, 'upstream', prompt: prompt, progress: progress);
+    final result = await service(
+      write,
+    ).fetchRemote(repo, 'upstream', prompt: prompt, progress: progress);
 
     expect(result.outcome, ActionOutcome.success);
     expect(write.lastFetchRemote, 'upstream');
@@ -297,8 +337,9 @@ void main() {
     final prompt = _FakePrompt(null);
     final progress = _FakeProgress();
 
-    await service(write)
-        .push(repo, pushTags: true, prompt: prompt, progress: progress);
+    await service(
+      write,
+    ).push(repo, pushTags: true, prompt: prompt, progress: progress);
 
     expect(write.lastPushTags, isTrue);
     expect(write.lastPushBranch, isNull);

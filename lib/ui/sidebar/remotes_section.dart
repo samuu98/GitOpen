@@ -160,7 +160,10 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
   }
 
   Future<void> _showMenu(
-      BuildContext context, WidgetRef ref, Offset globalPos) async {
+    BuildContext context,
+    WidgetRef ref,
+    Offset globalPos,
+  ) async {
     final selected = await AppContextMenu.show<String>(
       context,
       globalPosition: globalPos,
@@ -199,16 +202,21 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
         onChanged();
 
       case 'edit_url':
-        final result =
-            await RemoteDialog.showEditUrl(context, remote.name, remote.url);
+        final result = await RemoteDialog.showEditUrl(
+          context,
+          remote.name,
+          remote.url,
+        );
         if (result == null) return;
         await write.setRemoteUrl(repo, remote.name, result.url);
+        ref.read(authResolverProvider).clearCache(repo.id.value);
         onChanged();
 
       case 'rename':
         final result = await RemoteDialog.showRename(context, remote.name);
         if (result == null) return;
         await write.renameRemote(repo, remote.name, result.name);
+        ref.read(authResolverProvider).clearCache(repo.id.value);
         onChanged();
 
       case 'remove':
@@ -224,6 +232,7 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
         );
         if (!confirmed) return;
         await write.removeRemote(repo, remote.name);
+        ref.read(authResolverProvider).clearCache(repo.id.value);
         onChanged();
     }
   }
@@ -239,5 +248,6 @@ Future<void> _addRemote(
   if (result == null) return;
   final write = ref.read(gitWriteOperationsProvider);
   await write.addRemote(repo, result.name, result.url);
+  ref.read(authResolverProvider).clearCache(repo.id.value);
   onChanged();
 }

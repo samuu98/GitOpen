@@ -216,6 +216,17 @@ class _PullRequestHeader extends StatelessWidget {
   final VoidCallback? onReady;
   final VoidCallback onMerge;
 
+  String _mergeTooltip(MergeBlock block) => switch (block) {
+    MergeBlock.none => 'Merge this pull request',
+    MergeBlock.notOpen => 'This pull request is not open',
+    MergeBlock.draft => 'Mark the draft as ready before merging',
+    MergeBlock.conflicts => 'Resolve the merge conflicts first',
+    MergeBlock.blocked =>
+      'Blocked by branch protection (required checks or reviews)',
+    MergeBlock.behind => 'This branch is out of date with the base branch',
+    MergeBlock.checking => 'GitHub is still checking if this can be merged',
+  };
+
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
@@ -294,10 +305,13 @@ class _PullRequestHeader extends StatelessWidget {
                   label: const Text('Ready'),
                   onPressed: onReady,
                 ),
-              FilledButton.icon(
-                icon: const Icon(Icons.merge_type, size: 14),
-                label: const Text('Merge'),
-                onPressed: detail.isOpen ? onMerge : null,
+              Tooltip(
+                message: _mergeTooltip(detail.mergeBlock),
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.merge_type, size: 14),
+                  label: const Text('Merge'),
+                  onPressed: detail.canMerge ? onMerge : null,
+                ),
               ),
             ],
           ),

@@ -13,8 +13,14 @@ import 'package:gitopen/ui/github/github_panel.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final class _FakeApi implements GitHubApi {
-  _FakeApi({this.error});
+  _FakeApi({
+    this.error,
+    this.detailDraft = true,
+    this.detailMergeStateStatus = 'clean',
+  });
   final GitHubApiException? error;
+  final bool detailDraft;
+  final String detailMergeStateStatus;
   CreatePullRequestRequest? createdRequest;
   UpdatePullRequestRequest? updatedRequest;
   MergePullRequestRequest? mergedRequest;
@@ -127,9 +133,9 @@ final class _FakeApi implements GitHubApi {
     body: 'Detailed body',
     author: 'ada',
     state: 'open',
-    isDraft: true,
+    isDraft: detailDraft,
     mergeable: true,
-    mergeStateStatus: 'clean',
+    mergeStateStatus: detailMergeStateStatus,
     baseRef: 'main',
     headRef: 'feat/widget',
     headSha: 'a' * 40,
@@ -462,7 +468,8 @@ void main() {
   });
 
   testWidgets('Merge PR dialog calls mergePullRequest', (tester) async {
-    final api = _FakeApi();
+    // A draft PR can't be merged (mirrors GitHub) — use a ready one here.
+    final api = _FakeApi(detailDraft: false);
     await _pump(tester, repo: repo, api: api, profile: profile);
     await tester.tap(find.text('Improve the widget'));
     await tester.pumpAndSettle();
@@ -475,6 +482,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.mergedRequest?.method, PullRequestMergeMethod.squash);
+  });
+
+  testWidgets('Merge is disabled while branch protection blocks it', (
+    tester,
+  ) async {
+    final api = _FakeApi(detailDraft: false, detailMergeStateStatus: 'blocked');
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Improve the widget'));
+    await tester.pumpAndSettle();
+
+    // The disabled Merge button opens no dialog and triggers no API call.
+    await tester.tap(find.text('Merge'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm merge'), findsNothing);
+    expect(api.mergedRequest, isNull);
   });
 
   testWidgets('Ready button marks a draft PR ready for review', (tester) async {

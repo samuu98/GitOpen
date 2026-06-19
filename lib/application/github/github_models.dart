@@ -182,6 +182,11 @@ final class WorkflowJob extends Equatable {
 
 enum PullRequestMergeMethod { merge, squash, rebase }
 
+/// Why a pull request can't be merged right now, mirroring GitHub's own merge
+/// button (which derives from `mergeable_state`, computed server-side from the
+/// branch-protection rules). [none] means it is mergeable.
+enum MergeBlock { none, notOpen, draft, conflicts, blocked, behind, checking }
+
 final class PullRequestDetail extends Equatable {
   const PullRequestDetail({
     required this.number,
@@ -218,6 +223,37 @@ final class PullRequestDetail extends Equatable {
   final DateTime updatedAt;
 
   bool get isOpen => state == 'open';
+
+  /// Why the merge button should be disabled, mirroring github.com. GitHub
+  /// computes `mergeStateStatus` (from `mergeable_state`) on the server using
+  /// the repo's branch-protection rules, so gating on it inherently follows
+  /// branch protection: while a *required* check runs the state is `blocked`.
+  MergeBlock get mergeBlock {
+    if (!isOpen) return MergeBlock.notOpen;
+    if (isDraft) return MergeBlock.draft;
+    switch (mergeStateStatus) {
+      // Mergeable per GitHub: clean, or only non-required checks pending/failing
+      // (unstable), or repo has pre-receive hooks (has_hooks).
+      case 'clean':
+      case 'has_hooks':
+      case 'unstable':
+        return MergeBlock.none;
+      case 'dirty':
+        return MergeBlock.conflicts;
+      case 'blocked':
+        return MergeBlock.blocked;
+      case 'behind':
+        return MergeBlock.behind;
+      case 'draft':
+        return MergeBlock.draft;
+      // '' / 'unknown' → GitHub is still computing mergeability.
+      default:
+        return MergeBlock.checking;
+    }
+  }
+
+  /// Whether the merge button should be enabled, mirroring github.com.
+  bool get canMerge => mergeBlock == MergeBlock.none;
 
   @override
   List<Object?> get props => [
