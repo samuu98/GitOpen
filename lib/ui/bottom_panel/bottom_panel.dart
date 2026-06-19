@@ -20,12 +20,11 @@ class BottomPanel extends ConsumerStatefulWidget {
 }
 
 class _BottomPanelState extends ConsumerState<BottomPanel> {
-  String _tab = 'commit';
-
   @override
   Widget build(BuildContext context) {
     final sha = ref.watch(selectedCommitShaProvider);
     final localChanges = ref.watch(localChangesSelectedProvider);
+    final tab = ref.watch(bottomPanelTabProvider);
     final palette = AppPalette.of(context);
     // A selected commit wins; otherwise the "Local Changes" row puts the
     // working-copy staging UI here inline (no commit sub-tabs — they don't
@@ -41,16 +40,17 @@ class _BottomPanelState extends ConsumerState<BottomPanel> {
           : Column(
               children: [
                 _TabsBar(
-                  active: _tab,
-                  onSelect: (v) => setState(() => _tab = v),
+                  active: tab,
+                  onSelect: (v) =>
+                      ref.read(bottomPanelTabProvider.notifier).state = v,
                 ),
-                Expanded(child: _body(context, sha)),
+                Expanded(child: _body(context, sha, tab)),
               ],
             ),
     );
   }
 
-  Widget _body(BuildContext context, CommitSha? sha) {
+  Widget _body(BuildContext context, CommitSha? sha, String tab) {
     if (sha == null) {
       return const AppEmptyState(
         icon: Icons.commit,
@@ -58,7 +58,7 @@ class _BottomPanelState extends ConsumerState<BottomPanel> {
         message: 'Select a commit to see its details, changes, and files.',
       );
     }
-    switch (_tab) {
+    switch (tab) {
       case 'commit':
         return CommitDetailsView(repo: widget.repo, sha: sha);
       case 'changes':

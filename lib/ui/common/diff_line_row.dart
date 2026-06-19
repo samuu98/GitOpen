@@ -53,41 +53,51 @@ class DiffLineRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: gutterWidth,
-            child: Text(
-              line.oldLine?.toString() ?? '',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: palette.fg3,
-                fontSize: 11,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: gutterWidth,
-            child: Text(
-              line.newLine?.toString() ?? '',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: palette.fg3,
-                fontSize: 11,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: prefixWidth,
-            child: Text(
-              prefix,
-              style: TextStyle(
-                color: palette.fg3,
-                fontSize: 12,
-                fontFamily: 'monospace',
-              ),
+          // Line-number gutters and the +/- prefix are chrome, not code:
+          // exclude them from text selection so a drag-copy yields clean code.
+          SelectionContainer.disabled(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: gutterWidth,
+                  child: Text(
+                    line.oldLine?.toString() ?? '',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: palette.fg3,
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: gutterWidth,
+                  child: Text(
+                    line.newLine?.toString() ?? '',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: palette.fg3,
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: prefixWidth,
+                  child: Text(
+                    prefix,
+                    style: TextStyle(
+                      color: palette.fg3,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           Text.rich(
@@ -279,15 +289,18 @@ class _SplitCell extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: gutterWidth,
-            child: Text(
-              (old ? l.oldLine : l.newLine)?.toString() ?? '',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: palette.fg3,
-                fontSize: 11,
-                fontFamily: 'monospace',
+          // Gutter is chrome — excluded from selection (clean copy).
+          SelectionContainer.disabled(
+            child: SizedBox(
+              width: gutterWidth,
+              child: Text(
+                (old ? l.oldLine : l.newLine)?.toString() ?? '',
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: palette.fg3,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
               ),
             ),
           ),

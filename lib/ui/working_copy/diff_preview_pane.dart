@@ -133,7 +133,10 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
               : null;
           final shown = full?.value ?? fileDiff;
           final language = languageForPath(sel.path);
-          return ListView(
+          return SelectionArea(
+            // Selectable like normal text; chrome (header, hunk headers,
+            // gutters, +/- prefix) is excluded via SelectionContainer.disabled.
+            child: ListView(
             padding: const EdgeInsets.all(8),
             children: [
               DiffHeader(path: sel.path, fileDiff: shown),
@@ -157,6 +160,7 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
                   ),
                 ),
             ],
+          ),
           );
         },
       ),
@@ -172,7 +176,9 @@ class DiffHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    return Container(
+    // Header is chrome — excluded from text selection.
+    return SelectionContainer.disabled(
+      child: Container(
       decoration: BoxDecoration(
         color: palette.bg3,
         border: Border.all(color: palette.border),
@@ -199,6 +205,7 @@ class DiffHeader extends StatelessWidget {
           const SplitDiffToggle(),
         ],
       ),
+      ),
     );
   }
 }
@@ -223,13 +230,15 @@ class HunkBlock extends StatelessWidget {
           Container(
             color: palette.bg2,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Text(
-              hunk.header,
-              style: TextStyle(
-                color: palette.fg2,
-                fontSize: 11.5,
-                fontStyle: FontStyle.italic,
-                fontFamily: 'monospace',
+            child: SelectionContainer.disabled(
+              child: Text(
+                hunk.header,
+                style: TextStyle(
+                  color: palette.fg2,
+                  fontSize: 11.5,
+                  fontStyle: FontStyle.italic,
+                  fontFamily: 'monospace',
+                ),
               ),
             ),
           ),

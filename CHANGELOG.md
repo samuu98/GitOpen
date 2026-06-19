@@ -5,6 +5,20 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.9.3] — 2026-06-19
+
+### Added
+- **Selectable / copyable diff text.** The commit Changes view and the
+  working-copy preview now let you select lines or individual characters with
+  the mouse and copy them (Ctrl+C / right-click). Line numbers, the `+`/`-`
+  prefix and the hunk/file headers are excluded, so the clipboard holds clean
+  code.
+- **Changed-files list in the Commit tab.** The commit details now show a
+  "Files changed (N)" overview with each file's change kind and `+/-` counts;
+  clicking a file jumps straight to its diff in the Changes tab.
+- **Collapsible files in Changes.** Click a file header to hide or show its
+  diff — collapsed leaves only the header for a faster overview.
+
 ## [1.9.2] — 2026-06-19
 
 ### Fixed

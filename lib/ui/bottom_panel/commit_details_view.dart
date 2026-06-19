@@ -10,8 +10,11 @@ import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/commits/commit_signature.dart';
 import 'package:gitopen/domain/commits/gpg_signature_status.dart';
+import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/bottom_panel/diff_view.dart';
 import 'package:gitopen/ui/common/author_avatar.dart';
+import 'package:gitopen/ui/common/file_kind_badge.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:intl/intl.dart';
 
@@ -103,6 +106,8 @@ class CommitDetailsView extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _MessageBlock(body: body),
               ],
+              const SizedBox(height: 16),
+              _ChangedFiles(repo: repo, sha: sha),
             ],
           ),
         );
@@ -119,6 +124,85 @@ bool _sameSignature(CommitSignature a, CommitSignature b) =>
   final nl = trimmed.indexOf('\n');
   if (nl < 0) return (trimmed, '');
   return (trimmed.substring(0, nl).trim(), trimmed.substring(nl + 1).trim());
+}
+
+/// The commit's changed files (kind + path + +/- counts). Reuses the shared
+/// [commitDiffProvider] (so opening this also warms the Changes cache); tapping
+/// a row switches to the Changes tab and reveals that file.
+class _ChangedFiles extends ConsumerWidget {
+  const _ChangedFiles({required this.repo, required this.sha});
+  final RepoLocation repo;
+  final CommitSha sha;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = AppPalette.of(context);
+    final async = ref.watch(
+      commitDiffProvider((repo: repo, sha: sha, ignoreWhitespace: false)),
+    );
+    final files = async.value?.files ?? const <FileDiff>[];
+    if (files.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Files changed (${files.length})',
+          style: TextStyle(
+            color: palette.fg1,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final f in files) _ChangedFileRow(repo: repo, file: f),
+      ],
+    );
+  }
+}
+
+class _ChangedFileRow extends ConsumerWidget {
+  const _ChangedFileRow({required this.repo, required this.file});
+  final RepoLocation repo;
+  final FileDiff file;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = AppPalette.of(context);
+    final label = file.oldPath != null && file.oldPath != file.path
+        ? '${file.oldPath} → ${file.path}'
+        : file.path;
+    return InkWell(
+      onTap: () {
+        ref.read(bottomPanelTabProvider.notifier).state = 'changes';
+        ref.read(revealFilePathProvider.notifier).state = file.path;
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          children: [
+            FileKindBadge(kind: file.changeKind, compact: true),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: palette.fg0, fontSize: 12.5),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '+${file.linesAdded} -${file.linesDeleted}',
+              style: TextStyle(
+                color: palette.fg2,
+                fontSize: 11,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _Hero extends StatelessWidget {
