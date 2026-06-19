@@ -15,6 +15,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
 import 'package:gitopen/ui/common/diff_line_row.dart';
 import 'package:gitopen/ui/common/diff_prefs.dart';
+import 'package:gitopen/ui/common/file_kind_badge.dart';
 import 'package:gitopen/ui/common/image_diff_view.dart';
 import 'package:gitopen/ui/common/truncated_diff_banner.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
@@ -307,7 +308,7 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
             color: palette.fg3,
           ),
           const SizedBox(width: 6),
-          _KindBadge(kind: file.changeKind),
+          FileKindBadge(kind: file.changeKind),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -350,48 +351,5 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
         HunkLines(lines: h.lines, language: language),
       ],
     );
-  }
-}
-
-class _KindBadge extends StatelessWidget {
-  const _KindBadge({required this.kind});
-  final dynamic kind;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppPalette.of(context);
-    final (bg, fg) = _palette(kind.toString(), p);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Text(
-        kind.toString().split('.').last.toUpperCase(),
-        style: TextStyle(
-          color: fg,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-
-  (Color, Color) _palette(String s, AppPalette p) {
-    if (s.contains('added')) {
-      return (p.accentCurrent.withValues(alpha: 0.18), p.accentCurrent);
-    }
-    if (s.contains('deleted')) {
-      return (p.accentErr.withValues(alpha: 0.18), p.accentErr);
-    }
-    if (s.contains('modified')) {
-      return (p.accentTag.withValues(alpha: 0.18), p.accentTag);
-    }
-    if (s.contains('renamed')) {
-      return (p.accentRemote.withValues(alpha: 0.18), p.accentRemote);
-    }
-    return (p.bg4, p.fg1);
   }
 }
