@@ -22,8 +22,18 @@ final _commitInfoProvider = FutureProvider.family
       key,
     ) async {
       final git = ref.watch(gitReadOperationsProvider);
+      // verifySignature: this panel shows the GPG signature badge, and it is
+      // a single commit — verifying one signature is cheap (unlike the graph,
+      // which would verify hundreds).
       final commits = await git
-          .getCommits(key.repo, CommitQuery(refSpec: key.sha.value, take: 1))
+          .getCommits(
+            key.repo,
+            CommitQuery(
+              refSpec: key.sha.value,
+              take: 1,
+              verifySignature: true,
+            ),
+          )
           .toList();
       return commits.isEmpty ? null : commits.first;
     });

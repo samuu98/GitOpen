@@ -43,11 +43,22 @@ class CommitQuery {
     this.grep,
     this.author,
     this.touchingContent,
+    this.verifySignature = false,
   });
   final int? skip;
   final int? take;
   final String? refSpec;
   final List<String>? refs;
+
+  /// Whether to ask git for each commit's GPG signature status (`%G?`).
+  ///
+  /// Off by default because `%G?` makes git **verify** every commit's
+  /// signature, which costs seconds on a history with signed commits whose
+  /// public keys are not available locally. Only views that actually display
+  /// the signature (the commit details panel) set this; the commit graph —
+  /// which loads hundreds of commits and never shows the status — leaves it
+  /// off so the log returns promptly.
+  final bool verifySignature;
 
   /// Filter to commits whose message matches this pattern, case-insensitively
   /// (`git log --grep=<v> --regexp-ignore-case`).  Null disables the filter.
