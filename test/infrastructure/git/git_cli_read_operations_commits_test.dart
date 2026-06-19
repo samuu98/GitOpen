@@ -81,6 +81,28 @@ void main() {
         await f.dispose();
       }
     });
+
+    test('keeps fields aligned when signature verification is requested',
+        () async {
+      // verifySignature appends %G? as an extra log field; the other fields
+      // must stay aligned (no off-by-one shifting author into committer).
+      final f = await RepoFixture.withLinearHistory(3);
+      try {
+        final sut = GitCliReadOperations();
+        final commits = await sut
+            .getCommits(loc(f), const CommitQuery(verifySignature: true))
+            .toList();
+        expect(commits, hasLength(3));
+        final c = commits.first;
+        expect(c.author.name, 'Test');
+        expect(c.author.email, 'test@example.com');
+        expect(c.committer.name, 'Test');
+        expect(c.summary, 'commit 2');
+        expect(c.signatureStatus, GpgSignatureStatus.unsigned);
+      } finally {
+        await f.dispose();
+      }
+    });
   });
 
   group('GitCliReadOperations.getCommits search', () {

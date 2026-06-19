@@ -5,6 +5,17 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.9.2] — 2026-06-19
+
+### Fixed
+- Commit graph refreshed several seconds after a fetch/pull completed (the
+  progress toast finished but the graph lagged behind). The graph's `git log`
+  was passing `%G?`, which makes git **GPG-verify every loaded commit** —
+  multi-second on histories with signed commits whose public keys aren't
+  available locally. Signature status is shown only in the commit details
+  panel, so the graph now loads without verification (≈30× faster on affected
+  repos) and the details panel verifies just the single selected commit.
+
 ## [1.9.1] — 2026-06-19
 
 ### Fixed

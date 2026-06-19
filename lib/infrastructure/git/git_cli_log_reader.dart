@@ -12,6 +12,29 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
 
+/// The base NUL-separated `git log` fields shared by [GitCliLogReader]'s
+/// commit readers, in order: sha, parents, author name/email/date, committer
+/// name/email/date, subject. The body (%b) is intentionally omitted — for big
+/// repos it dominates the log output and is fetched on demand instead (see
+/// [GitCliLogReader.getCommitFullMessage]).
+const String _baseCommitFormat =
+    '%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s';
+const int _baseCommitFieldCount = 9;
+
+/// Builds the `git log --format` string for one commit record.
+///
+/// When [verifySignature] is true, `%G?` (GPG status) is appended as a final
+/// field. `%G?` makes git **verify** every commit's signature, which costs
+/// seconds on a history with signed commits whose public keys are not present
+/// locally — so callers that never display the status (the commit graph,
+/// file history) leave it off and the log returns promptly.
+String commitLogFormat({required bool verifySignature}) =>
+    verifySignature ? '$_baseCommitFormat%x00%G?' : _baseCommitFormat;
+
+/// The number of NUL-separated fields [commitLogFormat] emits per commit.
+int commitLogFieldCount({required bool verifySignature}) =>
+    verifySignature ? _baseCommitFieldCount + 1 : _baseCommitFieldCount;
+
 /// Reads commit history (`git log`) for the read-operations facade: the
 /// streaming graph log, per-file history, and on-demand full messages.
 /// Moved verbatim from `GitCliReadOperations`.
@@ -19,30 +42,25 @@ final class GitCliLogReader {
   GitCliLogReader(this._runner);
   final GitProcessRunner _runner;
 
-  /// The 10 NUL-separated commit fields shared by [getCommits] and
-  /// [getFileHistory].  Each record is exactly 10 fields, parsed by
-  /// [_parseCommitFields]:
-  /// sha, parents, author name/email/date, committer name/email/date, subject,
-  /// GPG status (%G?).
-  /// The body (%b) is intentionally omitted — fetched on demand via
-  /// [getCommitFullMessage].
-  static const String _commitFormat =
-      '%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s%x00%G?';
-  static const int _commitFieldCount = 10;
-
   Stream<CommitInfo> getCommits(RepoLocation repo, CommitQuery query) async* {
     // NOTE: format intentionally omits the commit body (%b).  For very large
     // repos the body dominates `git log` output (multi-paragraph merges,
     // generated changelogs, etc.) and was causing the graph load to blow up
     // memory.  The graph only ever displays the subject line; full message
     // is fetched on demand via [getCommitFullMessage] when a commit row is
-    // selected.  Each commit produces exactly 10 NUL-separated fields.
+    // selected.  GPG status (%G?) is included only when the caller asks
+    // ([CommitQuery.verifySignature]) because verifying every commit is
+    // multi-second on signed histories; each commit produces exactly
+    // [fieldCount] NUL-separated fields.
+    final fieldCount = commitLogFieldCount(
+      verifySignature: query.verifySignature,
+    );
     final args = <String>[
       'log',
       '-z',
       '--topo-order',
       '--date-order',
-      '--format=$_commitFormat',
+      '--format=${commitLogFormat(verifySignature: query.verifySignature)}',
     ];
     if (query.skip != null) args.add('--skip=${query.skip}');
     if (query.take != null) args.add('--max-count=${query.take}');
@@ -113,9 +131,9 @@ final class GitCliLogReader {
         remainder = parts.removeLast();
         pending.addAll(parts);
 
-        while (pending.length >= _commitFieldCount) {
+        while (pending.length >= fieldCount) {
           final f = List<String>.generate(
-            _commitFieldCount,
+            fieldCount,
             (_) => pending.removeFirst(),
           );
           yield _parseCommitFields(f);
@@ -133,9 +151,9 @@ final class GitCliLogReader {
       // terminate its last record with a NUL — defensive, shouldn't happen
       // with -z) and emit any final complete record.
       if (remainder.isNotEmpty) pending.add(remainder);
-      while (pending.length >= _commitFieldCount) {
+      while (pending.length >= fieldCount) {
         final f = List<String>.generate(
-          _commitFieldCount,
+          fieldCount,
           (_) => pending.removeFirst(),
         );
         yield _parseCommitFields(f);
@@ -180,7 +198,11 @@ final class GitCliLogReader {
       committer: CommitSignature(f[5], f[6], DateTime.parse(f[7])),
       summary: summary,
       message: summary, // body fetched on demand via getCommitFullMessage
-      signatureStatus: GpgSignatureStatus.fromGitCode(f[9]),
+      // The %G? field is present only when signature verification was
+      // requested (see [commitLogFormat]); absent → treat as unsigned.
+      signatureStatus: f.length > _baseCommitFieldCount
+          ? GpgSignatureStatus.fromGitCode(f[9])
+          : GpgSignatureStatus.unsigned,
     );
   }
 
@@ -222,15 +244,16 @@ final class GitCliLogReader {
     String path, {
     int? take,
   }) async {
-    // --follow tracks the file across renames; -z + the shared 10-field
-    // format means each commit produces exactly [_commitFieldCount]
-    // NUL-separated fields, parsed identically to [getCommits].  `--` keeps
-    // git from treating the path as a revision.
+    // --follow tracks the file across renames; -z + the shared base format
+    // means each commit produces exactly [_baseCommitFieldCount] NUL-separated
+    // fields, parsed identically to [getCommits].  `--` keeps git from
+    // treating the path as a revision. The file-history list does not show
+    // signature status, so verification (%G?) is omitted.
     final args = <String>[
       'log',
       '--follow',
       '-z',
-      '--format=$_commitFormat',
+      '--format=${commitLogFormat(verifySignature: false)}',
     ];
     if (take != null) args.add('--max-count=$take');
     args
@@ -238,27 +261,29 @@ final class GitCliLogReader {
       ..add(path);
 
     final stdout = await _runner.run(repo.path, args);
-    return _parseCommitRecords(stdout);
+    return _parseCommitRecords(
+      stdout,
+      commitLogFieldCount(verifySignature: false),
+    );
   }
 
-  /// Splits the buffered NUL-separated output of a
-  /// `log --format=$_commitFormat` invocation into [CommitInfo]s.  Shared by
-  /// [getFileHistory]; mirrors the
+  /// Splits the buffered NUL-separated output of a `log --format` invocation
+  /// into [CommitInfo]s.  Shared by [getFileHistory]; mirrors the
   /// field-chunking the streaming [getCommits] does, so a record is exactly
-  /// [_commitFieldCount] fields.  A trailing empty token (from the final NUL
+  /// [fieldCount] fields.  A trailing empty token (from the final NUL
   /// terminator) is dropped before chunking.
-  List<CommitInfo> _parseCommitRecords(String stdout) {
+  List<CommitInfo> _parseCommitRecords(String stdout, int fieldCount) {
     if (stdout.isEmpty) return const [];
     final tokens = stdout.split('\x00');
     if (tokens.isNotEmpty && tokens.last.isEmpty) tokens.removeLast();
 
     final commits = <CommitInfo>[];
     var i = 0;
-    while (i + _commitFieldCount <= tokens.length) {
+    while (i + fieldCount <= tokens.length) {
       commits.add(
-        _parseCommitFields(tokens.sublist(i, i + _commitFieldCount)),
+        _parseCommitFields(tokens.sublist(i, i + fieldCount)),
       );
-      i += _commitFieldCount;
+      i += fieldCount;
     }
     return commits;
   }
