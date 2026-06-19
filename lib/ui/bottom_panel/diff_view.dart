@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/diff/image_preview.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
@@ -17,7 +20,10 @@ import 'package:gitopen/ui/common/truncated_diff_banner.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-final _diffProvider = FutureProvider.family
+/// The commit's diff vs its first parent. Shared by the Changes view and the
+/// Commit tab's changed-files list (so opening either populates the cache for
+/// the other, and a click in the list reveals the file here instantly).
+final commitDiffProvider = FutureProvider.family
     .autoDispose<
       DiffResult,
       ({RepoLocation repo, CommitSha sha, bool ignoreWhitespace})
@@ -54,20 +60,63 @@ final _fullFileProvider = FutureProvider.family
       return result.files.isEmpty ? null : result.files.first;
     });
 
-class DiffView extends ConsumerWidget {
+class DiffView extends ConsumerStatefulWidget {
   const DiffView({required this.repo, required this.sha, super.key});
   final RepoLocation repo;
   final CommitSha sha;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DiffView> createState() => _DiffViewState();
+}
+
+class _DiffViewState extends ConsumerState<DiffView> {
+  final ScrollController _scroll = ScrollController();
+
+  /// Per-file-path keys so a reveal request can scroll to (and expand) a
+  /// specific file. The list is rendered eagerly (SingleChildScrollView) so
+  /// off-screen targets are built and have a context to scroll to.
+  final Map<String, GlobalKey<_FileDiffBlockState>> _blockKeys = {};
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  GlobalKey<_FileDiffBlockState> _keyFor(String path) =>
+      _blockKeys.putIfAbsent(path, GlobalKey<_FileDiffBlockState>.new);
+
+  /// Expands [path]'s block (if collapsed), scrolls it into view, then clears
+  /// the pending reveal request. Clearing even when the path is absent avoids
+  /// a stuck request.
+  void _reveal(String path) {
+    final key = _blockKeys[path];
+    key?.currentState?.expand();
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      unawaited(
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 250),
+          alignment: 0.05,
+        ),
+      );
+    }
+    ref.read(revealFilePathProvider.notifier).state = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final spacing = AppSpacing.of(context);
     final ignoreWhitespace = ref.watch(ignoreWhitespaceProvider);
+    final reveal = ref.watch(revealFilePathProvider);
     final async = ref.watch(
-      _diffProvider(
-        (repo: repo, sha: sha, ignoreWhitespace: ignoreWhitespace),
-      ),
+      commitDiffProvider((
+        repo: widget.repo,
+        sha: widget.sha,
+        ignoreWhitespace: ignoreWhitespace,
+      )),
     );
     return async.when(
       // Keep the current diff visible during background reloads.
@@ -76,38 +125,56 @@ class DiffView extends ConsumerWidget {
       error: (e, _) => Center(
         child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
       ),
-      data: (d) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(12, 6, 12, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                WordDiffToggle(),
-                SizedBox(width: 4),
-                IgnoreWhitespaceToggle(),
-                SizedBox(width: 4),
-                SplitDiffToggle(),
-              ],
-            ),
-          ),
-          Expanded(
-            // Make the diff selectable like normal text. Line-number gutters,
-            // the +/- prefix and the hunk/file headers are wrapped in
-            // SelectionContainer.disabled (here and in DiffLineRow) so a
-            // drag-copy yields only the code content.
-            child: SelectionArea(
-              child: ListView.builder(
-                padding: spacing.panel,
-                itemCount: d.files.length,
-                itemBuilder: (_, i) =>
-                    _FileDiffBlock(file: d.files[i], repo: repo, sha: sha),
+      data: (d) {
+        // Handle a pending reveal only once the files (and their keys) exist.
+        if (reveal != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _reveal(reveal);
+          });
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 6, 12, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  WordDiffToggle(),
+                  SizedBox(width: 4),
+                  IgnoreWhitespaceToggle(),
+                  SizedBox(width: 4),
+                  SplitDiffToggle(),
+                ],
               ),
             ),
-          ),
-        ],
-      ),
+            Expanded(
+              // Make the diff selectable like normal text. Line-number gutters,
+              // the +/- prefix and the hunk/file headers are wrapped in
+              // SelectionContainer.disabled (here and in DiffLineRow) so a
+              // drag-copy yields only the code content.
+              child: SelectionArea(
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  padding: spacing.panel,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final f in d.files)
+                        _FileDiffBlock(
+                          key: _keyFor(f.path),
+                          file: f,
+                          repo: widget.repo,
+                          sha: widget.sha,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -117,6 +184,7 @@ class _FileDiffBlock extends ConsumerStatefulWidget {
     required this.file,
     required this.repo,
     required this.sha,
+    super.key,
   });
   final FileDiff file;
   final RepoLocation repo;
@@ -132,6 +200,11 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
 
   /// File block collapsed to just its header (diff hidden). Session-scoped.
   bool _collapsed = false;
+
+  /// Expand this file (used when a reveal request targets it).
+  void expand() {
+    if (_collapsed) setState(() => _collapsed = false);
+  }
 
   FileDiff get file => widget.file;
 
