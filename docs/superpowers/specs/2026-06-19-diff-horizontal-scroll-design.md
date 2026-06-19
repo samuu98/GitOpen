@@ -112,10 +112,11 @@ unbounded horizontal scroll, and keeping them fixed is also the better UX.
 - `HunkLines` (`diff_line_row.dart`): wraps its unified line column in
   `DiffHorizontalScroll(IntrinsicWidth(Column(stretch, …)))`.
 - `SplitHunkLines` (`diff_line_row.dart`): replaces the two `Expanded` cells
-  with fixed-width `SizedBox`es (widths precomputed with a `TextPainter` over
-  each side's longest line, so the columns align across rows) and wraps the
-  whole row column in `DiffHorizontalScroll`. Accepted cosmetic trade-off:
-  short side-by-side diffs no longer stretch to fill the pane.
+  with a `Table` whose two content columns use `IntrinsicColumnWidth` (so the
+  sides align across all rows and row heights size automatically, with no text
+  measurement) and a 1px `FixedColumnWidth` divider column; the whole table is
+  wrapped in `DiffHorizontalScroll`. Accepted cosmetic trade-off: short
+  side-by-side diffs no longer stretch to fill the pane.
 - `_HunkLineRow` / `HunkRow` (`hunk_row.dart`): same width change; the line
   list is wrapped in `DiffHorizontalScroll`; checkboxes/prefix/header unchanged.
 

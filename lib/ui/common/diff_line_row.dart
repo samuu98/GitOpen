@@ -213,35 +213,38 @@ class SplitHunkLines extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = buildSplitRows(lines);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final row in rows)
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    final borderColor = AppPalette.of(context).border;
+    // A Table with intrinsic-width columns aligns the two sides across all
+    // rows (and sizes row heights automatically) without measuring text. The
+    // whole table is wrapped so long lines scroll horizontally.
+    return DiffHorizontalScroll(
+      child: Table(
+        defaultColumnWidth: const IntrinsicColumnWidth(),
+        columnWidths: const {1: FixedColumnWidth(1)},
+        children: [
+          for (final row in rows)
+            TableRow(
               children: [
-                Expanded(
-                  child: _SplitCell(
-                    line: row.left,
-                    old: true,
-                    language: language,
-                    gutterWidth: gutterWidth,
-                  ),
+                _SplitCell(
+                  line: row.left,
+                  old: true,
+                  language: language,
+                  gutterWidth: gutterWidth,
                 ),
-                Container(width: 1, color: AppPalette.of(context).border),
-                Expanded(
-                  child: _SplitCell(
-                    line: row.right,
-                    old: false,
-                    language: language,
-                    gutterWidth: gutterWidth,
-                  ),
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.fill,
+                  child: ColoredBox(color: borderColor),
+                ),
+                _SplitCell(
+                  line: row.right,
+                  old: false,
+                  language: language,
+                  gutterWidth: gutterWidth,
                 ),
               ],
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -289,19 +292,16 @@ class _SplitCell extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: buildHighlightedSpans(
-                  l.content,
-                  language,
-                  baseColor: palette.fg0,
-                ),
+          Text.rich(
+            TextSpan(
+              children: buildHighlightedSpans(
+                l.content,
+                language,
+                baseColor: palette.fg0,
               ),
-              style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-              softWrap: false,
-              overflow: TextOverflow.clip,
             ),
+            style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+            softWrap: false,
           ),
         ],
       ),
