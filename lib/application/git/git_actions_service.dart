@@ -598,14 +598,14 @@ final class GitActionsService {
     AuthProfile? profile,
     bool profileResolved = false,
   }) async {
-    final resolved = profileResolved ? profile : await _resolveProfile(repo);
     StreamSubscription<GitProgress>? sub;
     final done = Completer<void>();
     var cancelled = false;
-    // Register the cancel BEFORE listening so the operations UI can kill the
-    // op: cancelling the subscription tears down the git process stream (whose
-    // sync-writer finally kills the process), and we complete `done` so the
-    // await below returns.
+    // Register the operation BEFORE resolving auth so the overlay shows the
+    // real label immediately (no generic "Working…" flash) and the cancel hook
+    // is live during resolution. Cancelling the subscription tears down the git
+    // process stream (whose sync-writer finally kills the process), and we
+    // complete `done` so the await below returns.
     final id = progress.start(
       kind,
       label,
@@ -616,6 +616,12 @@ final class GitActionsService {
         if (!done.isCompleted) done.complete();
       },
     );
+    final resolved = profileResolved ? profile : await _resolveProfile(repo);
+    // Cancelled while resolving auth — don't start the git stream.
+    if (cancelled) {
+      progress.failure(id, 'Cancelled');
+      return const ActionResult(ActionOutcome.failed);
+    }
     sub = streamFactory(resolved?.spec).listen(
       (ev) => progress.progress(id, ev.fraction, ev.phase),
       onError: (Object e, StackTrace s) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
 import 'package:gitopen/domain/diff/diff_line.dart';
+import 'package:gitopen/ui/common/diff_horizontal_scroll.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 class HunkRow extends StatelessWidget {
@@ -100,12 +101,21 @@ class HunkRow extends StatelessWidget {
               ),
             ),
           ),
-          for (final (lineIndex, line) in hunk.lines.indexed)
-            _HunkLineRow(
-              line: line,
-              isChecked: selectedLines.contains(lineIndex),
-              onToggle: () => onToggleLine(lineIndex),
+          DiffHorizontalScroll(
+            child: IntrinsicWidth(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (lineIndex, line) in hunk.lines.indexed)
+                    _HunkLineRow(
+                      line: line,
+                      isChecked: selectedLines.contains(lineIndex),
+                      onToggle: () => onToggleLine(lineIndex),
+                    ),
+                ],
+              ),
             ),
+          ),
         ],
       ),
     );
@@ -180,15 +190,13 @@ class _HunkLineRow extends StatelessWidget {
                   ),
                 ),
               ),
-              Expanded(
-                child: Text(
-                  line.content,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.fg1,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                  ),
+              Text(
+                line.content,
+                softWrap: false,
+                style: TextStyle(
+                  color: palette.fg1,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
                 ),
               ),
             ],

@@ -5,6 +5,21 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.8.0] — 2026-06-19
+
+### Added
+- **Horizontal scrolling in the diff views.** Long lines in the Changes view —
+  and in the working-copy preview and side-by-side mode — are no longer clipped:
+  each hunk's lines now scroll horizontally, while short content still fills the
+  pane.
+
+### Changed
+- **Snappier network operations.** Fetch / pull / push now show their real label
+  ("Fetching origin", …) from the first frame instead of flashing a generic
+  "Working…", and account resolution no longer spawns redundant `git`
+  subprocesses on every run — the remote URL and `user.email` are cached per
+  repo, and the email read is skipped when a host has a single account.
+
 ## [1.7.3] — 2026-06-18
 
 ### Changed
