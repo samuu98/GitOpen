@@ -34,8 +34,9 @@ void main() {
     expect(scrollable.position.maxScrollExtent, greaterThan(0));
   });
 
-  testWidgets('long side-by-side line is horizontally scrollable',
-      (tester) async {
+  testWidgets('long side-by-side line is horizontally scrollable', (
+    tester,
+  ) async {
     final lines = [
       DiffLine(kind: DiffLineKind.deletion, content: 'z' * 400, oldLine: 1),
       DiffLine(kind: DiffLineKind.addition, content: 'w' * 400, newLine: 1),

@@ -6,8 +6,9 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/hunk_row.dart';
 
 void main() {
-  testWidgets('long working-copy line is horizontally scrollable',
-      (tester) async {
+  testWidgets('long working-copy line is horizontally scrollable', (
+    tester,
+  ) async {
     final hunk = DiffHunk(
       oldStart: 1,
       oldCount: 1,
