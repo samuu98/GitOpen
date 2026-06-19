@@ -5,6 +5,15 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.9.0] — 2026-06-19
+
+### Added
+- **Manage GitHub Actions from the app.** The Actions tab now lets you re-run a
+  whole run, re-run only its failed jobs, or cancel a run that's in progress;
+  open a run to see its jobs and per-step status; and read a job's full log in
+  an in-app viewer. Runs and the open run refresh automatically every few
+  seconds while work is still in progress.
+
 ## [1.8.1] — 2026-06-19
 
 ### Changed

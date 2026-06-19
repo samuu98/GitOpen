@@ -41,6 +41,42 @@ abstract interface class GitHubApi {
     String? branch,
   });
 
+  /// The jobs of workflow run [runId], each with its ordered steps.
+  Future<List<WorkflowJob>> listWorkflowJobs(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  });
+
+  /// Re-runs all jobs of workflow run [runId].
+  Future<void> rerunWorkflowRun(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  });
+
+  /// Re-runs only the failed jobs of workflow run [runId].
+  Future<void> rerunFailedJobs(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  });
+
+  /// Cancels the in-progress workflow run [runId].
+  Future<void> cancelWorkflowRun(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  });
+
+  /// The full plain-text log of job [jobId]. Follows GitHub's redirect to a
+  /// signed URL, which the `Authorization` header must NOT be sent to.
+  Future<String> jobLogs(
+    RepoSlug slug,
+    int jobId, {
+    required String token,
+  });
+
   /// Check-run summary for the commit [headSha] (a PR's head).
   Future<CheckSummary> prChecks(
     RepoSlug slug,

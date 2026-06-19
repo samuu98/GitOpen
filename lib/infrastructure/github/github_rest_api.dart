@@ -54,6 +54,108 @@ final class GitHubRestApi implements GitHubApi {
   }
 
   @override
+  Future<List<WorkflowJob>> listWorkflowJobs(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async {
+    final body = await _get(
+      '${_repoPath(slug)}/actions/runs/$runId/jobs',
+      token,
+      query: {'per_page': '100'},
+    );
+    final jobs = (body as Map<String, dynamic>)['jobs'];
+    return [
+      for (final job in (jobs as List<dynamic>? ?? const []))
+        _parseJob(job as Map<String, dynamic>),
+    ];
+  }
+
+  @override
+  Future<void> rerunWorkflowRun(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async {
+    await _post('${_repoPath(slug)}/actions/runs/$runId/rerun', token);
+  }
+
+  @override
+  Future<void> rerunFailedJobs(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async {
+    await _post(
+      '${_repoPath(slug)}/actions/runs/$runId/rerun-failed-jobs',
+      token,
+    );
+  }
+
+  @override
+  Future<void> cancelWorkflowRun(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async {
+    await _post('${_repoPath(slug)}/actions/runs/$runId/cancel', token);
+  }
+
+  @override
+  Future<String> jobLogs(
+    RepoSlug slug,
+    int jobId, {
+    required String token,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl${_repoPath(slug)}/actions/jobs/$jobId/logs',
+    );
+    try {
+      // GitHub answers 302 to a signed blob URL that rejects the auth header,
+      // so don't auto-follow: read the redirect, then fetch it unauthenticated.
+      final request = http.Request('GET', uri)
+        ..followRedirects = false
+        ..headers.addAll({
+          'Accept': 'application/vnd.github+json',
+          'Authorization': 'Bearer $token',
+          'X-GitHub-Api-Version': '2022-11-28',
+        });
+      final response = await http.Response.fromStream(
+        await _client.send(request),
+      );
+      if (response.statusCode == 302 || response.statusCode == 307) {
+        final location = response.headers['location'];
+        if (location == null || location.isEmpty) {
+          throw const GitHubApiException(
+            GitHubApiErrorKind.notFound,
+            'GitHub did not return a log location.',
+          );
+        }
+        final log = await _client.get(Uri.parse(location));
+        if (log.statusCode >= 200 && log.statusCode < 300) return log.body;
+        throw GitHubApiException(
+          GitHubApiErrorKind.notFound,
+          'Could not download the job log (${log.statusCode}).',
+        );
+      }
+      // Some setups (and the test client) return the log inline with a 200.
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return response.body;
+      }
+      // Any other status: reuse the shared error mapping (always throws).
+      _decodeResponse(response);
+      throw const GitHubApiException(
+        GitHubApiErrorKind.network,
+        'Unexpected response fetching the job log.',
+      );
+    } on http.ClientException catch (e) {
+      throw GitHubApiException(GitHubApiErrorKind.network, e.message);
+    } on SocketException catch (e) {
+      throw GitHubApiException(GitHubApiErrorKind.network, e.message);
+    }
+  }
+
+  @override
   Future<CheckSummary> prChecks(
     RepoSlug slug,
     String headSha, {
@@ -373,6 +475,33 @@ mutation MarkReady($id: ID!) {
       updatedAt:
           DateTime.tryParse(run['updated_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    );
+  }
+
+  WorkflowJob _parseJob(Map<String, dynamic> job) {
+    final steps = job['steps'] as List<dynamic>? ?? const [];
+    return WorkflowJob(
+      id: job['id'] as int? ?? 0,
+      name: job['name'] as String? ?? 'job',
+      status: job['status'] as String? ?? 'completed',
+      conclusion: job['conclusion'] as String?,
+      htmlUrl: job['html_url'] as String? ?? '',
+      startedAt: _parseOptionalDate(job['started_at'] as String?),
+      completedAt: _parseOptionalDate(job['completed_at'] as String?),
+      steps: [
+        for (final step in steps) _parseStep(step as Map<String, dynamic>),
+      ],
+    );
+  }
+
+  WorkflowStep _parseStep(Map<String, dynamic> step) {
+    return WorkflowStep(
+      name: step['name'] as String? ?? '',
+      status: step['status'] as String? ?? 'completed',
+      conclusion: step['conclusion'] as String?,
+      number: step['number'] as int? ?? 0,
+      startedAt: _parseOptionalDate(step['started_at'] as String?),
+      completedAt: _parseOptionalDate(step['completed_at'] as String?),
     );
   }
 

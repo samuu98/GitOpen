@@ -28,6 +28,12 @@ final class _FakeApi implements GitHubApi {
   String? createdIssueComment;
   String? replyBody;
   bool markedReady = false;
+  List<WorkflowJob> jobs = const [];
+  String jobLog = '';
+  int? rerunRunId;
+  int? rerunFailedRunId;
+  int? cancelRunId;
+  int? loggedJobId;
 
   @override
   Future<List<PullRequestInfo>> listPullRequests(
@@ -68,6 +74,44 @@ final class _FakeApi implements GitHubApi {
         updatedAt: DateTime.utc(2026, 6, 11, 10, 3, 30),
       ),
     ];
+  }
+
+  @override
+  Future<List<WorkflowJob>> listWorkflowJobs(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async => jobs;
+
+  @override
+  Future<void> rerunWorkflowRun(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async => rerunRunId = runId;
+
+  @override
+  Future<void> rerunFailedJobs(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async => rerunFailedRunId = runId;
+
+  @override
+  Future<void> cancelWorkflowRun(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async => cancelRunId = runId;
+
+  @override
+  Future<String> jobLogs(
+    RepoSlug slug,
+    int jobId, {
+    required String token,
+  }) async {
+    loggedJobId = jobId;
+    return jobLog;
   }
 
   @override
@@ -310,6 +354,85 @@ void main() {
     expect(find.text('CI GitOpen'), findsOneWidget);
     expect(find.text('main'), findsOneWidget);
     expect(find.textContaining('3m 30s'), findsOneWidget);
+  });
+
+  testWidgets('Actions: re-run all jobs calls the API', (tester) async {
+    final api = _FakeApi();
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Actions'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Re-run all jobs'));
+    await tester.pumpAndSettle();
+
+    expect(api.rerunRunId, 9);
+  });
+
+  testWidgets('Actions: opening a run shows its jobs and steps', (
+    tester,
+  ) async {
+    final api = _FakeApi()
+      ..jobs = const [
+        WorkflowJob(
+          id: 5,
+          name: 'build',
+          status: 'completed',
+          conclusion: 'failure',
+          htmlUrl: 'https://github.com/o/r/actions/runs/9/job/5',
+          steps: [
+            WorkflowStep(
+              name: 'checkout',
+              status: 'completed',
+              conclusion: 'success',
+              number: 1,
+            ),
+            WorkflowStep(
+              name: 'unit tests',
+              status: 'completed',
+              conclusion: 'failure',
+              number: 2,
+            ),
+          ],
+        ),
+      ];
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Actions'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('CI GitOpen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('build'), findsOneWidget);
+    expect(find.text('checkout'), findsOneWidget);
+    expect(find.text('unit tests'), findsOneWidget);
+  });
+
+  testWidgets('Actions: viewing a job log fetches and shows it', (
+    tester,
+  ) async {
+    final api = _FakeApi()
+      ..jobLog = 'compiling sources...\nBUILD DONE'
+      ..jobs = const [
+        WorkflowJob(
+          id: 5,
+          name: 'build',
+          status: 'completed',
+          conclusion: 'success',
+          htmlUrl: 'https://github.com/o/r/actions/runs/9/job/5',
+          steps: [],
+        ),
+      ];
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CI GitOpen'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('View job log'));
+    await tester.pumpAndSettle();
+
+    expect(api.loggedJobId, 5);
+    expect(find.textContaining('compiling sources...'), findsOneWidget);
   });
 
   testWidgets('selecting a PR shows detail and changed files', (tester) async {

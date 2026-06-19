@@ -61,6 +61,13 @@ final githubWorkflowRunsProvider = FutureProvider.family
           .listWorkflowRuns(key.slug, token: key.token, branch: key.branch),
     );
 
+final githubWorkflowJobsProvider = FutureProvider.family
+    .autoDispose<List<WorkflowJob>, ({RepoSlug slug, String token, int runId})>(
+      (ref, key) => ref
+          .watch(gitHubApiProvider)
+          .listWorkflowJobs(key.slug, key.runId, token: key.token),
+    );
+
 final githubChecksProvider = FutureProvider.family
     .autoDispose<CheckSummary, ({RepoSlug slug, String token, String sha})>(
       (ref, key) => ref
