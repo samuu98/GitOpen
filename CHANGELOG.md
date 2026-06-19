@@ -5,6 +5,15 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.9.1] — 2026-06-19
+
+### Fixed
+- Sidebar tree alignment: branches **without** a folder (e.g. `develop`,
+  `main`) were indented one level deeper than sibling folders. Every sidebar row
+  now forms a consistent bullet-list hierarchy — folders, folderless branches
+  and flat rows (tags, stashes, submodules, worktrees) share one column, and
+  items nested inside a folder (or under a remote) sit exactly one step deeper.
+
 ## [1.7.3] — 2026-06-18
 
 ### Changed

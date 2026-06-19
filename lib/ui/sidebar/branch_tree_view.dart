@@ -377,8 +377,11 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                     if (ok) _refresh();
                   },
             child: Padding(
+              // Leaf rows share the same column as a sibling folder's chevron
+              // at this depth (a bullet-list hierarchy), so folderless branches
+              // line up with folders instead of sitting a step deeper.
               padding: EdgeInsets.only(
-                left: indent + kSidebarLeafExtra,
+                left: indent,
                 right: 6,
                 top: 3,
                 bottom: 3,
@@ -386,7 +389,9 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
               child: Row(
                 children: [
                   SizedBox(
-                    width: 12,
+                    // Match the folder chevron width so leaf names align with
+                    // folder names too.
+                    width: 14,
                     child: current
                         ? Text(
                             '✓',

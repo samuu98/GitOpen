@@ -9,6 +9,7 @@ import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/branch_tree_view.dart';
+import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 const _local = Branch(
@@ -73,7 +74,41 @@ void ignoreMenuOverflow() {
   addTearDown(() => FlutterError.onError = original);
 }
 
+const _folderChild = Branch(
+  name: 'feat/widget',
+  fullName: 'refs/heads/feat/widget',
+  isRemote: false,
+  isCurrent: false,
+  ahead: 0,
+  behind: 0,
+);
+
+double _rowLeft(WidgetTester tester, String label) {
+  final padding = tester.widget<Padding>(
+    find.ancestor(of: find.text(label), matching: find.byType(Padding)).first,
+  );
+  return (padding.padding as EdgeInsets).left;
+}
+
 void main() {
+  testWidgets(
+    'folderless branches align with folders; nested branches indent one step',
+    (tester) async {
+      await tester.pumpWidget(_host([_folderChild, _local]));
+      await tester.pump();
+
+      final folder = _rowLeft(tester, 'feat'); // folder, depth 0
+      final folderless = _rowLeft(tester, 'develop'); // leaf, depth 0
+      final nested = _rowLeft(tester, 'widget'); // leaf inside 'feat', depth 1
+
+      // The reported bug: a folderless branch sat one step deeper than a
+      // sibling folder. They must share the same column.
+      expect(folderless, folder);
+      // A branch inside a folder sits exactly one nesting step deeper.
+      expect(nested, folder + kSidebarIndentStep);
+    },
+  );
+
   testWidgets('renders branches; current branch carries the ✓ marker', (
     tester,
   ) async {

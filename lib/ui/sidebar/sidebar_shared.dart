@@ -17,17 +17,20 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 /// live independently in each section file and drifted out of sync twice
 /// (the section header ending up *more* indented than its own children).
 ///
-/// - [kSidebarChevronIndent]: x of a section-header chevron and of a
-///   top-level (depth-0) tree chevron — they line up in the same column.
-/// - [kSidebarIndentStep]: extra indent per nesting level.
-/// - [kSidebarLeafExtra]: a leaf node's text sits this far past its chevron
-///   column (where a sibling folder's chevron would be).
-/// - [kSidebarRowIndent]: flat rows (tags, stashes, submodules, worktrees)
-///   and empty hints, lined up under the section title.
+/// The hierarchy is a bullet-list: at every level, each row's leading glyph
+/// (a folder chevron, a leaf branch's marker, or a flat row's icon) sits in the
+/// same column, and each nesting level adds one [kSidebarIndentStep].
+///
+/// - [kSidebarChevronIndent]: x of a section-header chevron and of every
+///   level-1 row's leading glyph (top-level folders, folderless branches, and
+///   flat rows) — they all line up in the same column.
+/// - [kSidebarIndentStep]: extra indent per nesting level (a branch inside a
+///   folder is one step past the folder).
+/// - [kSidebarRowIndent]: flat rows (tags, stashes, submodules, worktrees) and
+///   empty hints — level-1 leaves, so they share the chevron column.
 const double kSidebarChevronIndent = 14;
 const double kSidebarIndentStep = 14;
-const double kSidebarLeafExtra = 18;
-const double kSidebarRowIndent = 26;
+const double kSidebarRowIndent = kSidebarChevronIndent;
 
 /// Selects [sha] in the graph and asks the graph panel to scroll it into
 /// view. Also switches the main view back to the graph if the user is
