@@ -14,3 +14,13 @@ final localChangesSelectedProvider = StateProvider<bool>((_) => false);
 /// Incrementing counter — CommitCompose watches this and triggers a commit
 /// whenever the value changes (i.e. on each Ctrl+Enter key event).
 final triggerCommitProvider = StateProvider<int>((_) => 0);
+
+/// Active sub-tab of the commit BottomPanel: 'commit', 'changes' or 'files'.
+/// Lifted out of widget state so the Commit tab's changed-files list can
+/// switch to 'changes' when the user clicks a file.
+final bottomPanelTabProvider = StateProvider<String>((_) => 'commit');
+
+/// Path of the file the Changes view should reveal (scroll to + expand). Set
+/// by the Commit tab's file list; the Changes view consumes it then resets it
+/// to null.
+final revealFilePathProvider = StateProvider<String?>((_) => null);
