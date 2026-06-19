@@ -80,6 +80,107 @@ void main() {
     expect(run.duration, const Duration(minutes: 3, seconds: 30));
   });
 
+  group('Actions management', () {
+    test('listWorkflowJobs parses jobs and their steps', () async {
+      late Uri captured;
+      final client = MockClient((request) async {
+        captured = request.url;
+        return http.Response(
+          jsonEncode({
+            'jobs': [
+              {
+                'id': 5,
+                'name': 'build',
+                'status': 'completed',
+                'conclusion': 'failure',
+                'html_url': 'https://github.com/o/r/actions/runs/9/job/5',
+                'started_at': '2026-06-11T10:00:00Z',
+                'completed_at': '2026-06-11T10:01:02Z',
+                'steps': [
+                  {
+                    'name': 'checkout',
+                    'status': 'completed',
+                    'conclusion': 'success',
+                    'number': 1,
+                  },
+                  {
+                    'name': 'test',
+                    'status': 'completed',
+                    'conclusion': 'failure',
+                    'number': 2,
+                  },
+                ],
+              },
+            ],
+          }),
+          200,
+        );
+      });
+      final jobs = await _api(client).listWorkflowJobs(_slug, 9, token: 'tok');
+      expect(captured.path, '/repos/o/r/actions/runs/9/jobs');
+      final job = jobs.single;
+      expect(job.id, 5);
+      expect(job.name, 'build');
+      expect(job.conclusion, 'failure');
+      expect(job.duration, const Duration(minutes: 1, seconds: 2));
+      expect(job.steps, hasLength(2));
+      expect(job.steps[1].name, 'test');
+      expect(job.steps[1].conclusion, 'failure');
+    });
+
+    test('rerunWorkflowRun POSTs to /rerun', () async {
+      late String method;
+      late Uri captured;
+      final client = MockClient((request) async {
+        method = request.method;
+        captured = request.url;
+        return http.Response('', 201);
+      });
+      await _api(client).rerunWorkflowRun(_slug, 9, token: 'tok');
+      expect(method, 'POST');
+      expect(captured.path, '/repos/o/r/actions/runs/9/rerun');
+    });
+
+    test('rerunFailedJobs POSTs to /rerun-failed-jobs', () async {
+      late Uri captured;
+      final client = MockClient((request) async {
+        captured = request.url;
+        return http.Response('', 201);
+      });
+      await _api(client).rerunFailedJobs(_slug, 9, token: 'tok');
+      expect(captured.path, '/repos/o/r/actions/runs/9/rerun-failed-jobs');
+    });
+
+    test('cancelWorkflowRun POSTs to /cancel', () async {
+      late Uri captured;
+      final client = MockClient((request) async {
+        captured = request.url;
+        return http.Response('', 202);
+      });
+      await _api(client).cancelWorkflowRun(_slug, 9, token: 'tok');
+      expect(captured.path, '/repos/o/r/actions/runs/9/cancel');
+    });
+
+    test(
+      'jobLogs follows the redirect and fetches it unauthenticated',
+      () async {
+        const blob = 'https://pipelines.blob/logs?sig=abc';
+        final client = MockClient((request) async {
+          if (request.url.path == '/repos/o/r/actions/jobs/5/logs') {
+            expect(request.headers['Authorization'], 'Bearer tok');
+            return http.Response('', 302, headers: {'location': blob});
+          }
+          // The signed redirect target must be fetched WITHOUT the auth header.
+          expect(request.url.toString(), blob);
+          expect(request.headers.containsKey('Authorization'), isFalse);
+          return http.Response('line1\nline2\n', 200);
+        });
+        final log = await _api(client).jobLogs(_slug, 5, token: 'tok');
+        expect(log, 'line1\nline2\n');
+      },
+    );
+  });
+
   test('prChecks aggregates check runs into a summary', () async {
     final client = MockClient((request) async {
       expect(request.url.path, '/repos/o/r/commits/abc1234/check-runs');

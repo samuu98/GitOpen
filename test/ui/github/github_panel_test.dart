@@ -13,8 +13,14 @@ import 'package:gitopen/ui/github/github_panel.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final class _FakeApi implements GitHubApi {
-  _FakeApi({this.error});
+  _FakeApi({
+    this.error,
+    this.detailDraft = true,
+    this.detailMergeStateStatus = 'clean',
+  });
   final GitHubApiException? error;
+  final bool detailDraft;
+  final String detailMergeStateStatus;
   CreatePullRequestRequest? createdRequest;
   UpdatePullRequestRequest? updatedRequest;
   MergePullRequestRequest? mergedRequest;
@@ -22,6 +28,12 @@ final class _FakeApi implements GitHubApi {
   String? createdIssueComment;
   String? replyBody;
   bool markedReady = false;
+  List<WorkflowJob> jobs = const [];
+  String jobLog = '';
+  int? rerunRunId;
+  int? rerunFailedRunId;
+  int? cancelRunId;
+  int? loggedJobId;
 
   @override
   Future<List<PullRequestInfo>> listPullRequests(
@@ -65,6 +77,44 @@ final class _FakeApi implements GitHubApi {
   }
 
   @override
+  Future<List<WorkflowJob>> listWorkflowJobs(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async => jobs;
+
+  @override
+  Future<void> rerunWorkflowRun(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async => rerunRunId = runId;
+
+  @override
+  Future<void> rerunFailedJobs(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async => rerunFailedRunId = runId;
+
+  @override
+  Future<void> cancelWorkflowRun(
+    RepoSlug slug,
+    int runId, {
+    required String token,
+  }) async => cancelRunId = runId;
+
+  @override
+  Future<String> jobLogs(
+    RepoSlug slug,
+    int jobId, {
+    required String token,
+  }) async {
+    loggedJobId = jobId;
+    return jobLog;
+  }
+
+  @override
   Future<CheckSummary> prChecks(
     RepoSlug slug,
     String headSha, {
@@ -83,9 +133,9 @@ final class _FakeApi implements GitHubApi {
     body: 'Detailed body',
     author: 'ada',
     state: 'open',
-    isDraft: true,
+    isDraft: detailDraft,
     mergeable: true,
-    mergeStateStatus: 'clean',
+    mergeStateStatus: detailMergeStateStatus,
     baseRef: 'main',
     headRef: 'feat/widget',
     headSha: 'a' * 40,
@@ -306,6 +356,85 @@ void main() {
     expect(find.textContaining('3m 30s'), findsOneWidget);
   });
 
+  testWidgets('Actions: re-run all jobs calls the API', (tester) async {
+    final api = _FakeApi();
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Actions'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Re-run all jobs'));
+    await tester.pumpAndSettle();
+
+    expect(api.rerunRunId, 9);
+  });
+
+  testWidgets('Actions: opening a run shows its jobs and steps', (
+    tester,
+  ) async {
+    final api = _FakeApi()
+      ..jobs = const [
+        WorkflowJob(
+          id: 5,
+          name: 'build',
+          status: 'completed',
+          conclusion: 'failure',
+          htmlUrl: 'https://github.com/o/r/actions/runs/9/job/5',
+          steps: [
+            WorkflowStep(
+              name: 'checkout',
+              status: 'completed',
+              conclusion: 'success',
+              number: 1,
+            ),
+            WorkflowStep(
+              name: 'unit tests',
+              status: 'completed',
+              conclusion: 'failure',
+              number: 2,
+            ),
+          ],
+        ),
+      ];
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Actions'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('CI GitOpen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('build'), findsOneWidget);
+    expect(find.text('checkout'), findsOneWidget);
+    expect(find.text('unit tests'), findsOneWidget);
+  });
+
+  testWidgets('Actions: viewing a job log fetches and shows it', (
+    tester,
+  ) async {
+    final api = _FakeApi()
+      ..jobLog = 'compiling sources...\nBUILD DONE'
+      ..jobs = const [
+        WorkflowJob(
+          id: 5,
+          name: 'build',
+          status: 'completed',
+          conclusion: 'success',
+          htmlUrl: 'https://github.com/o/r/actions/runs/9/job/5',
+          steps: [],
+        ),
+      ];
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CI GitOpen'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('View job log'));
+    await tester.pumpAndSettle();
+
+    expect(api.loggedJobId, 5);
+    expect(find.textContaining('compiling sources...'), findsOneWidget);
+  });
+
   testWidgets('selecting a PR shows detail and changed files', (tester) async {
     await _pump(tester, repo: repo, api: _FakeApi(), profile: profile);
 
@@ -339,7 +468,8 @@ void main() {
   });
 
   testWidgets('Merge PR dialog calls mergePullRequest', (tester) async {
-    final api = _FakeApi();
+    // A draft PR can't be merged (mirrors GitHub) — use a ready one here.
+    final api = _FakeApi(detailDraft: false);
     await _pump(tester, repo: repo, api: api, profile: profile);
     await tester.tap(find.text('Improve the widget'));
     await tester.pumpAndSettle();
@@ -352,6 +482,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.mergedRequest?.method, PullRequestMergeMethod.squash);
+  });
+
+  testWidgets('Merge is disabled while branch protection blocks it', (
+    tester,
+  ) async {
+    final api = _FakeApi(detailDraft: false, detailMergeStateStatus: 'blocked');
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Improve the widget'));
+    await tester.pumpAndSettle();
+
+    // The disabled Merge button opens no dialog and triggers no API call.
+    await tester.tap(find.text('Merge'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm merge'), findsNothing);
+    expect(api.mergedRequest, isNull);
   });
 
   testWidgets('Ready button marks a draft PR ready for review', (tester) async {

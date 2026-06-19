@@ -13,6 +13,39 @@ All notable changes to GitOpen are documented here. The format is based on
   now forms a consistent bullet-list hierarchy — folders, folderless branches
   and flat rows (tags, stashes, submodules, worktrees) share one column, and
   items nested inside a folder (or under a remote) sit exactly one step deeper.
+## [1.9.0] — 2026-06-19
+
+### Added
+- **Manage GitHub Actions from the app.** The Actions tab now lets you re-run a
+  whole run, re-run only its failed jobs, or cancel a run that's in progress;
+  open a run to see its jobs and per-step status; and read a job's full log in
+  an in-app viewer. Runs and the open run refresh automatically every few
+  seconds while work is still in progress.
+
+## [1.8.1] — 2026-06-19
+
+### Changed
+- The **Merge** button in the GitHub pull-request panel now mirrors github.com:
+  it is enabled only when the PR is actually mergeable, and is disabled — with a
+  tooltip explaining why — while branch protection blocks it (required checks
+  still running or failed, merge conflicts, an out-of-date branch, a draft PR,
+  or while GitHub is still computing mergeability). GitHub derives that state
+  from the repository's branch-protection rules, so the button now follows them.
+
+## [1.8.0] — 2026-06-19
+
+### Added
+- **Horizontal scrolling in the diff views.** Long lines in the Changes view —
+  and in the working-copy preview and side-by-side mode — are no longer clipped:
+  each hunk's lines now scroll horizontally, while short content still fills the
+  pane.
+
+### Changed
+- **Snappier network operations.** Fetch / pull / push now show their real label
+  ("Fetching origin", …) from the first frame instead of flashing a generic
+  "Working…", and account resolution no longer spawns redundant `git`
+  subprocesses on every run — the remote URL and `user.email` are cached per
+  repo, and the email read is skipped when a host has a single account.
 
 ## [1.7.3] — 2026-06-18
 

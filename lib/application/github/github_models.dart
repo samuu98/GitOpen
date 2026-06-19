@@ -107,7 +107,85 @@ final class WorkflowRunInfo extends Equatable {
   ];
 }
 
+/// One step of a workflow job. [status] is `queued`/`in_progress`/`completed`;
+/// [conclusion] is set only when completed.
+final class WorkflowStep extends Equatable {
+  const WorkflowStep({
+    required this.name,
+    required this.status,
+    required this.number,
+    this.conclusion,
+    this.startedAt,
+    this.completedAt,
+  });
+  final String name;
+  final String status;
+  final String? conclusion;
+  final int number;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+
+  bool get isCompleted => status == 'completed';
+
+  @override
+  List<Object?> get props => [
+    name,
+    status,
+    conclusion,
+    number,
+    startedAt,
+    completedAt,
+  ];
+}
+
+/// One job of a workflow run, with its ordered [steps]. [status]/[conclusion]
+/// follow the same vocabulary as [WorkflowRunInfo].
+final class WorkflowJob extends Equatable {
+  const WorkflowJob({
+    required this.id,
+    required this.name,
+    required this.status,
+    required this.htmlUrl,
+    required this.steps,
+    this.conclusion,
+    this.startedAt,
+    this.completedAt,
+  });
+  final int id;
+  final String name;
+  final String status;
+  final String? conclusion;
+  final String htmlUrl;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final List<WorkflowStep> steps;
+
+  bool get isCompleted => status == 'completed';
+
+  /// Wall-clock run time, or null while not finished / not yet started.
+  Duration? get duration => (startedAt != null && completedAt != null)
+      ? completedAt!.difference(startedAt!)
+      : null;
+
+  @override
+  List<Object?> get props => [
+    id,
+    name,
+    status,
+    conclusion,
+    htmlUrl,
+    startedAt,
+    completedAt,
+    steps,
+  ];
+}
+
 enum PullRequestMergeMethod { merge, squash, rebase }
+
+/// Why a pull request can't be merged right now, mirroring GitHub's own merge
+/// button (which derives from `mergeable_state`, computed server-side from the
+/// branch-protection rules). [none] means it is mergeable.
+enum MergeBlock { none, notOpen, draft, conflicts, blocked, behind, checking }
 
 final class PullRequestDetail extends Equatable {
   const PullRequestDetail({
@@ -145,6 +223,37 @@ final class PullRequestDetail extends Equatable {
   final DateTime updatedAt;
 
   bool get isOpen => state == 'open';
+
+  /// Why the merge button should be disabled, mirroring github.com. GitHub
+  /// computes `mergeStateStatus` (from `mergeable_state`) on the server using
+  /// the repo's branch-protection rules, so gating on it inherently follows
+  /// branch protection: while a *required* check runs the state is `blocked`.
+  MergeBlock get mergeBlock {
+    if (!isOpen) return MergeBlock.notOpen;
+    if (isDraft) return MergeBlock.draft;
+    switch (mergeStateStatus) {
+      // Mergeable per GitHub: clean, or only non-required checks pending/failing
+      // (unstable), or repo has pre-receive hooks (has_hooks).
+      case 'clean':
+      case 'has_hooks':
+      case 'unstable':
+        return MergeBlock.none;
+      case 'dirty':
+        return MergeBlock.conflicts;
+      case 'blocked':
+        return MergeBlock.blocked;
+      case 'behind':
+        return MergeBlock.behind;
+      case 'draft':
+        return MergeBlock.draft;
+      // '' / 'unknown' → GitHub is still computing mergeability.
+      default:
+        return MergeBlock.checking;
+    }
+  }
+
+  /// Whether the merge button should be enabled, mirroring github.com.
+  bool get canMerge => mergeBlock == MergeBlock.none;
 
   @override
   List<Object?> get props => [
