@@ -66,6 +66,24 @@ Future<void> main() async {
     return true;
   };
 
+  // Records every app lifecycle transition to the log file. Diagnostic for the
+  // "black, unclickable window after the app has been in the background"
+  // freeze: if the log ends on a `resumed` line with no following `first frame
+  // after resume` line, the engine stopped producing frames on restore (native
+  // render/surface path) rather than Dart logic hanging. The listener registers
+  // itself with WidgetsBinding, which retains it for the process lifetime, so
+  // we don't need to hold the reference.
+  AppLifecycleListener(
+    onStateChange: (state) {
+      _log.i('Lifecycle → $state');
+      if (state == AppLifecycleState.resumed) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _log.i('First frame after resume rendered'),
+        );
+      }
+    },
+  );
+
   final container = ProviderContainer();
   await _rehydrate(container);
   _subscribePersistence(container);
@@ -208,6 +226,10 @@ class _CommitIntent extends Intent {
   const _CommitIntent();
 }
 
+class _CommitAndPushIntent extends Intent {
+  const _CommitAndPushIntent();
+}
+
 class _FetchIntent extends Intent {
   const _FetchIntent();
 }
@@ -267,6 +289,8 @@ class _ShellState extends ConsumerState<Shell> {
       shortcuts: <ShortcutActivator, Intent>{
         if (bindings['commit'] != null)
           bindings['commit']!: const _CommitIntent(),
+        if (bindings['commitAndPush'] != null)
+          bindings['commitAndPush']!: const _CommitAndPushIntent(),
         if (bindings['fetch'] != null) bindings['fetch']!: const _FetchIntent(),
         if (bindings['openSettings'] != null)
           bindings['openSettings']!: const _OpenSettingsIntent(),
@@ -278,6 +302,12 @@ class _ShellState extends ConsumerState<Shell> {
           _CommitIntent: CallbackAction<_CommitIntent>(
             onInvoke: (_) {
               ref.read(triggerCommitProvider.notifier).state++;
+              return null;
+            },
+          ),
+          _CommitAndPushIntent: CallbackAction<_CommitAndPushIntent>(
+            onInvoke: (_) {
+              ref.read(triggerCommitAndPushProvider.notifier).state++;
               return null;
             },
           ),

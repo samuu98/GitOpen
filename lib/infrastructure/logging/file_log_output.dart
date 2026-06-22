@@ -21,6 +21,13 @@ import 'package:path_provider/path_provider.dart';
 class FileLogOutput extends LogOutput {
   String? _path;
 
+  /// Guards the session-start marker so it is written exactly once per
+  /// process. [init] is called twice on the same instance: once explicitly
+  /// from `main()`, and again by the `Logger` constructor, which propagates
+  /// `init()` to every output via `MultiOutput`. Without this guard each
+  /// launch wrote two `--- session start ---` lines.
+  bool _sessionMarked = false;
+
   /// Where the log file lives.  Resolved lazily on first use.
   ///
   /// Returns `null` when the platform channel is unavailable — most
@@ -44,6 +51,8 @@ class FileLogOutput extends LogOutput {
   Future<void> init() async {
     final path = await resolvePath();
     if (path == null) return;
+    if (_sessionMarked) return;
+    _sessionMarked = true;
     File(path).writeAsStringSync(
       '--- session start ${DateTime.now().toIso8601String()} ---\n',
       mode: FileMode.append,

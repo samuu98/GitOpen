@@ -15,6 +15,11 @@ final localChangesSelectedProvider = StateProvider<bool>((_) => false);
 /// whenever the value changes (i.e. on each Ctrl+Enter key event).
 final triggerCommitProvider = StateProvider<int>((_) => 0);
 
+/// Like [triggerCommitProvider] but the commit is followed by a push on
+/// success. Driven by the Commit button's caret menu and the Ctrl+Shift+Enter
+/// `commitAndPush` keybinding.
+final triggerCommitAndPushProvider = StateProvider<int>((_) => 0);
+
 /// Active sub-tab of the commit BottomPanel: 'commit', 'changes' or 'files'.
 /// Lifted out of widget state so the Commit tab's changed-files list can
 /// switch to 'changes' when the user clicks a file.

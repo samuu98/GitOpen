@@ -109,14 +109,29 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
                 ],
               );
             }
-            return Center(
-              child: Text(
-                'Binary file (no preview)',
-                style: TextStyle(
-                  color: palette.fg2,
-                  fontStyle: FontStyle.italic,
+            // Still show the header (full path on hover) so a binary file
+            // looks like any other selection, not an empty pane.
+            return ListView(
+              padding: const EdgeInsets.all(8),
+              children: [
+                DiffHeader(
+                  path: sel.path,
+                  fileDiff: fileDiff,
+                  showOptions: false,
                 ),
-              ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'Binary file (no preview)',
+                      style: TextStyle(
+                        color: palette.fg2,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             );
           }
           final wantFull =
@@ -169,9 +184,18 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
 }
 
 class DiffHeader extends StatelessWidget {
-  const DiffHeader({required this.path, required this.fileDiff, super.key});
+  const DiffHeader({
+    required this.path,
+    required this.fileDiff,
+    this.showOptions = true,
+    super.key,
+  });
   final String path;
   final FileDiff fileDiff;
+
+  /// When false (binary files), hides the +/- counts and the word/split-diff
+  /// toggles, which are meaningless without a textual diff.
+  final bool showOptions;
 
   @override
   Widget build(BuildContext context) {
@@ -189,20 +213,26 @@ class DiffHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              path,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: palette.fg0, fontSize: 12),
+            child: Tooltip(
+              message: path,
+              waitDuration: const Duration(milliseconds: 500),
+              child: Text(
+                path,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: palette.fg0, fontSize: 12),
+              ),
             ),
           ),
-          Text(
-            '+${fileDiff.linesAdded} -${fileDiff.linesDeleted}',
-            style: TextStyle(color: palette.fg2, fontSize: 11),
-          ),
-          const SizedBox(width: 8),
-          const WordDiffToggle(),
-          const SizedBox(width: 4),
-          const SplitDiffToggle(),
+          if (showOptions) ...[
+            Text(
+              '+${fileDiff.linesAdded} -${fileDiff.linesDeleted}',
+              style: TextStyle(color: palette.fg2, fontSize: 11),
+            ),
+            const SizedBox(width: 8),
+            const WordDiffToggle(),
+            const SizedBox(width: 4),
+            const SplitDiffToggle(),
+          ],
         ],
       ),
       ),

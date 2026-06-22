@@ -34,6 +34,8 @@ void main() {
       expect(state.fontFamily, isNull);
       expect(state.githubClientId, isNull);
       expect(state.autoUpdateCheck, isTrue);
+      expect(state.autoRefresh, isTrue);
+      expect(state.confirmPushPull, isTrue);
       expect(state.fileListsAsTree, isFalse);
       expect(state.keybindings, isEmpty);
       expect(state.gitIdentities, isEmpty);
@@ -125,9 +127,9 @@ void main() {
       );
     });
 
-    test('props enumerates all fifteen fields', () {
+    test('props enumerates all sixteen fields', () {
       const state = AppSettingsState();
-      expect(state.props, hasLength(15));
+      expect(state.props, hasLength(16));
     });
 
     test('pinnedBranches defaults empty and copyWith overrides it', () {
@@ -163,6 +165,20 @@ void main() {
     final fresh = AppSettingsNotifier(SettingsRepository(db));
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(fresh.state.gpgSignByDefault, isTrue);
+    await db.close();
+  });
+
+  test('setConfirmPushPull defaults true, persists and re-loads', () async {
+    final db = newInMemoryDb();
+    final notifier = AppSettingsNotifier(SettingsRepository(db));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(notifier.state.confirmPushPull, isTrue);
+    await notifier.setConfirmPushPull(false);
+    expect(notifier.state.confirmPushPull, isFalse);
+    // New notifier on same DB hydrates the saved value.
+    final fresh = AppSettingsNotifier(SettingsRepository(db));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(fresh.state.confirmPushPull, isFalse);
     await db.close();
   });
 

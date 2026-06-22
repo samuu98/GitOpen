@@ -178,12 +178,24 @@ class GeneralSection extends ConsumerWidget {
                       '(commits, checkouts, fetches from a terminal) and '
                       'refresh automatically. Also refreshes when the window '
                       'regains focus.',
-                  divider: false,
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Switch(
                       value: s.autoRefresh,
                       onChanged: notifier.setAutoRefresh,
+                    ),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Confirm before pull/push',
+                  description: 'Ask for confirmation before pulling from or '
+                      'pushing to the remote from the toolbar.',
+                  divider: false,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Switch(
+                      value: s.confirmPushPull,
+                      onChanged: notifier.setConfirmPushPull,
                     ),
                   ),
                 ),

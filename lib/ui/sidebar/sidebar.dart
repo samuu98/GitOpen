@@ -91,8 +91,7 @@ class _SidebarContent extends ConsumerWidget {
     );
     final pinnedBranches =
         localBranches.where((b) => pinnedSet.contains(b.fullName)).toList();
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+    return _SidebarScrollView(
       children: [
         if (pinnedBranches.isNotEmpty)
           _Section(
@@ -199,6 +198,66 @@ class _SidebarContent extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Scrolls the sidebar both ways: vertical (outer) for the list of sections,
+/// horizontal (inner) so long branch/tag/remote names are reachable instead of
+/// being ellipsised. Content takes its intrinsic width (the widest row) but
+/// fills the viewport when narrower, so row highlights still reach the edge.
+class _SidebarScrollView extends StatefulWidget {
+  const _SidebarScrollView({required this.children});
+  final List<Widget> children;
+
+  @override
+  State<_SidebarScrollView> createState() => _SidebarScrollViewState();
+}
+
+class _SidebarScrollViewState extends State<_SidebarScrollView> {
+  final ScrollController _vertical = ScrollController();
+  final ScrollController _horizontal = ScrollController();
+
+  @override
+  void dispose() {
+    _vertical.dispose();
+    _horizontal.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      controller: _vertical,
+      child: SingleChildScrollView(
+        controller: _vertical,
+        // LayoutBuilder captures the viewport width (the cross axis is bounded;
+        // only height is unbounded here) to use as the content's minWidth.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Scrollbar(
+              controller: _horizontal,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: _horizontal,
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: IntrinsicWidth(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: widget.children,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }

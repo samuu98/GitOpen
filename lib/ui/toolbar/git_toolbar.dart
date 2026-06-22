@@ -11,6 +11,7 @@ import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/dialogs/push_branch_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/toolbar/branch_dropdown.dart';
 import 'package:gitopen/ui/toolbar/open_dropdown.dart';
@@ -70,18 +71,12 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
           label: 'Pull',
           enabled: enabled,
           tooltip: 'Pull from origin',
-          onTap: () => _pull(repo!),
+          onTap: () => unawaited(_pull(repo!)),
         ),
-        ToolbarButton(
-          icon: Icons.north,
-          label: 'Push',
+        _PushSplitButton(
           enabled: enabled,
-          tooltip: 'Push to origin',
-          onTap: () => _push(repo!),
-        ),
-        _PushMenuCaret(
-          enabled: enabled,
-          onOpen: (pos) => unawaited(_pushMenu(repo!, pos)),
+          onPush: () => unawaited(_push(repo!)),
+          onMenu: (pos) => unawaited(_pushMenu(repo!, pos)),
         ),
         const SizedBox(width: 4),
         BranchDropdown(enabled: enabled, repo: repo),
@@ -96,11 +91,41 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
   void _fetch(RepoLocation repo) =>
       unawaited(ref.read(gitActionsControllerProvider).fetch(context, repo));
 
-  void _pull(RepoLocation repo) =>
-      unawaited(ref.read(gitActionsControllerProvider).pull(context, repo));
+  Future<void> _pull(RepoLocation repo) async {
+    if (!await _confirm(
+      'Pull',
+      'Pull from origin into the current branch?',
+      'Pull',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    await ref.read(gitActionsControllerProvider).pull(context, repo);
+  }
 
-  void _push(RepoLocation repo) =>
-      unawaited(ref.read(gitActionsControllerProvider).push(context, repo));
+  Future<void> _push(RepoLocation repo) async {
+    if (!await _confirm(
+      'Push',
+      'Push the current branch to origin?',
+      'Push',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    await ref.read(gitActionsControllerProvider).push(context, repo);
+  }
+
+  /// Returns whether the action may proceed: shows a confirmation dialog when
+  /// the `confirmPushPull` setting is on, otherwise proceeds immediately.
+  Future<bool> _confirm(String title, String body, String confirmLabel) async {
+    if (!ref.read(appSettingsProvider).confirmPushPull) return true;
+    return ConfirmDialog.show(
+      context,
+      title: title,
+      body: body,
+      confirmLabel: confirmLabel,
+    );
+  }
 
   Future<void> _pushMenu(RepoLocation repo, Offset pos) async {
     final selected = await AppContextMenu.show<String>(
@@ -158,29 +183,78 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
   }
 }
 
-/// Narrow caret that opens advanced push actions while keeping the default
-/// Push button unchanged.
-class _PushMenuCaret extends StatelessWidget {
-  const _PushMenuCaret({
+/// Push button + caret as one unit. The caret sits the same 3px after the
+/// label as the other toolbar dropdowns ([ToolbarDropdownButton]), so every
+/// toolbar caret is equidistant from its label. Tapping the label pushes;
+/// tapping the caret opens the advanced push menu.
+class _PushSplitButton extends StatelessWidget {
+  const _PushSplitButton({
     required this.enabled,
-    required this.onOpen,
+    required this.onPush,
+    required this.onMenu,
   });
   final bool enabled;
-  final void Function(Offset globalPosition) onOpen;
+  final VoidCallback onPush;
+  final void Function(Offset globalPosition) onMenu;
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final spacing = AppSpacing.of(context);
+    final radii = AppRadii.of(context);
+    final typography = AppTypography.of(context);
     return Opacity(
       opacity: enabled ? 1.0 : 0.4,
-      child: InkWell(
-        onTapDown: enabled ? (d) => onOpen(d.globalPosition) : null,
-        onTap: enabled ? () {} : null,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-          child: Icon(Icons.expand_more, size: 12, color: palette.fg2),
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Tooltip(
+            message: 'Push to origin',
+            waitDuration: const Duration(milliseconds: 500),
+            child: InkWell(
+              onTap: enabled ? onPush : null,
+              borderRadius: radii.controlRadius,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  spacing.md - 2,
+                  spacing.xs,
+                  0,
+                  spacing.xs,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.north, size: 14, color: palette.fg1),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Push',
+                      style: typography.body.copyWith(color: palette.fg0),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // 3px gap before the caret — identical to ToolbarDropdownButton.
+          Tooltip(
+            message: 'More push options',
+            waitDuration: const Duration(milliseconds: 500),
+            child: InkWell(
+              onTapDown: enabled ? (d) => onMenu(d.globalPosition) : null,
+              onTap: enabled ? () {} : null,
+              borderRadius: radii.controlRadius,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  3,
+                  spacing.xs,
+                  spacing.md - 2,
+                  spacing.xs,
+                ),
+                child: Icon(Icons.expand_more, size: 12, color: palette.fg2),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

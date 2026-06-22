@@ -10,14 +10,20 @@ import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/common/author_avatar.dart';
-import 'package:gitopen/ui/dialogs/app_dialog.dart';
+import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 class CommitCompose extends ConsumerStatefulWidget {
-  const CommitCompose({required this.repo, super.key});
+  const CommitCompose({required this.repo, required this.hasStaged, super.key});
   final RepoLocation repo;
+
+  /// Whether the index has at least one staged entry. A normal commit is
+  /// disabled without it; an amend is still allowed (it can reword the last
+  /// commit with nothing newly staged).
+  final bool hasStaged;
   @override
   ConsumerState<CommitCompose> createState() => _CommitComposeState();
 }
@@ -38,6 +44,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
   bool _sign = false;
   bool _busy = false;
   int _lastTrigger = 0;
+  int _lastPushTrigger = 0;
 
   @override
   void initState() {
@@ -70,12 +77,22 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
         if (mounted) unawaited(_commit());
       });
     }
+    // Ctrl+Shift+Enter (commitAndPush keybinding) / the Commit caret menu.
+    final pushTriggerCount = ref.watch(triggerCommitAndPushProvider);
+    if (pushTriggerCount != _lastPushTrigger) {
+      _lastPushTrigger = pushTriggerCount;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_commit(thenPush: true));
+      });
+    }
 
     final palette = AppPalette.of(context);
     final identityAsync = ref.watch(_composeIdentityProvider(widget.repo));
     final (subject, _) = _splitMessage(_ctl.text);
-    final canCommit =
-        !_busy && (_ctl.text.trim().isNotEmpty || _amend);
+    // A normal commit needs a message AND staged content; an amend can proceed
+    // with neither (it can just reword the previous commit).
+    final canCommit = !_busy &&
+        (_amend || (_ctl.text.trim().isNotEmpty && widget.hasStaged));
 
     return Container(
       decoration: BoxDecoration(
@@ -115,16 +132,19 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
               const SizedBox(width: 6),
               _OptionPill(
                 icon: Icons.verified_user_outlined,
-                label: 'Sign (GPG)',
+                label: 'Sign',
+                tooltipLabel: 'Sign (GPG)',
                 active: _sign,
                 onTap: () => setState(() => _sign = !_sign),
               ),
               const Spacer(),
-              _CommitButton(
+              const SizedBox(width: 6),
+              _CommitSplitButton(
                 busy: _busy,
                 enabled: canCommit,
                 amend: _amend,
-                onTap: _commit,
+                onCommit: () => unawaited(_commit()),
+                onCaret: (pos) => unawaited(_commitMenu(pos)),
               ),
             ],
           ),
@@ -133,9 +153,30 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
     );
   }
 
-  Future<void> _commit() async {
+  /// Opens the Commit button's caret menu (currently just "Commit and Push").
+  Future<void> _commitMenu(Offset globalPos) async {
+    final selected = await AppContextMenu.show<String>(
+      context,
+      globalPosition: globalPos,
+      entries: const [
+        AppMenuItem(
+          value: 'commit_push',
+          label: 'Commit and Push',
+          icon: Icons.upload,
+        ),
+      ],
+    );
+    if (selected == 'commit_push' && mounted) {
+      await _commit(thenPush: true);
+    }
+  }
+
+  Future<void> _commit({bool thenPush = false}) async {
     if (!mounted || _busy) return;
-    if (_ctl.text.trim().isEmpty && !_amend) return;
+    // Mirror canCommit: amend may proceed freely; a normal commit needs both a
+    // message and staged content (guards the keyboard path too, not just the
+    // disabled button).
+    if (!_amend && (_ctl.text.trim().isEmpty || !widget.hasStaged)) return;
     setState(() => _busy = true);
     final ops = ref.read(operationsProvider.notifier);
     final opId = ops.start(
@@ -169,6 +210,10 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
         _sign = false;
       });
       ref.invalidate(gitReadOperationsProvider);
+      if (thenPush) {
+        if (!mounted) return;
+        await ref.read(gitActionsControllerProvider).push(context, widget.repo);
+      }
     }
   }
 }
@@ -389,9 +434,14 @@ class _OptionPill extends StatefulWidget {
     required this.label,
     required this.active,
     required this.onTap,
+    this.tooltipLabel,
   });
   final IconData icon;
   final String label;
+
+  /// Name used in the on/off tooltip when the visible [label] is abbreviated
+  /// (e.g. label "Sign" but tooltip "Sign (GPG)"). Defaults to [label].
+  final String? tooltipLabel;
   final bool active;
   final VoidCallback onTap;
 
@@ -407,8 +457,9 @@ class _OptionPillState extends State<_OptionPill> {
     final palette = AppPalette.of(context);
     final active = widget.active;
     final fg = active ? palette.fg0 : palette.fg1;
+    final tip = widget.tooltipLabel ?? widget.label;
     return Tooltip(
-      message: active ? '${widget.label} — on' : '${widget.label} — off',
+      message: active ? '$tip — on' : '$tip — off',
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hover = true),
@@ -453,39 +504,100 @@ class _OptionPillState extends State<_OptionPill> {
   }
 }
 
-class _CommitButton extends StatelessWidget {
-  const _CommitButton({
+/// Compact primary Commit button with a caret that opens the "Commit and
+/// Push" menu. Sized to sit on the same row as the option pills without
+/// crowding them (the old full-size AppButton left no gap before "Sign").
+class _CommitSplitButton extends StatelessWidget {
+  const _CommitSplitButton({
     required this.busy,
     required this.enabled,
     required this.amend,
-    required this.onTap,
+    required this.onCommit,
+    required this.onCaret,
   });
   final bool busy;
   final bool enabled;
   final bool amend;
-  final VoidCallback onTap;
+  final VoidCallback onCommit;
+  final void Function(Offset globalPosition) onCaret;
 
   @override
   Widget build(BuildContext context) {
-    final label = amend ? 'Amend' : 'Commit';
+    final palette = AppPalette.of(context);
+    final radii = AppRadii.of(context);
     if (busy) {
-      // Show a busy version that still uses AppButton chrome.
-      return const SizedBox(
+      return Container(
         height: 30,
-        width: 100,
-        child: Center(
-          child: SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+        width: 104,
+        decoration: BoxDecoration(
+          color: palette.bg3,
+          borderRadius: radii.controlRadius,
+          border: Border.all(color: palette.border),
+        ),
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );
     }
-    return AppButton.primary(
-      icon: amend ? Icons.history_edu : Icons.check,
-      label: label,
-      onPressed: enabled ? onTap : null,
+    final label = amend ? 'Amend' : 'Commit';
+    final fg = enabled ? Colors.white : palette.fg3;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: enabled ? palette.accentCurrent : palette.bg3,
+        borderRadius: radii.controlRadius,
+        border: Border.all(
+          color: enabled ? palette.accentCurrent : palette.border,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: enabled ? onCommit : null,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    amend ? Icons.history_edu : Icons.check,
+                    size: 14,
+                    color: fg,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: fg,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 16,
+            color: enabled ? Colors.white24 : palette.border,
+          ),
+          Tooltip(
+            message: 'Commit and Push',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: enabled ? (d) => onCaret(d.globalPosition) : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                child: Icon(Icons.expand_more, size: 16, color: fg),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

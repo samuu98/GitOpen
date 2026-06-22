@@ -352,12 +352,18 @@ class _FileRowState extends ConsumerState<FileRow> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        widget.displayName ?? widget.entry.path,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : palette.fg0,
-                          fontSize: 12.5,
+                      // Full path on hover — the row ellipsizes long names and
+                      // the panel may be too narrow to show them otherwise.
+                      child: Tooltip(
+                        message: widget.entry.path,
+                        waitDuration: const Duration(milliseconds: 500),
+                        child: Text(
+                          widget.displayName ?? widget.entry.path,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : palette.fg0,
+                            fontSize: 12.5,
+                          ),
                         ),
                       ),
                     ),

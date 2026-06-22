@@ -52,6 +52,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
       githubClientId: all['github_client_id'] as String?,
       autoUpdateCheck: (all['auto_update_check'] as bool?) ?? true,
       autoRefresh: (all['auto_refresh'] as bool?) ?? true,
+      confirmPushPull: (all['confirm_push_pull'] as bool?) ?? true,
       fileListsAsTree: (all['file_lists_as_tree'] as bool?) ?? false,
       keybindings: _decodeBindings(all['keybindings']) ?? state.keybindings,
       gitIdentities: _decodeIdentities(all['git_identities']),
@@ -134,6 +135,14 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
   Future<void> setAutoRefresh(bool v) async {
     state = state.copyWith(autoRefresh: v);
     await _repo.put('auto_refresh', v);
+  }
+
+  // Positional bool retained so the method can be used as a void Function(bool)
+  // tear-off for a Switch's onChanged callback in the settings UI.
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setConfirmPushPull(bool v) async {
+    state = state.copyWith(confirmPushPull: v);
+    await _repo.put('confirm_push_pull', v);
   }
 
   // Positional bool retained so the method can be used as a void Function(bool)

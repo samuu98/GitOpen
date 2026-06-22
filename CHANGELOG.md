@@ -5,6 +5,34 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.10.0] — 2026-06-22
+
+### Added
+- **Confirm before pull/push.** Pull and Push now ask for confirmation first,
+  toggleable in Settings → General (on by default).
+- **Commit and Push.** The Commit button has a caret menu to commit and push in
+  one step; the Ctrl+Shift+Enter shortcut now works too.
+- **Resizable working-copy panel.** Drag the divider between the file list and
+  the diff to widen it (double-click to reset); long file paths also show a
+  full-path tooltip on hover.
+- **Horizontal scroll in the sidebar.** Long branch, tag and remote names in the
+  left rail are now reachable by scrolling horizontally instead of being clipped.
+- **Diff header for binary files.** Selecting a binary file shows its name and
+  header instead of an empty pane.
+
+### Fixed
+- **Commit with nothing staged.** The Commit button is now disabled until there
+  is something staged (amend still allowed), instead of erroring on click.
+- **Empty logs in release builds.** The file log recorded nothing but session
+  markers in release (the default log filter drops everything when asserts are
+  stripped); it now captures startup, warnings, errors and app lifecycle events,
+  and no longer writes the session marker twice per launch.
+- **Toolbar caret spacing.** The Push dropdown caret now sits the same distance
+  from its label as the Branch, Stash and Open carets.
+
+### Changed
+- The Commit button is more compact so it no longer crowds the commit options.
+
 ## [1.9.4] — 2026-06-22
 
 ### Fixed

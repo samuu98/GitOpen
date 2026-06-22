@@ -19,6 +19,7 @@ final class AppSettingsState extends Equatable {
     this.githubClientId,
     this.autoUpdateCheck = true,
     this.autoRefresh = true,
+    this.confirmPushPull = true,
     this.fileListsAsTree = false,
     this.keybindings = const {},
     this.gitIdentities = const [],
@@ -42,6 +43,10 @@ final class AppSettingsState extends Equatable {
   /// bookkeeping) and refreshed automatically — plus a refresh whenever the
   /// window regains focus.
   final bool autoRefresh;
+
+  /// When true, Pull and Push from the toolbar first ask for confirmation.
+  /// Defaults on; power users can turn it off in Settings → General.
+  final bool confirmPushPull;
 
   /// When true, the working-copy file list and the commit file list render
   /// as a folder tree instead of flat paths. Shared by both lists.
@@ -70,6 +75,7 @@ final class AppSettingsState extends Equatable {
     String? githubClientId,
     bool? autoUpdateCheck,
     bool? autoRefresh,
+    bool? confirmPushPull,
     bool? fileListsAsTree,
     Map<String, LogicalKeySet>? keybindings,
     List<GitIdentity>? gitIdentities,
@@ -87,6 +93,7 @@ final class AppSettingsState extends Equatable {
       githubClientId: githubClientId ?? this.githubClientId,
       autoUpdateCheck: autoUpdateCheck ?? this.autoUpdateCheck,
       autoRefresh: autoRefresh ?? this.autoRefresh,
+      confirmPushPull: confirmPushPull ?? this.confirmPushPull,
       fileListsAsTree: fileListsAsTree ?? this.fileListsAsTree,
       keybindings: keybindings ?? this.keybindings,
       gitIdentities: gitIdentities ?? this.gitIdentities,
@@ -107,6 +114,7 @@ final class AppSettingsState extends Equatable {
     githubClientId,
     autoUpdateCheck,
     autoRefresh,
+    confirmPushPull,
     fileListsAsTree,
     keybindings,
     gitIdentities,
