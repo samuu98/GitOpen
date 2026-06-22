@@ -31,12 +31,11 @@ class Sidebar extends ConsumerWidget {
         : workspaces.where((w) => w.location.id == active).firstOrNull;
 
     final palette = AppPalette.of(context);
-    return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        color: palette.bg2,
-        border: Border(right: BorderSide(color: palette.border)),
-      ),
+    // Width is owned by the HorizontalSplitter in the shell (this is its left
+    // pane); the splitter handle doubles as the right divider, so no border
+    // here.
+    return ColoredBox(
+      color: palette.bg2,
       child: activeWs == null
           ? Center(
               child: Text(
@@ -83,7 +82,16 @@ class _SidebarContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final localBranches = data.branches.where((b) => !b.isRemote).toList();
+    // Drive the local-branch list (and its current-branch ✓ marker) from
+    // localBranchesProvider directly instead of the bundled SidebarData. A
+    // checkout refreshes that provider eagerly, so the green marker flips as
+    // soon as `git branch` reloads — rather than waiting for the whole sidebar
+    // (tags, stashes, submodules, worktrees…) to refetch atomically, which is
+    // what made the highlight lag behind the actual branch switch.
+    final localBranches =
+        (ref.watch(localBranchesProvider(repo)).value ?? data.branches)
+            .where((b) => !b.isRemote)
+            .toList();
     final localTree = BranchTree.build(localBranches);
     final pinnedSet = ref.watch(
       appSettingsProvider
@@ -91,7 +99,8 @@ class _SidebarContent extends ConsumerWidget {
     );
     final pinnedBranches =
         localBranches.where((b) => pinnedSet.contains(b.fullName)).toList();
-    return _SidebarScrollView(
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         if (pinnedBranches.isNotEmpty)
           _Section(
@@ -198,66 +207,6 @@ class _SidebarContent extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Scrolls the sidebar both ways: vertical (outer) for the list of sections,
-/// horizontal (inner) so long branch/tag/remote names are reachable instead of
-/// being ellipsised. Content takes its intrinsic width (the widest row) but
-/// fills the viewport when narrower, so row highlights still reach the edge.
-class _SidebarScrollView extends StatefulWidget {
-  const _SidebarScrollView({required this.children});
-  final List<Widget> children;
-
-  @override
-  State<_SidebarScrollView> createState() => _SidebarScrollViewState();
-}
-
-class _SidebarScrollViewState extends State<_SidebarScrollView> {
-  final ScrollController _vertical = ScrollController();
-  final ScrollController _horizontal = ScrollController();
-
-  @override
-  void dispose() {
-    _vertical.dispose();
-    _horizontal.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scrollbar(
-      controller: _vertical,
-      child: SingleChildScrollView(
-        controller: _vertical,
-        // LayoutBuilder captures the viewport width (the cross axis is bounded;
-        // only height is unbounded here) to use as the content's minWidth.
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Scrollbar(
-              controller: _horizontal,
-              thumbVisibility: true,
-              child: SingleChildScrollView(
-                controller: _horizontal,
-                scrollDirection: Axis.horizontal,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                  child: IntrinsicWidth(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: widget.children,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
     );
   }
 }

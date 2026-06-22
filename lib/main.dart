@@ -21,6 +21,7 @@ import 'package:gitopen/ui/command_palette/command_palette.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_panel.dart';
 import 'package:gitopen/ui/commit_graph/detached_head_banner.dart';
 import 'package:gitopen/ui/common/app_scroll_configuration.dart';
+import 'package:gitopen/ui/common/horizontal_splitter.dart';
 import 'package:gitopen/ui/common/vertical_splitter.dart';
 import 'package:gitopen/ui/conflicts/conflict_resolution_panel.dart';
 import 'package:gitopen/ui/dialogs/repo_info_dialog.dart';
@@ -351,31 +352,38 @@ class _ShellState extends ConsumerState<Shell> {
                         children: [
                           const _TitleBar(),
                           Expanded(
-                            child: Row(
-                              children: [
+                            child: Builder(
+                              builder: (context) {
+                                final mainArea = Container(
+                                  color: palette.bg1,
+                                  alignment: Alignment.center,
+                                  // Settings must win over the empty/welcome
+                                  // state, else a catalog with no repos makes
+                                  // the Settings button unreachable.
+                                  child: switch (shellBody) {
+                                    ShellBody.settings => const SettingsPage(),
+                                    ShellBody.welcome => const WelcomeScreen(),
+                                    ShellBody.repo =>
+                                      _RepoBody(repo: active!.location),
+                                  },
+                                );
                                 // The branches/remotes/tags sidebar is hidden
                                 // while Settings is open, so the settings page
-                                // gets the full width.
-                                if (shellBody != ShellBody.settings)
-                                  const Sidebar(),
-                                Expanded(
-                                  child: Container(
-                                    color: palette.bg1,
-                                    alignment: Alignment.center,
-                                    // Settings must win over the empty/welcome
-                                    // state, else a catalog with no repos makes
-                                    // the Settings button unreachable.
-                                    child: switch (shellBody) {
-                                      ShellBody.settings =>
-                                        const SettingsPage(),
-                                      ShellBody.welcome =>
-                                        const WelcomeScreen(),
-                                      ShellBody.repo =>
-                                        _RepoBody(repo: active!.location),
-                                    },
-                                  ),
-                                ),
-                              ],
+                                // gets the full width. Otherwise it is the
+                                // resizable left pane of a HorizontalSplitter
+                                // (drag the handle to widen, double-click to
+                                // reset) — same pattern as the Changes panel.
+                                if (shellBody == ShellBody.settings) {
+                                  return mainArea;
+                                }
+                                return HorizontalSplitter(
+                                  defaultLeft: 260,
+                                  minLeft: 180,
+                                  minRight: 360,
+                                  left: const Sidebar(),
+                                  right: mainArea,
+                                );
+                              },
                             ),
                           ),
                         ],
