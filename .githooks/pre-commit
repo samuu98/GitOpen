@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#
+# Mirror CLAUDE.md -> AGENTS.md so the two files stay byte-identical in every commit.
+# Canonical source of truth: CLAUDE.md. The hook runs at commit time regardless of
+# which tool/editor produced the change (Claude Code, Codex, IDE, manual edit), so
+# AGENTS.md can never drift from CLAUDE.md once it lands in a commit.
+#
+# One-time setup per clone:  git config core.hooksPath .githooks
+#
+set -euo pipefail
+
+# Nothing canonical to mirror from if CLAUDE.md is not tracked in the index.
+if ! git cat-file -e :CLAUDE.md 2>/dev/null; then
+    exit 0
+fi
+
+claude_oid="$(git rev-parse :CLAUDE.md)"
+agents_oid="$(git rev-parse :AGENTS.md 2>/dev/null || echo none)"
+
+# Identical content -> identical blob id -> nothing to do.
+if [ "$claude_oid" = "$agents_oid" ]; then
+    exit 0
+fi
+
+# Regenerate AGENTS.md from the *staged* content of CLAUDE.md and stage it, so only
+# the canonical content is committed (never stray uncommitted worktree edits, and
+# only AGENTS.md is touched - other staged files are left untouched).
+git show :CLAUDE.md > AGENTS.md
+git add AGENTS.md
+echo "[sync-agents-md] AGENTS.md riallineato a CLAUDE.md"
