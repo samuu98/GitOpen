@@ -17,7 +17,6 @@ import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_search_field.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
-import 'package:gitopen/ui/commit_graph/local_changes_row.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/common/skeleton.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
@@ -128,10 +127,6 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // The local-changes pseudo-row only makes sense for the
-                    // full graph; hide it while a search is active so results
-                    // are exactly the matching commits.
-                    if (!searchActive) LocalChangesRow(repo: repo),
                     Expanded(
                       child: ListView.builder(
                         controller: _controller,

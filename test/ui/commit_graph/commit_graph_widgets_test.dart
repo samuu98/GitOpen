@@ -4,18 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/commit_graph/commit_node.dart';
-import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/commits/commit_signature.dart';
-import 'package:gitopen/domain/repositories/repo_id.dart';
-import 'package:gitopen/domain/repositories/repo_location.dart';
-import 'package:gitopen/domain/status/repo_status.dart';
-import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
-import 'package:gitopen/ui/commit_graph/local_changes_row.dart';
 import 'package:gitopen/ui/commit_graph/ref_decoration.dart';
 import 'package:gitopen/ui/commit_graph/ref_pill.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -107,51 +100,6 @@ void main() {
       semantics.dispose();
     },
   );
-
-  testWidgets('LocalChangesRow selects the working copy inline', (
-    tester,
-  ) async {
-    final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
-    const status = RepoStatus(
-      isDetached: false,
-      isBare: false,
-      currentBranch: 'main',
-      entries: [
-        WorkingFileEntry(
-          path: 'lib/app.dart',
-          indexState: WorkingFileState.unmodified,
-          workingTreeState: WorkingFileState.modified,
-        ),
-      ],
-    );
-
-    await tester.pumpWidget(
-      _host(
-        Column(
-          children: [
-            LocalChangesRow(repo: repo),
-            Consumer(
-              builder: (_, ref, _) => Text(
-                'selected:${ref.watch(localChangesSelectedProvider)}',
-              ),
-            ),
-          ],
-        ),
-        overrides: [
-          repoStatusProvider(repo).overrideWith((_) async => status),
-        ],
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('Local Changes (1)'), findsOneWidget);
-    expect(find.text('selected:false'), findsOneWidget);
-
-    await tester.tap(find.text('Local Changes (1)'));
-    await tester.pump();
-
-    expect(find.text('selected:true'), findsOneWidget);
-  });
 
   testWidgets('ref pill preserves branch and remote labels', (tester) async {
     const decoration = RefDecoration(

@@ -7,7 +7,7 @@ import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
-import 'package:gitopen/ui/conflicts/merge_editor_dialog.dart';
+import 'package:gitopen/ui/conflicts/inline_merge_resolver.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// A single two-way conflict region: ours = `ours\n`, theirs = `theirs\n`.
@@ -19,11 +19,11 @@ const _conflictText = '<<<<<<< HEAD\n'
 
 /// Read port returning canned working-tree [content] with no real I/O.
 ///
-/// The merge editor only reads the file via `readWorkingFile`; everything else
-/// is unused and routed to a throwing [noSuchMethod] so an accidental call is
+/// The resolver only reads the file via `readWorkingFile`; everything else is
+/// unused and routed to a throwing [noSuchMethod] so an accidental call is
 /// loud rather than silent. Using a fake keeps the widget test off the `git`
 /// CLI and off disk — real async never completes under the `testWidgets`
-/// fake-async clock, which is what made the previous live-fixture version hang.
+/// fake-async clock.
 class _FakeRead implements GitReadOperations {
   _FakeRead(this.content);
   final String content;
@@ -40,8 +40,8 @@ class _FakeRead implements GitReadOperations {
       throw UnimplementedError('${invocation.memberName} is not faked');
 }
 
-/// Write port that records what the editor asked it to write/stage and reports
-/// success, so the test asserts the editor's behaviour without running git.
+/// Write port that records what the resolver asked it to write/stage and
+/// reports success, so the test asserts behaviour without running git.
 class _FakeWrite implements GitWriteOperations {
   String? wroteContent;
   List<String>? stagedPaths;
@@ -73,6 +73,8 @@ Widget _host(
   _FakeRead read,
   _FakeWrite write, {
   String path = 'conflict.txt',
+  VoidCallback? onResolved,
+  VoidCallback? onOpenExternal,
 }) {
   final repo = RepoLocation(RepoId.newId(), 'unused', 'test');
   return ProviderScope(
@@ -83,17 +85,11 @@ Widget _host(
     child: MaterialApp(
       theme: ThemeData(extensions: [AppPalette.dark()]),
       home: Scaffold(
-        body: Builder(
-          builder: (context) => Center(
-            child: ElevatedButton(
-              onPressed: () => MergeEditorDialog.show(
-                context,
-                repo: repo,
-                relativePath: path,
-              ),
-              child: const Text('open'),
-            ),
-          ),
+        body: InlineMergeResolver(
+          repo: repo,
+          relativePath: path,
+          onResolved: onResolved ?? () {},
+          onOpenExternal: onOpenExternal ?? () {},
         ),
       ),
     ),
@@ -102,9 +98,9 @@ Widget _host(
 
 /// Pumps frames (bounded) until [finder] matches, instead of `pumpAndSettle`.
 ///
-/// The dialog's transient loading state shows a [CircularProgressIndicator]
-/// whose animation never quiesces, so `pumpAndSettle` would spin until the
-/// test timeout. This pumps a fixed cadence until the target widget appears.
+/// The transient loading state shows a [CircularProgressIndicator] whose
+/// animation never quiesces, so `pumpAndSettle` would spin until the test
+/// timeout. This pumps a fixed cadence until the target widget appears.
 Future<void> _pumpUntil(
   WidgetTester tester,
   Finder finder, {
@@ -116,25 +112,11 @@ Future<void> _pumpUntil(
   }
 }
 
-/// Pumps frames (bounded) until [finder] stops matching.
-Future<void> _pumpUntilGone(
-  WidgetTester tester,
-  Finder finder, {
-  int maxFrames = 60,
-}) async {
-  for (var i = 0; i < maxFrames; i++) {
-    await tester.pump(const Duration(milliseconds: 50));
-    if (finder.evaluate().isEmpty) return;
-  }
-}
-
 void main() {
   testWidgets('renders ours/theirs sides and choice buttons', (tester) async {
     await tester.pumpWidget(_host(_FakeRead(_conflictText), _FakeWrite()));
-    await tester.tap(find.text('open'));
     await _pumpUntil(tester, find.text('Use ours'));
 
-    expect(find.text('Resolve Conflicts'), findsOneWidget);
     expect(find.text('ours'), findsOneWidget);
     expect(find.text('theirs'), findsOneWidget);
     expect(find.text('Use ours'), findsOneWidget);
@@ -144,7 +126,6 @@ void main() {
 
   testWidgets('Save disabled until every conflict is chosen', (tester) async {
     await tester.pumpWidget(_host(_FakeRead(_conflictText), _FakeWrite()));
-    await tester.tap(find.text('open'));
     await _pumpUntil(tester, find.text('0 of 1 conflict resolved'));
 
     expect(find.text('0 of 1 conflict resolved'), findsOneWidget);
@@ -154,37 +135,49 @@ void main() {
     expect(find.text('1 of 1 conflict resolved'), findsOneWidget);
   });
 
-  testWidgets('saving writes the chosen side and stages the file',
+  testWidgets('saving writes the chosen side, stages, and fires onResolved',
       (tester) async {
     final write = _FakeWrite();
-    await tester.pumpWidget(_host(_FakeRead(_conflictText), write));
-    await tester.tap(find.text('open'));
+    var resolved = false;
+    await tester.pumpWidget(
+      _host(_FakeRead(_conflictText), write, onResolved: () => resolved = true),
+    );
     await _pumpUntil(tester, find.text('Use theirs'));
 
     await tester.tap(find.text('Use theirs'));
     await tester.pump();
     await tester.tap(find.text('Save resolution'));
-    // Allow the async write+stage and the pop to complete.
-    await _pumpUntilGone(tester, find.text('Resolve Conflicts'));
+    // Allow the async write+stage to complete.
+    for (var i = 0; i < 60 && !resolved; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
 
-    // Dialog closed.
-    expect(find.text('Resolve Conflicts'), findsNothing);
-
-    // The editor assembled the chosen side, wrote it back, and staged the path.
+    // The resolver assembled the chosen side, wrote it back, staged the path,
+    // and notified the host.
     expect(write.wroteContent, 'theirs\n');
     expect(write.wroteContent, isNot(contains('<<<<<<<')));
     expect(write.stagedPaths, ['conflict.txt']);
+    expect(resolved, isTrue);
   });
 
   testWidgets('offers external editor when no markers are present',
       (tester) async {
+    var openedExternal = false;
     await tester.pumpWidget(
-      _host(_FakeRead('just some text\n'), _FakeWrite(), path: 'plain.txt'),
+      _host(
+        _FakeRead('just some text\n'),
+        _FakeWrite(),
+        path: 'plain.txt',
+        onOpenExternal: () => openedExternal = true,
+      ),
     );
-    await tester.tap(find.text('open'));
     await _pumpUntil(tester, find.text('Open external editor'));
 
     expect(find.textContaining('No conflict markers'), findsOneWidget);
     expect(find.text('Open external editor'), findsOneWidget);
+
+    await tester.tap(find.text('Open external editor'));
+    await tester.pump();
+    expect(openedExternal, isTrue);
   });
 }
