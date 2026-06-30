@@ -9,7 +9,6 @@ import 'package:gitopen/ui/bottom_panel/file_tree_view.dart';
 import 'package:gitopen/ui/common/app_empty_state.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
-import 'package:gitopen/ui/working_copy/working_copy_panel.dart';
 
 class BottomPanel extends ConsumerStatefulWidget {
   const BottomPanel({required this.repo, super.key});
@@ -23,30 +22,23 @@ class _BottomPanelState extends ConsumerState<BottomPanel> {
   @override
   Widget build(BuildContext context) {
     final sha = ref.watch(selectedCommitShaProvider);
-    final localChanges = ref.watch(localChangesSelectedProvider);
     final tab = ref.watch(bottomPanelTabProvider);
     final palette = AppPalette.of(context);
-    // A selected commit wins; otherwise the "Local Changes" row puts the
-    // working-copy staging UI here inline (no commit sub-tabs — they don't
-    // apply to uncommitted work).
-    final showWorkingCopy = sha == null && localChanges;
     return Container(
       decoration: BoxDecoration(
         color: palette.bg1,
         border: Border(top: BorderSide(color: palette.border)),
       ),
-      child: showWorkingCopy
-          ? WorkingCopyPanel(repo: widget.repo)
-          : Column(
-              children: [
-                _TabsBar(
-                  active: tab,
-                  onSelect: (v) =>
-                      ref.read(bottomPanelTabProvider.notifier).state = v,
-                ),
-                Expanded(child: _body(context, sha, tab)),
-              ],
-            ),
+      child: Column(
+        children: [
+          _TabsBar(
+            active: tab,
+            onSelect: (v) =>
+                ref.read(bottomPanelTabProvider.notifier).state = v,
+          ),
+          Expanded(child: _body(context, sha, tab)),
+        ],
+      ),
     );
   }
 

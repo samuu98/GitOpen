@@ -23,6 +23,10 @@ class ViewSelector extends ConsumerWidget {
     final isGitHub = ref.watch(githubSlugProvider(repo)).value != null;
     final lfs = ref.watch(gitLfsStatusProvider(repo)).value;
     final usesLfs = lfs != null && (lfs.isRepoConfigured || lfs.hasAttributes);
+    // Count of changed files, shown as a badge on the Changes tab so pending
+    // work is visible from the graph without a separate clickable row.
+    final changedCount =
+        ref.watch(repoStatusProvider(repo)).value?.entries.length ?? 0;
     return Container(
       height: 30,
       color: palette.bg2,
@@ -41,6 +45,7 @@ class ViewSelector extends ConsumerWidget {
             label: 'Changes',
             icon: Icons.edit_note,
             selected: current == MainView.changes,
+            badgeCount: changedCount,
             onTap: () =>
                 ref.read(mainViewProvider.notifier).state = MainView.changes,
           ),
@@ -76,11 +81,15 @@ class _SegmentButton extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    this.badgeCount = 0,
   });
   final String label;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+
+  /// When > 0, a small count pill is shown after the label.
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -111,8 +120,46 @@ class _SegmentButton extends StatelessWidget {
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                 ),
               ),
+              if (badgeCount > 0) ...[
+                const SizedBox(width: 6),
+                _CountBadge(count: badgeCount, selected: selected),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact count pill rendered on a [_SegmentButton]. Uses [AppPalette.fg0]
+/// ink in both states so it stays legible on the selected (bgAccent) fill and
+/// the unselected (bg3) fill, in light and dark themes alike.
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count, required this.selected});
+  final int count;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: selected
+            ? palette.fg0.withValues(alpha: 0.20)
+            : palette.bgAccent,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(
+        '$count',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: palette.fg0,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          height: 1.2,
         ),
       ),
     );

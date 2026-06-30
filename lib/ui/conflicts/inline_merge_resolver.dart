@@ -7,55 +7,49 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-/// Outcome of the in-app merge editor, returned via [Navigator.pop].
-enum MergeEditorResult {
-  /// The user saved a fully-resolved file and it was staged.
-  resolved,
-
-  /// The user asked to open the file in the external editor instead (used as
-  /// the graceful fallback when the file has no parseable conflicts).
-  openExternal,
-}
-
-/// Lightweight in-app 3-way merge editor for a single conflicted file.
+/// In-place 3-way merge resolver for a single conflicted file.
 ///
 /// Loads the working-tree file (with conflict markers) via `readWorkingFile`,
 /// parses it with [MergeConflictParser], and renders each conflict region with
-/// per-conflict "Use ours / Use theirs / Use both" buttons.  Plain regions are
-/// shown as read-only context.  Saving assembles the resolved text, writes it
+/// per-conflict "Use ours / Use theirs / Use both" choices. Plain regions are
+/// shown as read-only context. Saving assembles the resolved text, writes it
 /// back with `writeWorkingFile`, then stages the path so git considers the
-/// conflict resolved.
+/// conflict resolved — at which point [onResolved] fires so the host can drop
+/// the file from its conflict list.
 ///
-/// When the file has no parseable conflicts the editor offers the external
-/// editor instead (returns [MergeEditorResult.openExternal]).
-class MergeEditorDialog extends ConsumerStatefulWidget {
-  const MergeEditorDialog({
+/// When the file has no parseable markers (binary, unusual encoding) it shows
+/// an explanatory message and an "Open external editor" action that calls
+/// [onOpenExternal].
+///
+/// This widget owns no chrome: it renders a bare [Column] sized to its content
+/// (capped + internally scrollable) so it can sit inline inside a card, a
+/// dialog, or a panel.
+class InlineMergeResolver extends ConsumerStatefulWidget {
+  const InlineMergeResolver({
     required this.repo,
     required this.relativePath,
+    required this.onResolved,
+    required this.onOpenExternal,
     super.key,
   });
 
   final RepoLocation repo;
   final String relativePath;
 
-  /// Opens the editor for [relativePath]. Resolves to the [MergeEditorResult]
-  /// or `null` if the user dismissed without acting.
-  static Future<MergeEditorResult?> show(
-    BuildContext context, {
-    required RepoLocation repo,
-    required String relativePath,
-  }) {
-    return showDialog<MergeEditorResult>(
-      context: context,
-      builder: (_) => MergeEditorDialog(repo: repo, relativePath: relativePath),
-    );
-  }
+  /// Called after the resolved file is written and staged.
+  final VoidCallback onResolved;
+
+  /// Called when the user asks to edit the file in the external editor instead
+  /// (offered both as a manual action and as the fallback when the file has no
+  /// parseable conflict markers).
+  final VoidCallback onOpenExternal;
 
   @override
-  ConsumerState<MergeEditorDialog> createState() => _MergeEditorDialogState();
+  ConsumerState<InlineMergeResolver> createState() =>
+      _InlineMergeResolverState();
 }
 
-class _MergeEditorDialogState extends ConsumerState<MergeEditorDialog> {
+class _InlineMergeResolverState extends ConsumerState<InlineMergeResolver> {
   late Future<List<Segment>> _segmentsFuture;
 
   /// Choice per conflict, keyed by the conflict's index within the segment
@@ -119,7 +113,8 @@ class _MergeEditorDialogState extends ConsumerState<MergeEditorDialog> {
       });
       return;
     }
-    Navigator.pop(context, MergeEditorResult.resolved);
+    setState(() => _saving = false);
+    widget.onResolved();
   }
 
   @override
@@ -129,35 +124,23 @@ class _MergeEditorDialogState extends ConsumerState<MergeEditorDialog> {
       future: _segmentsFuture,
       builder: (context, snap) {
         if (snap.hasError) {
-          return _frame(
-            palette,
-            content: _Message(
-              icon: Icons.error_outline,
-              color: palette.accentErr,
-              text: 'Could not read file: ${snap.error}',
-              palette: palette,
-            ),
-            actions: [
-              AppButton.secondary(
-                label: 'Close',
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
+          return _Message(
+            icon: Icons.error_outline,
+            color: palette.accentErr,
+            text: 'Could not read file: ${snap.error}',
+            palette: palette,
           );
         }
         if (!snap.hasData) {
-          return _frame(
-            palette,
-            content: SizedBox(
-              height: 80,
-              child: Center(
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: palette.fg3,
-                  ),
+          return SizedBox(
+            height: 80,
+            child: Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: palette.fg3,
                 ),
               ),
             ),
@@ -169,54 +152,87 @@ class _MergeEditorDialogState extends ConsumerState<MergeEditorDialog> {
 
         // Graceful fallback: nothing to resolve in-app.
         if (conflictIndices.isEmpty) {
-          return _frame(
-            palette,
-            content: _Message(
-              icon: Icons.info_outline,
-              color: palette.accentRemote,
-              text: 'No conflict markers were found in this file. It may '
-                  'already be resolved, or use an encoding the in-app editor '
-                  "can't parse. Open it in the external editor instead.",
-              palette: palette,
-            ),
-            actions: [
-              AppButton.secondary(
-                label: 'Close',
-                onPressed: () => Navigator.pop(context),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _Message(
+                icon: Icons.info_outline,
+                color: palette.accentRemote,
+                text: 'No conflict markers were found in this file. It may '
+                    'already be resolved, or use an encoding the in-app editor '
+                    "can't parse. Open it in the external editor instead.",
+                palette: palette,
               ),
-              AppButton.primary(
-                label: 'Open external editor',
-                onPressed: () =>
-                    Navigator.pop(context, MergeEditorResult.openExternal),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: AppButton.secondary(
+                  label: 'Open external editor',
+                  onPressed: widget.onOpenExternal,
+                ),
               ),
             ],
           );
         }
 
-        return _frame(
-          palette,
-          content: _Body(
-            segments: segments,
-            conflictIndices: conflictIndices,
-            choices: _choices,
-            palette: palette,
-            error: _error,
-            onChoose: (index, choice) =>
-                setState(() => _choices[index] = choice),
-          ),
-          actions: [
-            AppButton.secondary(
-              label: 'Open external editor',
-              onPressed: _saving
-                  ? null
-                  : () =>
-                      Navigator.pop(context, MergeEditorResult.openExternal),
+        final resolvedCount =
+            conflictIndices.where(_choices.containsKey).length;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                '$resolvedCount of ${conflictIndices.length} '
+                'conflict${conflictIndices.length == 1 ? '' : 's'} resolved',
+                style: TextStyle(color: palette.fg2, fontSize: 12),
+              ),
             ),
-            AppButton.primary(
-              label: 'Save resolution',
-              onPressed: (_saving || !_allResolved(segments))
-                  ? null
-                  : () => _save(segments),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 420),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < segments.length; i++)
+                      _segmentView(i, segments[i], palette),
+                  ],
+                ),
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.error_outline, size: 14, color: palette.accentErr),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      _error!,
+                      style:
+                          TextStyle(color: palette.accentErr, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                AppButton.secondary(
+                  label: 'Open external editor',
+                  onPressed: _saving ? null : widget.onOpenExternal,
+                ),
+                const Spacer(),
+                AppButton.primary(
+                  label: 'Save resolution',
+                  onPressed: (_saving || !_allResolved(segments))
+                      ? null
+                      : () => _save(segments),
+                ),
+              ],
             ),
           ],
         );
@@ -224,97 +240,14 @@ class _MergeEditorDialogState extends ConsumerState<MergeEditorDialog> {
     );
   }
 
-  Widget _frame(
-    AppPalette palette, {
-    required Widget content,
-    List<Widget> actions = const [],
-  }) {
-    return AppDialog(
-      title: 'Resolve Conflicts',
-      subtitle: widget.relativePath,
-      width: 720,
-      busy: _saving,
-      content: content,
-      actions: actions,
-    );
-  }
-}
-
-class _Body extends StatelessWidget {
-  const _Body({
-    required this.segments,
-    required this.conflictIndices,
-    required this.choices,
-    required this.palette,
-    required this.onChoose,
-    this.error,
-  });
-
-  final List<Segment> segments;
-  final List<int> conflictIndices;
-  final Map<int, Choice> choices;
-  final AppPalette palette;
-  final void Function(int index, Choice choice) onChoose;
-  final String? error;
-
-  @override
-  Widget build(BuildContext context) {
-    final resolvedCount = conflictIndices.where(choices.containsKey).length;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 480),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              '$resolvedCount of ${conflictIndices.length} '
-              'conflict${conflictIndices.length == 1 ? '' : 's'} resolved',
-              style: TextStyle(color: palette.fg2, fontSize: 12),
-            ),
-          ),
-          Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < segments.length; i++)
-                    _segmentView(i, segments[i]),
-                ],
-              ),
-            ),
-          ),
-          if (error != null) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.error_outline,
-                    size: 14, color: palette.accentErr),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    error!,
-                    style: TextStyle(color: palette.accentErr, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _segmentView(int index, Segment seg) {
+  Widget _segmentView(int index, Segment seg, AppPalette palette) {
     return switch (seg) {
-      PlainSegment(:final text) =>
-        _PlainView(text: text, palette: palette),
+      PlainSegment(:final text) => _PlainView(text: text, palette: palette),
       ConflictSegment() => _ConflictView(
           segment: seg,
-          choice: choices[index],
+          choice: _choices[index],
           palette: palette,
-          onChoose: (c) => onChoose(index, c),
+          onChoose: (c) => setState(() => _choices[index] = c),
         ),
     };
   }
@@ -329,9 +262,8 @@ class _PlainView extends StatelessWidget {
   Widget build(BuildContext context) {
     // Trailing newline produces an empty visual line; trim only the final one
     // for display so context regions don't add a blank gap.
-    final display = text.endsWith('\n')
-        ? text.substring(0, text.length - 1)
-        : text;
+    final display =
+        text.endsWith('\n') ? text.substring(0, text.length - 1) : text;
     if (display.isEmpty) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
@@ -383,9 +315,9 @@ class _ConflictView extends StatelessWidget {
             body: segment.ours,
             accent: palette.accentCurrent,
             palette: palette,
-            highlighted:
-                choice == Choice.ours || choice == Choice.both ||
-                    choice == Choice.bothReversed,
+            highlighted: choice == Choice.ours ||
+                choice == Choice.both ||
+                choice == Choice.bothReversed,
           ),
           if (segment.base != null)
             _SidePane(
@@ -404,9 +336,9 @@ class _ConflictView extends StatelessWidget {
             body: segment.theirs,
             accent: palette.accentRemote,
             palette: palette,
-            highlighted:
-                choice == Choice.theirs || choice == Choice.both ||
-                    choice == Choice.bothReversed,
+            highlighted: choice == Choice.theirs ||
+                choice == Choice.both ||
+                choice == Choice.bothReversed,
           ),
           Divider(height: 1, thickness: 1, color: palette.border),
           Padding(
@@ -482,10 +414,14 @@ class _SidePane extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(width: 8, height: 8, decoration: BoxDecoration(
-                color: accent,
-                shape: BoxShape.circle,
-              )),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: accent,
+                  shape: BoxShape.circle,
+                ),
+              ),
               const SizedBox(width: 6),
               Text(
                 label,

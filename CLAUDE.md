@@ -77,12 +77,22 @@ See `.claude/memory/project-map.md` for the module map and
   merge.
 - Commits use the **zN3utr4l** identity (configured via git `includeIf`). Verify
   before pushing.
-- This is a **fork**: always pass `--repo zN3utr4l/GitOpen` to `gh` commands
-  (otherwise they target the `samuu98` upstream). Never `git pull` without
-  checking the tracking branch — `upstream/main` can start a large conflicting
-  merge.
+- **Remotes** (re-pointed once the fork became canonical): `origin` =
+  **samuu98/GitOpen** — the repo you work on (you're a collaborator with push);
+  local `main` tracks `origin/main`. `fork` = **zN3utr4l/GitOpen** — personal
+  backup. Open PRs **same-repo**: push the branch to `origin`, then
+  `gh pr create --repo samuu98/GitOpen --base main --head <branch>`. Do NOT open
+  **cross-fork** PRs from `zN3utr4l:<branch>` — CI's "Add coverage comment to PR"
+  step needs a write token, and a forked PR only gets a read-only `GITHUB_TOKEN`,
+  so that step errors ("Resource not accessible by integration") and reddens the
+  required `build-and-test` check even though analyze/test pass. `samuu98` pushes
+  occasionally, so `git fetch origin` and branch off a fresh `origin/main` (don't
+  `git pull` blindly — check the tracking branch first).
 
 ---
 
 `AGENTS.md` is a byte-for-byte copy of this file (some tools read `AGENTS.md`).
-After editing `CLAUDE.md`, resync with: `cp CLAUDE.md AGENTS.md`.
+The versioned `.githooks/pre-commit` hook auto-regenerates `AGENTS.md` from the
+**staged** `CLAUDE.md` at commit time (requires `git config core.hooksPath
+.githooks`, set once per clone) — so just edit `CLAUDE.md` and `git add` it; no
+manual `cp` needed.
