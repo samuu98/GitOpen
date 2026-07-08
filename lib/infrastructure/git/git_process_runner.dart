@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:gitopen/infrastructure/git/credential_helper.dart';
 import 'package:gitopen/infrastructure/logging/app_logger.dart';
 
 /// Locale forced on every git subprocess so stdout/stderr messages are
@@ -23,16 +24,11 @@ final class GitProcessException implements Exception {
   final int exitCode;
   final String stderr;
 
-  /// Args with any `http.extraheader=Authorization: Basic …` value redacted,
-  /// so the exception message (and any logs derived from it) never leaks the
-  /// in-app credential.
-  List<String> get _safeArgs => args
-      .map(
-        (a) => a.startsWith('http.extraheader=Authorization:')
-            ? 'http.extraheader=Authorization: <redacted>'
-            : a,
-      )
-      .toList(growable: false);
+  /// Args with any `http.[<url>.]extraheader=Authorization: Basic …` value
+  /// redacted, so the exception message (and any logs derived from it) never
+  /// leaks the in-app credential.
+  List<String> get _safeArgs =>
+      args.map(redactExtraheaderArg).toList(growable: false);
 
   @override
   String toString() => 'git ${_safeArgs.join(' ')} failed ($exitCode): $stderr';

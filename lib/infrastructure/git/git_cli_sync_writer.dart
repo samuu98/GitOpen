@@ -30,7 +30,8 @@ final class GitCliSyncWriter {
     } else if (remote != null) {
       args.add(remote);
     }
-    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+    await for (final p
+        in _runProgressStream(r.path, args, auth: auth, remoteName: remote)) {
       yield p;
     }
   }
@@ -42,7 +43,8 @@ final class GitCliSyncWriter {
     AuthSpec? auth,
   }) async* {
     final args = <String>['fetch', '--progress', remote, refspec];
-    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+    await for (final p
+        in _runProgressStream(r.path, args, auth: auth, remoteName: remote)) {
       yield p;
     }
   }
@@ -93,7 +95,8 @@ final class GitCliSyncWriter {
       args.add(remote);
       if (branch != null) args.add(branch);
     }
-    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+    await for (final p
+        in _runProgressStream(r.path, args, auth: auth, remoteName: remote)) {
       yield p;
     }
   }
@@ -104,7 +107,8 @@ final class GitCliSyncWriter {
     AuthSpec? auth,
   }) async* {
     final args = ['clone', '--progress', url, destination];
-    await for (final p in _runProgressStream('.', args, auth: auth)) {
+    await for (final p
+        in _runProgressStream('.', args, auth: auth, remoteUrl: url)) {
       yield p;
     }
   }
@@ -121,7 +125,12 @@ final class GitCliSyncWriter {
     final remoteName = slash < 0 ? remoteRef : remoteRef.substring(0, slash);
     final branch = slash < 0 ? '' : remoteRef.substring(slash + 1);
     final args = ['push', '--progress', remoteName, '--delete', branch];
-    await for (final p in _runProgressStream(r.path, args, auth: auth)) {
+    await for (final p in _runProgressStream(
+      r.path,
+      args,
+      auth: auth,
+      remoteName: remoteName,
+    )) {
       yield p;
     }
   }
@@ -130,8 +139,13 @@ final class GitCliSyncWriter {
     String cwd,
     List<String> args, {
     AuthSpec? auth,
+    String? remoteName,
+    String? remoteUrl,
   }) async* {
-    final helper = await CredentialHelper.setup(auth);
+    // Scope the injected auth header to the remote git will contact, so
+    // git-lfs does not leak it onto the S3 storage host (see CredentialHelper).
+    final url = remoteUrl ?? await _remoteUrlFor(cwd, auth, remoteName);
+    final helper = await CredentialHelper.setup(auth, remoteUrl: url);
     // The helper-supplied `-c key=value` overrides must come BEFORE the
     // git subcommand. They inject the Authorization header and reset
     // inherited credential helpers (so GCM is bypassed).
@@ -141,13 +155,7 @@ final class GitCliSyncWriter {
     // Log the effective argv with the Authorization secret redacted so we
     // can see whether the helper actually injected the header (and which
     // auth kind reached this layer) without leaking the token.
-    final redacted = effectiveArgs
-        .map(
-          (a) => a.startsWith('http.extraheader=Authorization:')
-              ? 'http.extraheader=Authorization: <redacted>'
-              : a,
-        )
-        .join(' ');
+    final redacted = effectiveArgs.map(redactExtraheaderArg).join(' ');
     appLog.d(
       'git[progress] auth=${auth?.runtimeType ?? 'none'} '
       'env_keys=${helper.env.keys.toList()} '
@@ -191,6 +199,32 @@ final class GitCliSyncWriter {
       // If the consumer cancelled the stream mid-flight (the user hit Cancel),
       // the process is still running — kill it. No-op if it already exited.
       proc?.kill();
+    }
+  }
+
+  /// Reads the configured URL of the remote [remoteName] (default `origin`) so
+  /// the credential header can be scoped to its host. Only HTTPS-style specs
+  /// carry a header, so for anything else (null / SSH / system-default) the git
+  /// read is skipped. Returns null when the remote is unset or the read fails —
+  /// the caller then falls back to a global header rather than failing auth.
+  Future<String?> _remoteUrlFor(
+    String cwd,
+    AuthSpec? auth,
+    String? remoteName,
+  ) async {
+    final needsHeader = auth is AuthHttpsPat ||
+        auth is AuthHttpsBasic ||
+        auth is AuthGitHubOauth;
+    if (!needsHeader) return null;
+    try {
+      final out = await _runner.run(
+        cwd,
+        ['config', '--get', 'remote.${remoteName ?? 'origin'}.url'],
+      );
+      final url = out.trim();
+      return url.isEmpty ? null : url;
+    } on Object {
+      return null;
     }
   }
 }
