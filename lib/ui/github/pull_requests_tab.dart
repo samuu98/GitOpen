@@ -109,6 +109,7 @@ class _PullRequestsTabState extends ConsumerState<PullRequestsTab> {
       final created = await ref
           .read(gitHubApiProvider)
           .createPullRequest(widget.slug, result.request, token: widget.token);
+      if (!mounted) return;
       ref.invalidate(
         githubPullRequestsProvider((slug: widget.slug, token: widget.token)),
       );

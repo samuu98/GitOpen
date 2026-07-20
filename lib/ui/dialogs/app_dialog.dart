@@ -6,9 +6,10 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 /// [AlertDialog]/[Dialog] usages so every modal has matching chrome —
 /// header band, separator, padded body, and a footer action row.
 class AppDialog extends StatelessWidget {
-
   const AppDialog({
-    required this.title, required this.content, super.key,
+    required this.title,
+    required this.content,
+    super.key,
     this.actions = const [],
     this.subtitle,
     this.width = 460,
@@ -107,28 +108,35 @@ enum AppButtonKind { primary, secondary, danger }
 /// Button that adapts to the app palette and three semantic kinds.
 /// Use as the action in [AppDialog].
 class AppButton extends StatefulWidget {
-
   const AppButton({
-    required this.label, required this.onPressed, super.key,
+    required this.label,
+    required this.onPressed,
+    super.key,
     this.kind = AppButtonKind.secondary,
     this.icon,
     this.autofocus = false,
   });
 
   const AppButton.primary({
-    required this.label, required this.onPressed, super.key,
+    required this.label,
+    required this.onPressed,
+    super.key,
     this.icon,
     this.autofocus = false,
   }) : kind = AppButtonKind.primary;
 
   const AppButton.secondary({
-    required this.label, required this.onPressed, super.key,
+    required this.label,
+    required this.onPressed,
+    super.key,
     this.icon,
     this.autofocus = false,
   }) : kind = AppButtonKind.secondary;
 
   const AppButton.danger({
-    required this.label, required this.onPressed, super.key,
+    required this.label,
+    required this.onPressed,
+    super.key,
     this.icon,
     this.autofocus = false,
   }) : kind = AppButtonKind.danger;
@@ -144,6 +152,7 @@ class AppButton extends StatefulWidget {
 
 class _AppButtonState extends State<AppButton> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -151,23 +160,23 @@ class _AppButtonState extends State<AppButton> {
     final disabled = widget.onPressed == null;
     final (bg, bgHover, fg, border) = switch (widget.kind) {
       AppButtonKind.primary => (
-          palette.accentCurrent,
-          palette.accentCurrent.withValues(alpha: 0.85),
-          Colors.white,
-          palette.accentCurrent,
-        ),
+        palette.accentCurrent,
+        palette.accentCurrent.withValues(alpha: 0.85),
+        palette.onAccentCurrent,
+        palette.accentCurrent,
+      ),
       AppButtonKind.danger => (
-          palette.accentErr,
-          palette.accentErr.withValues(alpha: 0.85),
-          Colors.white,
-          palette.accentErr,
-        ),
+        palette.accentErr,
+        palette.accentErr.withValues(alpha: 0.85),
+        palette.onAccentErr,
+        palette.accentErr,
+      ),
       AppButtonKind.secondary => (
-          palette.bg3,
-          palette.bg4,
-          palette.fg0,
-          palette.borderStrong,
-        ),
+        palette.bg3,
+        palette.bg4,
+        palette.fg0,
+        palette.borderStrong,
+      ),
     };
     return MouseRegion(
       cursor: disabled
@@ -175,38 +184,55 @@ class _AppButtonState extends State<AppButton> {
           : SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      child: Semantics(
+        button: true,
+        enabled: !disabled,
+        label: widget.label,
         onTap: disabled ? null : widget.onPressed,
-        child: Focus(
-          autofocus: widget.autofocus,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 80),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: disabled
-                  ? palette.bg3
-                  : (_hover ? bgHover : bg),
-              border: Border.all(color: disabled ? palette.border : border),
-              borderRadius: AppRadii.of(context).controlRadius,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.icon != null) ...[
-                  Icon(widget.icon,
-                      size: 14,
-                      color: disabled ? palette.fg3 : fg),
-                  const SizedBox(width: 6),
-                ],
-                Text(
-                  widget.label,
-                  style: AppTypography.of(context).body.copyWith(
-                        color: disabled ? palette.fg3 : fg,
-                        fontWeight: FontWeight.w500,
-                      ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: disabled ? null : widget.onPressed,
+            autofocus: widget.autofocus,
+            canRequestFocus: !disabled,
+            excludeFromSemantics: true,
+            hoverColor: Colors.transparent,
+            focusColor: Colors.transparent,
+            borderRadius: AppRadii.of(context).controlRadius,
+            onFocusChange: (focused) => setState(() => _focused = focused),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 80),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: disabled ? palette.bg3 : (_hover ? bgHover : bg),
+                border: Border.all(
+                  color: disabled
+                      ? palette.border
+                      : (_focused ? palette.accentRemote : border),
+                  width: _focused ? 1.5 : 1,
                 ),
-              ],
+                borderRadius: AppRadii.of(context).controlRadius,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.icon != null) ...[
+                    Icon(
+                      widget.icon,
+                      size: 14,
+                      color: disabled ? palette.fg3 : fg,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    widget.label,
+                    style: AppTypography.of(context).body.copyWith(
+                      color: disabled ? palette.fg3 : fg,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -231,8 +257,7 @@ InputDecoration appInputDecoration(
     isDense: true,
     labelStyle: typography.caption.copyWith(color: palette.fg2),
     hintStyle: typography.caption.copyWith(color: palette.fg3),
-    contentPadding:
-        const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
     filled: true,
     fillColor: palette.bg1,
     border: OutlineInputBorder(

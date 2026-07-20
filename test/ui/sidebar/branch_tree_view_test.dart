@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/branch_visibility_provider.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/application/settings/app_settings_notifier.dart';
+import 'package:gitopen/application/settings/settings_store.dart';
 import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
@@ -41,12 +43,23 @@ const _remote = Branch(
 
 const _repo = RepoLocation(RepoId('t'), 'unused', 't');
 
+final class _FakeSettingsStore implements SettingsStore {
+  @override
+  Future<Map<String, dynamic>> readAll() async => const {};
+
+  @override
+  Future<void> put(String key, dynamic value) async {}
+}
+
 Widget _host(List<Branch> branches) => ProviderScope(
   overrides: [
     // The ahead/behind badge watches this; stub it so the widget test does
     // not spawn a real `git for-each-ref` (which hangs FakeAsync).
     branchDivergenceProvider(_repo).overrideWith(
       (ref) async => const <String, ({int ahead, int behind})>{},
+    ),
+    appSettingsProvider.overrideWith(
+      (ref) => AppSettingsNotifier(_FakeSettingsStore()),
     ),
   ],
   child: MaterialApp(

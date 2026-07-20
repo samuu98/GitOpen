@@ -22,7 +22,9 @@ import 'package:gitopen/ui/toolbar/toolbar_buttons.dart';
 /// dropdowns (each in its own file). Sync actions funnel through
 /// [GitActionsController], which owns progress + auth-retry.
 class GitToolbar extends ConsumerStatefulWidget {
-  const GitToolbar({super.key});
+  const GitToolbar({super.key, this.compact = false});
+
+  final bool compact;
 
   @override
   ConsumerState<GitToolbar> createState() => _GitToolbarState();
@@ -64,6 +66,7 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
           label: 'Fetch',
           enabled: enabled,
           tooltip: _tooltip('Fetch from origin', 'fetch'),
+          compact: widget.compact,
           onTap: () => _fetch(repo!),
         ),
         ToolbarButton(
@@ -71,19 +74,33 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
           label: 'Pull',
           enabled: enabled,
           tooltip: 'Pull from origin',
+          compact: widget.compact,
           onTap: () => unawaited(_pull(repo!)),
         ),
         _PushSplitButton(
           enabled: enabled,
+          compact: widget.compact,
           onPush: () => unawaited(_push(repo!)),
           onMenu: (pos) => unawaited(_pushMenu(repo!, pos)),
         ),
         const SizedBox(width: 4),
-        BranchDropdown(enabled: enabled, repo: repo),
+        BranchDropdown(
+          enabled: enabled,
+          repo: repo,
+          compact: widget.compact,
+        ),
         const SizedBox(width: 2),
-        StashDropdown(enabled: enabled, repo: repo),
+        StashDropdown(
+          enabled: enabled,
+          repo: repo,
+          compact: widget.compact,
+        ),
         const SizedBox(width: 2),
-        OpenDropdown(enabled: enabled, repo: repo),
+        OpenDropdown(
+          enabled: enabled,
+          repo: repo,
+          compact: widget.compact,
+        ),
       ],
     );
   }
@@ -161,7 +178,8 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
         final confirmed = await ConfirmDialog.show(
           context,
           title: 'Force push',
-          body: 'Force-push with --force-with-lease? This rewrites the '
+          body:
+              'Force-push with --force-with-lease? This rewrites the '
               'remote branch, but refuses if someone else pushed first.',
           confirmLabel: 'Force push',
           dangerous: true,
@@ -190,10 +208,12 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
 class _PushSplitButton extends StatelessWidget {
   const _PushSplitButton({
     required this.enabled,
+    required this.compact,
     required this.onPush,
     required this.onMenu,
   });
   final bool enabled;
+  final bool compact;
   final VoidCallback onPush;
   final void Function(Offset globalPosition) onMenu;
 
@@ -216,7 +236,7 @@ class _PushSplitButton extends StatelessWidget {
               borderRadius: radii.controlRadius,
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  spacing.md - 2,
+                  compact ? spacing.sm : spacing.md - 2,
                   spacing.xs,
                   0,
                   spacing.xs,
@@ -225,11 +245,13 @@ class _PushSplitButton extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.north, size: 14, color: palette.fg1),
-                    const SizedBox(width: 5),
-                    Text(
-                      'Push',
-                      style: typography.body.copyWith(color: palette.fg0),
-                    ),
+                    if (!compact) ...[
+                      const SizedBox(width: 5),
+                      Text(
+                        'Push',
+                        style: typography.body.copyWith(color: palette.fg0),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -247,7 +269,7 @@ class _PushSplitButton extends StatelessWidget {
                 padding: EdgeInsets.fromLTRB(
                   3,
                   spacing.xs,
-                  spacing.md - 2,
+                  compact ? spacing.sm : spacing.md - 2,
                   spacing.xs,
                 ),
                 child: Icon(Icons.expand_more, size: 12, color: palette.fg2),

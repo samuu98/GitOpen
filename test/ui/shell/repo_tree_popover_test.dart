@@ -3,7 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/launcher/folder_picker.dart';
+import 'package:gitopen/application/operations/activity_log_store.dart';
+import 'package:gitopen/application/operations/operations_notifier.dart';
+import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/workspaces/repo_tree_node.dart';
 import 'package:gitopen/application/workspaces/repo_tree_store.dart';
@@ -15,6 +19,7 @@ import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/shell/repo_tree_popover.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
+import '../../_helpers/repository_validator.dart';
 
 RepoNode _repo(String id) =>
     RepoNode(RepoLocation(RepoId(id), '/p/$id', id), 0);
@@ -49,15 +54,13 @@ class _FakeTreeStore implements RepoTreeStore {
     RepoId id, {
     required int atIndex,
     FolderId? toParent,
-  }) =>
-      throw UnimplementedError();
+  }) => throw UnimplementedError();
   @override
   Future<void> moveFolder(
     FolderId id, {
     required int atIndex,
     FolderId? toParent,
-  }) =>
-      throw UnimplementedError();
+  }) => throw UnimplementedError();
 }
 
 /// Folder picker whose result the test completes manually, so the popover can
@@ -71,6 +74,7 @@ class _FakePicker implements FolderPicker {
 /// Registry that records the paths it was asked to add.
 class _RecordingRegistry implements RepositoryRegistry {
   final List<String> added = [];
+  final List<RepoId> touched = [];
   @override
   Future<RepoLocation> add(String path) async {
     added.add(path);
@@ -85,7 +89,18 @@ class _RecordingRegistry implements RepositoryRegistry {
   @override
   Future<void> remove(RepoId id) async {}
   @override
-  Future<void> touchLastOpened(RepoId id) async {}
+  Future<void> touchLastOpened(RepoId id) async => touched.add(id);
+}
+
+class _FakeLogStore implements ActivityLogStore {
+  @override
+  Future<void> clearCompleted() async {}
+
+  @override
+  Future<List<RunningOperation>> recent({int limit = 50}) async => const [];
+
+  @override
+  Future<void> upsert(RunningOperation op) async {}
 }
 
 Future<ProviderContainer> _pumpPopover(
@@ -191,8 +206,9 @@ void main() {
       expect(find.text('alpha'), findsOneWidget);
     });
 
-    testWidgets('tapping a folder collapses it and hides the repo',
-        (tester) async {
+    testWidgets('tapping a folder collapses it and hides the repo', (
+      tester,
+    ) async {
       final store = _FakeTreeStore(
         [
           const Folder(
@@ -217,11 +233,63 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('alpha'), findsNothing); // child hidden when collapsed
     });
+
+    testWidgets('selecting a repository records it as recently opened', (
+      tester,
+    ) async {
+      final registry = _RecordingRegistry();
+      final store = _FakeTreeStore(
+        [],
+        const [
+          PlacedRepo(
+            location: RepoLocation(RepoId('a'), '/tmp/a', 'alpha'),
+            parentId: null,
+            sortOrder: 0,
+          ),
+        ],
+      );
+      final container = ProviderContainer(
+        overrides: [
+          repoTreeStoreProvider.overrideWithValue(store),
+          workspaceManagerProvider.overrideWith(
+            (ref) => WorkspaceManager(
+              registry,
+              const PassThroughRepositoryValidator(),
+            ),
+          ),
+          operationsProvider.overrideWith(
+            (ref) => OperationsNotifier(_FakeLogStore()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(repoOrganizerProvider.notifier).refresh();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: ThemeData(extensions: [AppPalette.dark()]),
+            home: Scaffold(body: RepoTreePopover(onDismiss: () {})),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('alpha'));
+      await tester.pumpAndSettle();
+
+      expect(registry.added, ['/tmp/a']);
+      expect(registry.touched, [const RepoId('id-/tmp/a')]);
+      expect(
+        container.read(activeWorkspaceIdProvider),
+        const RepoId('id-/tmp/a'),
+      );
+    });
   });
 
   group('open flows survive the popover being dismissed', () {
-    testWidgets('Open repository still adds the repo after onDismiss',
-        (tester) async {
+    testWidgets('Open repository still adds the repo after onDismiss', (
+      tester,
+    ) async {
       // Repro: onDismiss() hides the OverlayPortal (disposing the popover)
       // BEFORE the folder picker resolves. The continuation must not depend
       // on the disposed widget's `ref`, or the repo is silently never added.
@@ -233,7 +301,13 @@ void main() {
           repoTreeStoreProvider.overrideWithValue(store),
           folderPickerProvider.overrideWithValue(picker),
           workspaceManagerProvider.overrideWith(
-            (ref) => WorkspaceManager(registry),
+            (ref) => WorkspaceManager(
+              registry,
+              const PassThroughRepositoryValidator(),
+            ),
+          ),
+          operationsProvider.overrideWith(
+            (ref) => OperationsNotifier(_FakeLogStore()),
           ),
         ],
       );

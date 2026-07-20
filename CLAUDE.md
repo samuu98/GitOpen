@@ -2,7 +2,8 @@
 
 Fast, cross-platform open-source **desktop git client** built with Flutter.
 Wraps the system `git` CLI for every operation (no libgit2). Targets **Windows**
-and **Linux**. Repo: `github.com/zN3utr4l/GitOpen` (a fork of `samuu98/GitOpen`).
+and **Linux**. Canonical repo: `github.com/samuu98/GitOpen`; the
+`zN3utr4l/GitOpen` fork is a personal backup.
 
 ## Quick Start
 

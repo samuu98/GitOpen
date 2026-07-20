@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -16,8 +17,18 @@ class UpdateCheckException implements Exception {
   @override
   String toString() => statusCode == 403
       ? 'GitHub rate limit reached (HTTP 403) — try again later, or sign in '
-          'to GitHub in Settings so checks are authenticated.'
+            'to GitHub in Settings so checks are authenticated.'
       : 'update check failed (HTTP $statusCode)';
+}
+
+/// Actionable timeout reported by update checks and installer downloads.
+class UpdateTimeoutException implements Exception {
+  const UpdateTimeoutException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 /// Checks GitHub Releases for a newer version of GitOpen and can download +
@@ -25,14 +36,16 @@ class UpdateCheckException implements Exception {
 /// browser to update.
 class GitHubReleaseUpdater {
   GitHubReleaseUpdater({
-    this.owner = 'zN3utr4l',
+    this.owner = 'samuu98',
     this.repo = 'GitOpen',
+    this.requestTimeout = const Duration(seconds: 30),
     http.Client? client,
     Future<String?> Function()? token,
-  })  : _client = client ?? http.Client(),
-        _token = token;
+  }) : _client = client ?? http.Client(),
+       _token = token;
   final String owner;
   final String repo;
+  final Duration requestTimeout;
   final http.Client _client;
 
   /// Resolves a GitHub token to authenticate the API call (5000 req/h instead
@@ -40,8 +53,9 @@ class GitHubReleaseUpdater {
   /// NAT). Null/absent → unauthenticated.
   final Future<String?> Function()? _token;
 
-  /// Fetches the latest GitHub release (version + assets). Returns null on a
-  /// non-200 response, a missing tag, or a parse failure.
+  /// Fetches the latest GitHub release (version + assets). Returns null only
+  /// when the response has no tag; transport and malformed-response failures
+  /// are surfaced to the UI.
   Future<AppRelease?> fetchLatestRelease() async {
     final uri = Uri.parse(
       'https://api.github.com/repos/$owner/$repo/releases/latest',
@@ -51,7 +65,18 @@ class GitHubReleaseUpdater {
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }
-    final response = await _client.get(uri, headers: headers);
+    late final http.Response response;
+    try {
+      response = await _client
+          .get(uri, headers: headers)
+          .timeout(
+            requestTimeout,
+          );
+    } on TimeoutException {
+      throw const UpdateTimeoutException(
+        'GitHub did not respond in time. Try the update check again.',
+      );
+    }
     // A non-200 (rate limit, offline, server error) is a CHECK FAILURE, not
     // "up to date" — throw so the UI reports it honestly instead of pretending
     // the app is current.
@@ -83,7 +108,8 @@ class GitHubReleaseUpdater {
   }
 
   /// Returns the latest release when it is newer than [currentVersion], or
-  /// null when the app is up-to-date / the check fails.
+  /// null when the app is up-to-date. Check failures are thrown so callers do
+  /// not mistake an unavailable service for an up-to-date installation.
   Future<AppRelease?> checkForUpdate(String currentVersion) async {
     final release = await fetchLatestRelease();
     if (release == null) return null;
@@ -115,26 +141,49 @@ class GitHubReleaseUpdater {
     ReleaseAsset asset,
     void Function(double)? onProgress,
   ) async {
-    final response = await _client.send(
-      http.Request('GET', Uri.parse(asset.downloadUrl)),
-    );
+    late final http.StreamedResponse response;
+    try {
+      response = await _client
+          .send(http.Request('GET', Uri.parse(asset.downloadUrl)))
+          .timeout(requestTimeout);
+    } on TimeoutException {
+      throw const UpdateTimeoutException(
+        'The installer download did not start in time. Try again.',
+      );
+    }
     if (response.statusCode != 200) {
       throw Exception('Download failed: HTTP ${response.statusCode}');
     }
     final total = response.contentLength ?? asset.sizeBytes;
-    final file = File(p.join(Directory.systemTemp.path, asset.name));
-    final sink = file.openWrite();
+    final fileName = p.basename(asset.name);
+    if (fileName.isEmpty ||
+        fileName == '.' ||
+        fileName == '..' ||
+        fileName != asset.name) {
+      throw const FormatException('Invalid installer asset name.');
+    }
+    final file = File(p.join(Directory.systemTemp.path, fileName));
     try {
-      var received = 0;
-      await for (final chunk in response.stream) {
-        received += chunk.length;
-        sink.add(chunk);
-        if (onProgress != null && total > 0) {
-          onProgress((received / total).clamp(0.0, 1.0));
+      final sink = file.openWrite();
+      try {
+        var received = 0;
+        await for (final chunk in response.stream.timeout(requestTimeout)) {
+          received += chunk.length;
+          sink.add(chunk);
+          if (onProgress != null && total > 0) {
+            onProgress((received / total).clamp(0.0, 1.0));
+          }
         }
+      } on TimeoutException {
+        throw const UpdateTimeoutException(
+          'The installer download stalled. Try again.',
+        );
+      } finally {
+        await sink.close();
       }
-    } finally {
-      await sink.close();
+    } on Object {
+      if (file.existsSync()) await file.delete();
+      rethrow;
     }
     return file;
   }

@@ -18,9 +18,15 @@ import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 /// Toolbar dropdown with the stash actions: save, apply, pop, list.
 class StashDropdown extends ConsumerStatefulWidget {
-  const StashDropdown({required this.enabled, required this.repo, super.key});
+  const StashDropdown({
+    required this.enabled,
+    required this.repo,
+    super.key,
+    this.compact = false,
+  });
   final bool enabled;
   final RepoLocation? repo;
+  final bool compact;
 
   @override
   ConsumerState<StashDropdown> createState() => _StashDropdownState();
@@ -41,6 +47,7 @@ class _StashDropdownState extends ConsumerState<StashDropdown> {
         icon: Icons.inventory_2_outlined,
         label: 'Stash',
         enabled: widget.enabled,
+        compact: widget.compact,
         onTap: () => _menuController.isOpen
             ? _menuController.close()
             : _menuController.open(),
@@ -356,7 +363,7 @@ class _StashList extends StatelessWidget {
                   Text(
                     'stash@{${stash.index}}',
                     style: TextStyle(
-                      color: isSelected ? Colors.white : palette.fg0,
+                      color: palette.fg0,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                       fontFamily: 'monospace',
@@ -368,7 +375,7 @@ class _StashList extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: isSelected ? Colors.white70 : palette.fg2,
+                      color: palette.fg2,
                       fontSize: 11.5,
                     ),
                   ),

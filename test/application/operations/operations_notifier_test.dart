@@ -1,10 +1,44 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gitopen/application/operations/activity_log_store.dart';
 import 'package:gitopen/application/operations/operations_notifier.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/infrastructure/operations/activity_log_repository.dart';
 import '../../_helpers/in_memory_db.dart';
 
+final class _DelayedLogStore implements ActivityLogStore {
+  final recentResult = Completer<List<RunningOperation>>();
+
+  @override
+  Future<void> clearCompleted() async {}
+
+  @override
+  Future<List<RunningOperation>> recent({int limit = 50}) =>
+      recentResult.future;
+
+  @override
+  Future<void> upsert(RunningOperation op) async {}
+}
+
 void main() {
+  test(
+    'hydration does not discard an operation started concurrently',
+    () async {
+      final store = _DelayedLogStore();
+      final notifier = OperationsNotifier(store);
+      final id = notifier.start(OpKind.other, 'Opening repository');
+
+      store.recentResult.complete(const []);
+      await Future<void>.delayed(Duration.zero);
+      notifier.finishSuccess(id);
+
+      expect(notifier.state, hasLength(1));
+      expect(notifier.state.single.id, id);
+      expect(notifier.state.single.status, OperationStatus.success);
+    },
+  );
+
   test('start + finishSuccess transitions state and persists', () async {
     final db = newInMemoryDb();
     final notifier = OperationsNotifier(ActivityLogRepository(db));

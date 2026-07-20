@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,12 @@ GitHubReleaseUpdater _makeUpdater(http.Client client) => GitHubReleaseUpdater(
 );
 
 void main() {
+  test('defaults to the canonical release repository', () {
+    final updater = GitHubReleaseUpdater();
+    expect(updater.owner, 'samuu98');
+    expect(updater.repo, 'GitOpen');
+  });
+
   group('GitHubReleaseUpdater.checkForUpdates', () {
     test('returns version string when remote is newer', () async {
       final client = MockClient(
@@ -50,6 +57,22 @@ void main() {
       expect(
         updater.checkForUpdates('1.0.0'),
         throwsA(isA<UpdateCheckException>()),
+      );
+    });
+
+    test('reports an actionable timeout instead of hanging', () {
+      final client = MockClient(
+        (_) => Completer<http.Response>().future,
+      );
+      final updater = GitHubReleaseUpdater(
+        owner: 'o',
+        repo: 'r',
+        client: client,
+        requestTimeout: const Duration(milliseconds: 1),
+      );
+      expect(
+        updater.checkForUpdates('1.0.0'),
+        throwsA(isA<UpdateTimeoutException>()),
       );
     });
 

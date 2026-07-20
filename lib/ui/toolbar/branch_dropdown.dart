@@ -14,9 +14,15 @@ import 'package:gitopen/ui/toolbar/toolbar_prompt.dart';
 
 /// Toolbar dropdown with the branch actions: create, switch, rename, delete.
 class BranchDropdown extends ConsumerStatefulWidget {
-  const BranchDropdown({required this.enabled, required this.repo, super.key});
+  const BranchDropdown({
+    required this.enabled,
+    required this.repo,
+    super.key,
+    this.compact = false,
+  });
   final bool enabled;
   final RepoLocation? repo;
+  final bool compact;
 
   @override
   ConsumerState<BranchDropdown> createState() => _BranchDropdownState();
@@ -37,6 +43,7 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
         icon: Icons.account_tree_outlined,
         label: 'Branch',
         enabled: widget.enabled,
+        compact: widget.compact,
         onTap: () => _menuController.isOpen
             ? _menuController.close()
             : _menuController.open(),
@@ -98,8 +105,9 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
   }
 
   Future<void> _switchBranch(RepoLocation repo) async {
-    final branches =
-        await ref.read(gitReadOperationsProvider).getBranches(repo);
+    final branches = await ref
+        .read(gitReadOperationsProvider)
+        .getBranches(repo);
     final locals = branches.where((b) => !b.isRemote).toList();
     if (!mounted) return;
     final selected = await _showBranchPickerDialog(
@@ -117,12 +125,17 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
   }
 
   Future<void> _renameBranch(RepoLocation repo) async {
-    final branches =
-        await ref.read(gitReadOperationsProvider).getBranches(repo);
+    final branches = await ref
+        .read(gitReadOperationsProvider)
+        .getBranches(repo);
     final current = branches.where((b) => b.isCurrent).firstOrNull;
     if (current == null || !mounted) return;
-    final newName = await appPromptText(context, 'Rename current branch',
-        label: 'New name', initial: current.name);
+    final newName = await appPromptText(
+      context,
+      'Rename current branch',
+      label: 'New name',
+      initial: current.name,
+    );
     if (newName == null || newName.trim().isEmpty || !mounted) return;
     await ref
         .read(gitActionsControllerProvider)
@@ -130,8 +143,9 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
   }
 
   Future<void> _deleteBranch(RepoLocation repo) async {
-    final branches =
-        await ref.read(gitReadOperationsProvider).getBranches(repo);
+    final branches = await ref
+        .read(gitReadOperationsProvider)
+        .getBranches(repo);
     final locals = branches.where((b) => !b.isRemote).toList();
     if (!mounted) return;
     final selected = await _showBranchPickerDialog(

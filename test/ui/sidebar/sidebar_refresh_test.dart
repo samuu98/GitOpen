@@ -18,6 +18,7 @@ import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/sidebar/sidebar.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
+import '../../_helpers/repository_validator.dart';
 
 /// Returns branches on the first load; the second load (the refresh) hangs
 /// until [release], so the sidebar provider sits in its reloading state.
@@ -77,8 +78,9 @@ class _FakeRegistry implements RepositoryRegistry {
 }
 
 void main() {
-  testWidgets('sidebar keeps branches visible during a refresh',
-      (tester) async {
+  testWidgets('sidebar keeps branches visible during a refresh', (
+    tester,
+  ) async {
     final fake = _ReloadFake();
     const repo = RepoLocation(RepoId('r'), '/r', 't');
 
@@ -87,7 +89,10 @@ void main() {
         gitReadOperationsProvider.overrideWithValue(fake),
         activeWorkspaceIdProvider.overrideWith((ref) => repo.id),
         workspaceManagerProvider.overrideWith(
-          (ref) => WorkspaceManager(_FakeRegistry(repo)),
+          (ref) => WorkspaceManager(
+            _FakeRegistry(repo),
+            const PassThroughRepositoryValidator(),
+          ),
         ),
       ],
     );

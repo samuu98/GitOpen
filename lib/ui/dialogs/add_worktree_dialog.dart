@@ -51,23 +51,27 @@ class _State extends ConsumerState<AddWorktreeDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _pathCtl,
-                autofocus: true,
-                style: TextStyle(color: palette.fg0, fontSize: 13),
-                decoration:
-                    appInputDecoration(context, label: 'Destination folder'),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _pathCtl,
+                  autofocus: true,
+                  style: TextStyle(color: palette.fg0, fontSize: 13),
+                  decoration: appInputDecoration(
+                    context,
+                    label: 'Destination folder',
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 6),
-            IconButton(
-              icon: Icon(Icons.folder_open, color: palette.fg1, size: 18),
-              tooltip: 'Browse…',
-              onPressed: _pickDest,
-            ),
-          ]),
+              const SizedBox(width: 6),
+              IconButton(
+                icon: Icon(Icons.folder_open, color: palette.fg1, size: 18),
+                tooltip: 'Browse…',
+                onPressed: _pickDest,
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _branchCtl,
@@ -109,9 +113,10 @@ class _State extends ConsumerState<AddWorktreeDialog> {
   }
 
   Future<void> _pickDest() async {
-    final dir =
-        await ref.read(folderPickerProvider).pickFolder('Worktree folder');
-    if (dir != null) _pathCtl.text = dir;
+    final dir = await ref
+        .read(folderPickerProvider)
+        .pickFolder('Worktree folder');
+    if (dir != null && mounted) _pathCtl.text = dir;
   }
 
   Future<void> _create() async {
@@ -123,7 +128,9 @@ class _State extends ConsumerState<AddWorktreeDialog> {
     });
     final newBranch = _branchCtl.text.trim();
     final existingRef = _refCtl.text.trim();
-    final result = await ref.read(gitWriteOperationsProvider).addWorktree(
+    final result = await ref
+        .read(gitWriteOperationsProvider)
+        .addWorktree(
           widget.repo,
           path,
           newBranch: newBranch.isEmpty ? null : newBranch,

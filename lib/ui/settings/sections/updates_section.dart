@@ -139,6 +139,7 @@ class _UpdatesSectionState extends ConsumerState<UpdatesSection> {
     try {
       final version = await ref.read(appVersionProvider.future);
       final release = await updater.checkForUpdate(version);
+      if (!mounted) return;
       setState(() {
         _update = release;
         _installer = release == null
@@ -149,7 +150,7 @@ class _UpdatesSectionState extends ConsumerState<UpdatesSection> {
             : 'You are up to date.';
       });
     } on Object catch (e) {
-      setState(() => _status = 'Check failed: $e');
+      if (mounted) setState(() => _status = 'Check failed: $e');
     } finally {
       if (mounted) setState(() => _checking = false);
     }
@@ -180,7 +181,7 @@ class _UpdatesSectionState extends ConsumerState<UpdatesSection> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
     setState(() {
       _downloading = true;
       _progress = 0;

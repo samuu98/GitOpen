@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/settings/settings_open_provider.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/settings/sections/about_section.dart';
 import 'package:gitopen/ui/settings/sections/authentication_section.dart';
 import 'package:gitopen/ui/settings/sections/general_section.dart';
@@ -34,7 +35,7 @@ class _State extends ConsumerState<SettingsPage> {
   static const _groups = <(_NavGroup, List<SettingsSectionId>)>[
     (
       _NavGroup('Application'),
-      [SettingsSectionId.general, SettingsSectionId.keybindings]
+      [SettingsSectionId.general, SettingsSectionId.keybindings],
     ),
     (
       _NavGroup('Identity'),
@@ -42,12 +43,9 @@ class _State extends ConsumerState<SettingsPage> {
         SettingsSectionId.gitIdentity,
         SettingsSectionId.authentication,
         SettingsSectionId.github,
-      ]
+      ],
     ),
-    (
-      _NavGroup('System'),
-      [SettingsSectionId.updates, SettingsSectionId.about]
-    ),
+    (_NavGroup('System'), [SettingsSectionId.updates, SettingsSectionId.about]),
   ];
 
   @override
@@ -94,7 +92,6 @@ class _NavGroup {
 }
 
 class _Sidebar extends StatelessWidget {
-
   const _Sidebar({
     required this.selected,
     required this.groups,
@@ -130,10 +127,10 @@ class _Sidebar extends StatelessWidget {
                     child: Text(
                       group.title.toUpperCase(),
                       style: AppTypography.of(context).caption.copyWith(
-                            color: palette.fg3,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.7,
-                          ),
+                        color: palette.fg3,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.7,
+                      ),
                     ),
                   ),
                   for (final id in items)
@@ -181,47 +178,22 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _CloseButton extends StatefulWidget {
+class _CloseButton extends StatelessWidget {
   const _CloseButton({required this.onTap});
   final VoidCallback onTap;
 
   @override
-  State<_CloseButton> createState() => _CloseButtonState();
-}
-
-class _CloseButtonState extends State<_CloseButton> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return Tooltip(
-      message: 'Close settings',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: _hover ? palette.bg4 : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Icon(Icons.close,
-                size: 14, color: _hover ? palette.fg0 : palette.fg1),
-          ),
-        ),
-      ),
+    return AppIconButton(
+      icon: Icons.close,
+      tooltip: 'Close settings',
+      onPressed: onTap,
+      size: 24,
     );
   }
 }
 
 class _NavItem extends StatefulWidget {
-
   const _NavItem({
     required this.section,
     required this.selected,
@@ -245,39 +217,44 @@ class _NavItemState extends State<_NavItem> {
     final fg = widget.selected
         ? palette.fg0
         : (_hover ? palette.fg0 : palette.fg1);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-          decoration: BoxDecoration(
-            color: widget.selected
-                ? palette.bgAccent.withValues(alpha: 0.30)
-                : (_hover ? palette.bg3 : Colors.transparent),
-            borderRadius: BorderRadius.circular(5),
-            border: widget.selected
-                ? Border.all(color: palette.bgAccent)
-                : Border.all(color: Colors.transparent),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          child: Row(
-            children: [
-              Icon(icon, size: 14, color: fg),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: AppTypography.of(context).body.copyWith(
-                      color: fg,
-                      fontWeight: widget.selected
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                    ),
-              ),
-            ],
+    return Semantics(
+      button: true,
+      selected: widget.selected,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          excludeFromSemantics: true,
+          onHover: (hovered) => setState(() => _hover = hovered),
+          borderRadius: BorderRadius.circular(5),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+            decoration: BoxDecoration(
+              color: widget.selected
+                  ? palette.bgAccent.withValues(alpha: 0.30)
+                  : (_hover ? palette.bg3 : Colors.transparent),
+              borderRadius: BorderRadius.circular(5),
+              border: widget.selected
+                  ? Border.all(color: palette.bgAccent)
+                  : Border.all(color: Colors.transparent),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            child: Row(
+              children: [
+                Icon(icon, size: 14, color: fg),
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: AppTypography.of(context).body.copyWith(
+                    color: fg,
+                    fontWeight: widget.selected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -287,12 +264,12 @@ class _NavItemState extends State<_NavItem> {
   (IconData, String) _meta(SettingsSectionId s) {
     return switch (s) {
       SettingsSectionId.general => (Icons.tune, 'General'),
-      SettingsSectionId.gitIdentity =>
-        (Icons.fingerprint, 'Git Identity'),
-      SettingsSectionId.authentication =>
-        (Icons.key_outlined, 'Authentication'),
-      SettingsSectionId.keybindings =>
-        (Icons.keyboard_outlined, 'Keybindings'),
+      SettingsSectionId.gitIdentity => (Icons.fingerprint, 'Git Identity'),
+      SettingsSectionId.authentication => (
+        Icons.key_outlined,
+        'Authentication',
+      ),
+      SettingsSectionId.keybindings => (Icons.keyboard_outlined, 'Keybindings'),
       SettingsSectionId.github => (Icons.code, 'GitHub'),
       SettingsSectionId.updates => (Icons.system_update, 'Updates'),
       SettingsSectionId.about => (Icons.info_outline, 'About'),

@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
+import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/workspaces/repo_tree_node.dart';
 import 'package:gitopen/domain/repositories/folder_id.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
+import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/dialogs/clone_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/shell/repo_tree_drag.dart';
@@ -129,12 +131,26 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
       location: node.location,
       depth: row.depth,
       isActive: node.location.id == activeId,
-      onSelect: () {
-        ref.read(activeWorkspaceIdProvider.notifier).state = node.location.id;
-        widget.onDismiss();
-      },
+      onSelect: () => _selectRepo(node.location),
       onRemove: () => _removeRepo(node.location.id, node.location.displayName),
     );
+  }
+
+  void _selectRepo(RepoLocation location) {
+    final manager = ref.read(workspaceManagerProvider.notifier);
+    final activeNotifier = ref.read(activeWorkspaceIdProvider.notifier);
+    final ops = ref.read(operationsProvider.notifier);
+    widget.onDismiss();
+    final opId = ops.start(OpKind.other, 'Open repository');
+    unawaited(() async {
+      try {
+        final workspace = await manager.open(location.path);
+        activeNotifier.state = workspace.location.id;
+        ops.finishSuccess(opId);
+      } on Object catch (error) {
+        ops.finishFailure(opId, '$error');
+      }
+    }());
   }
 
   Widget _draggableRow(VisibleRow row, RepoId? activeId) {
@@ -209,49 +225,49 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
   }
 
   Widget _empty(AppPalette palette) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Text(
-          'No repositories yet',
-          style: TextStyle(
-            color: palette.fg2,
-            fontSize: 12,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    child: Text(
+      'No repositories yet',
+      style: TextStyle(
+        color: palette.fg2,
+        fontSize: 12,
+        fontStyle: FontStyle.italic,
+      ),
+    ),
+  );
 
   Widget _newFolderField(AppPalette palette) => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-        child: TextField(
-          controller: _newFolder,
-          autofocus: true,
-          style: TextStyle(color: palette.fg0, fontSize: 12.5),
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: 'Folder name',
-            hintStyle: TextStyle(color: palette.fg3, fontSize: 12.5),
-            border: const OutlineInputBorder(),
-          ),
-          onSubmitted: (_) => _confirmNewFolder(),
-        ),
-      );
+    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+    child: TextField(
+      controller: _newFolder,
+      autofocus: true,
+      style: TextStyle(color: palette.fg0, fontSize: 12.5),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: 'Folder name',
+        hintStyle: TextStyle(color: palette.fg3, fontSize: 12.5),
+        border: const OutlineInputBorder(),
+      ),
+      onSubmitted: (_) => _confirmNewFolder(),
+    ),
+  );
 
   Widget _footer(AppPalette palette) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _action(palette, Icons.create_new_folder, 'New folder', () {
-            setState(() => _addingFolder = !_addingFolder);
-          }),
-          _action(palette, Icons.folder_open, 'Open repository...', _openRepo),
-          _action(
-            palette,
-            Icons.folder_copy,
-            'Open folder of repos...',
-            _openReposFolder,
-          ),
-          _action(palette, Icons.download, 'Clone repository...', _clone),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _action(palette, Icons.create_new_folder, 'New folder', () {
+        setState(() => _addingFolder = !_addingFolder);
+      }),
+      _action(palette, Icons.folder_open, 'Open repository...', _openRepo),
+      _action(
+        palette,
+        Icons.folder_copy,
+        'Open folder of repos...',
+        _openReposFolder,
+      ),
+      _action(palette, Icons.download, 'Clone repository...', _clone),
+    ],
+  );
 
   Widget _action(
     AppPalette palette,
@@ -295,7 +311,8 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
     final ok = await ConfirmDialog.show(
       context,
       title: 'Remove repository',
-      body: "Remove '$name' from GitOpen? This only takes it off the list — "
+      body:
+          "Remove '$name' from GitOpen? This only takes it off the list — "
           'your files on disk are not touched.',
       confirmLabel: 'Remove',
       dangerous: true,
@@ -306,8 +323,9 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
     await ref.read(repoOrganizerProvider.notifier).refresh();
     if (active == id) {
       final remaining = ref.read(workspaceManagerProvider);
-      ref.read(activeWorkspaceIdProvider.notifier).state =
-          remaining.isEmpty ? null : remaining.first.location.id;
+      ref.read(activeWorkspaceIdProvider.notifier).state = remaining.isEmpty
+          ? null
+          : remaining.first.location.id;
     }
   }
 
@@ -315,7 +333,8 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
     final ok = await ConfirmDialog.show(
       context,
       title: 'Remove folder',
-      body: "Remove the folder '$name'? Repositories and folders inside it "
+      body:
+          "Remove the folder '$name'? Repositories and folders inside it "
           'move up to the level above. Nothing is deleted from disk.',
       confirmLabel: 'Remove',
       dangerous: true,
@@ -335,12 +354,19 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
     final manager = ref.read(workspaceManagerProvider.notifier);
     final organizer = ref.read(repoOrganizerProvider.notifier);
     final activeNotifier = ref.read(activeWorkspaceIdProvider.notifier);
+    final ops = ref.read(operationsProvider.notifier);
     widget.onDismiss();
     final path = await picker.pickFolder('Open repository');
     if (path == null) return;
-    final ws = await manager.open(path);
-    await organizer.refresh();
-    activeNotifier.state = ws.location.id;
+    final opId = ops.start(OpKind.other, 'Open repository');
+    try {
+      final ws = await manager.open(path);
+      await organizer.refresh();
+      activeNotifier.state = ws.location.id;
+      ops.finishSuccess(opId);
+    } on Object catch (error) {
+      ops.finishFailure(opId, '$error');
+    }
   }
 
   Future<void> _openReposFolder() async {

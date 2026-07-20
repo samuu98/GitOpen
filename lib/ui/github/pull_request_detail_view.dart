@@ -135,7 +135,7 @@ class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
             request,
             token: widget.token,
           );
-      _invalidate();
+      if (mounted) _invalidate();
       return successMessage;
     });
   }
@@ -149,7 +149,7 @@ class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
             detail.number,
             token: widget.token,
           );
-      _invalidate();
+      if (mounted) _invalidate();
       return 'Pull request marked ready.';
     });
   }
@@ -166,7 +166,7 @@ class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
             result.request,
             token: widget.token,
           );
-      _invalidate();
+      if (mounted) _invalidate();
       return 'Pull request merged.';
     });
   }
