@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -257,6 +258,31 @@ void main() {
       expect(files.single.patch, contains('+new'));
     });
 
+    test('listPullRequestFiles follows every API page', () async {
+      final pages = <String?>[];
+      final client = MockClient((request) async {
+        pages.add(request.url.queryParameters['page']);
+        expect(request.url.queryParameters['per_page'], '100');
+        final page = request.url.queryParameters['page'];
+        final files = page == '1'
+            ? [
+                for (var i = 0; i < 100; i++) {'filename': 'lib/file_$i.dart'},
+              ]
+            : [
+                {'filename': 'lib/file_100.dart'},
+              ];
+        return http.Response(jsonEncode(files), 200);
+      });
+
+      final files = await _api(
+        client,
+      ).listPullRequestFiles(_slug, 7, token: 't');
+
+      expect(files, hasLength(101));
+      expect(files.last.filename, 'lib/file_100.dart');
+      expect(pages, ['1', '2']);
+    });
+
     test('createPullRequest posts the expected body', () async {
       late Map<String, dynamic> body;
       final client = MockClient((request) async {
@@ -354,6 +380,23 @@ void main() {
           'kind',
           GitHubApiErrorKind.network,
         ),
+      ),
+    );
+  });
+
+  test('maps request timeouts to a retryable network failure', () async {
+    final client = MockClient((_) => Completer<http.Response>().future);
+    final api = GitHubRestApi(
+      client: client,
+      requestTimeout: const Duration(milliseconds: 1),
+    );
+
+    await expectLater(
+      api.listPullRequests(_slug, token: 't'),
+      throwsA(
+        isA<GitHubApiException>()
+            .having((e) => e.kind, 'kind', GitHubApiErrorKind.network)
+            .having((e) => e.message, 'message', contains('in time')),
       ),
     );
   });

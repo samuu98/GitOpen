@@ -17,13 +17,31 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 final class FakeDiffReadOps implements GitReadOperations {
   FakeDiffReadOps(this.result);
   final DiffResult result;
+  int getDiffCalls = 0;
+  int getDiffForFileCalls = 0;
 
   @override
   Future<DiffResult> getDiff(
     RepoLocation repo,
     DiffSpec spec, {
     bool ignoreWhitespace = false,
-  }) async => result;
+  }) async {
+    getDiffCalls++;
+    return result;
+  }
+
+  @override
+  Future<DiffResult> getDiffForFile(
+    RepoLocation repo,
+    DiffSpec spec,
+    String path, {
+    bool ignoreWhitespace = false,
+  }) async {
+    getDiffForFileCalls++;
+    return DiffResult(
+      files: result.files.where((file) => file.path == path).toList(),
+    );
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -41,7 +59,8 @@ FileDiff fileDiffFixture(
   List<DiffLine>? lines,
   String header = '@@ -1,1 +1,2 @@',
 }) {
-  final hunkLines = lines ??
+  final hunkLines =
+      lines ??
       const [
         DiffLine(
           kind: DiffLineKind.addition,

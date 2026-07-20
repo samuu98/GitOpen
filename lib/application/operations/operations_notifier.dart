@@ -15,19 +15,27 @@ class OperationsNotifier extends StateNotifier<List<RunningOperation>> {
 
   Future<void> _hydrate() async {
     final recent = await _log.recent();
+    if (!mounted) return;
     // Any "running" row from a previous session is stale — mark failed.
     final cleaned = recent.map((op) {
       if (op.status == OperationStatus.running ||
           op.status == OperationStatus.pending) {
-        return op.copyWith(
+        final interrupted = op.copyWith(
           status: OperationStatus.failed,
           errorMessage: 'Interrupted by app close',
           finishedAt: DateTime.now(),
         );
+        unawaited(_log.upsert(interrupted));
+        return interrupted;
       }
       return op;
     }).toList();
-    state = cleaned;
+    // An operation can start while the asynchronous read above is in flight.
+    // Keep those live entries and merge history behind them instead of
+    // replacing state (which would make finishSuccess/finishFailure lose the
+    // operation they are completing).
+    final liveIds = state.map((op) => op.id).toSet();
+    state = [...state, ...cleaned.where((op) => !liveIds.contains(op.id))];
   }
 
   String start(

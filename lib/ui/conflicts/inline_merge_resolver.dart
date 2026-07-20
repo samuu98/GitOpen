@@ -76,9 +76,9 @@ class _InlineMergeResolverState extends ConsumerState<InlineMergeResolver> {
 
   /// Indices (into the segment list) of every conflict, in document order.
   List<int> _conflictIndices(List<Segment> segments) => [
-        for (var i = 0; i < segments.length; i++)
-          if (segments[i] is ConflictSegment) i,
-      ];
+    for (var i = 0; i < segments.length; i++)
+      if (segments[i] is ConflictSegment) i,
+  ];
 
   bool _allResolved(List<Segment> segments) =>
       _conflictIndices(segments).every(_choices.containsKey);
@@ -103,8 +103,9 @@ class _InlineMergeResolverState extends ConsumerState<InlineMergeResolver> {
       });
       return;
     }
-    final stageResult =
-        await write.stageFiles(widget.repo, [widget.relativePath]);
+    final stageResult = await write.stageFiles(widget.repo, [
+      widget.relativePath,
+    ]);
     if (!mounted) return;
     if (stageResult case GitFailure(:final message)) {
       setState(() {
@@ -159,7 +160,8 @@ class _InlineMergeResolverState extends ConsumerState<InlineMergeResolver> {
               _Message(
                 icon: Icons.info_outline,
                 color: palette.accentRemote,
-                text: 'No conflict markers were found in this file. It may '
+                text:
+                    'No conflict markers were found in this file. It may '
                     'already be resolved, or use an encoding the in-app editor '
                     "can't parse. Open it in the external editor instead.",
                 palette: palette,
@@ -176,8 +178,9 @@ class _InlineMergeResolverState extends ConsumerState<InlineMergeResolver> {
           );
         }
 
-        final resolvedCount =
-            conflictIndices.where(_choices.containsKey).length;
+        final resolvedCount = conflictIndices
+            .where(_choices.containsKey)
+            .length;
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -211,8 +214,7 @@ class _InlineMergeResolverState extends ConsumerState<InlineMergeResolver> {
                   Flexible(
                     child: Text(
                       _error!,
-                      style:
-                          TextStyle(color: palette.accentErr, fontSize: 12),
+                      style: TextStyle(color: palette.accentErr, fontSize: 12),
                     ),
                   ),
                 ],
@@ -244,11 +246,11 @@ class _InlineMergeResolverState extends ConsumerState<InlineMergeResolver> {
     return switch (seg) {
       PlainSegment(:final text) => _PlainView(text: text, palette: palette),
       ConflictSegment() => _ConflictView(
-          segment: seg,
-          choice: _choices[index],
-          palette: palette,
-          onChoose: (c) => setState(() => _choices[index] = c),
-        ),
+        segment: seg,
+        choice: _choices[index],
+        palette: palette,
+        onChoose: (c) => setState(() => _choices[index] = c),
+      ),
     };
   }
 }
@@ -262,8 +264,9 @@ class _PlainView extends StatelessWidget {
   Widget build(BuildContext context) {
     // Trailing newline produces an empty visual line; trim only the final one
     // for display so context regions don't add a blank gap.
-    final display =
-        text.endsWith('\n') ? text.substring(0, text.length - 1) : text;
+    final display = text.endsWith('\n')
+        ? text.substring(0, text.length - 1)
+        : text;
     if (display.isEmpty) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
@@ -315,7 +318,8 @@ class _ConflictView extends StatelessWidget {
             body: segment.ours,
             accent: palette.accentCurrent,
             palette: palette,
-            highlighted: choice == Choice.ours ||
+            highlighted:
+                choice == Choice.ours ||
                 choice == Choice.both ||
                 choice == Choice.bothReversed,
           ),
@@ -336,7 +340,8 @@ class _ConflictView extends StatelessWidget {
             body: segment.theirs,
             accent: palette.accentRemote,
             palette: palette,
-            highlighted: choice == Choice.theirs ||
+            highlighted:
+                choice == Choice.theirs ||
                 choice == Choice.both ||
                 choice == Choice.bothReversed,
           ),
@@ -374,8 +379,11 @@ class _ConflictView extends StatelessWidget {
                 ),
                 if (choice != null) ...[
                   const SizedBox(width: 4),
-                  Icon(Icons.check_circle,
-                      size: 15, color: palette.accentCurrent),
+                  Icon(
+                    Icons.check_circle,
+                    size: 15,
+                    color: palette.accentCurrent,
+                  ),
                 ],
               ],
             ),
@@ -403,8 +411,9 @@ class _SidePane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final display =
-        body.endsWith('\n') ? body.substring(0, body.length - 1) : body;
+    final display = body.endsWith('\n')
+        ? body.substring(0, body.length - 1)
+        : body;
     return Container(
       width: double.infinity,
       color: highlighted ? accent.withValues(alpha: 0.10) : null,
@@ -465,26 +474,32 @@ class _ChoiceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: selected ? palette.accentCurrent : palette.bg3,
-            border: Border.all(
-              color: selected ? palette.accentCurrent : palette.borderStrong,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          excludeFromSemantics: true,
+          borderRadius: BorderRadius.circular(5),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: selected ? palette.accentCurrent : palette.bg3,
+              border: Border.all(
+                color: selected ? palette.accentCurrent : palette.borderStrong,
+              ),
+              borderRadius: BorderRadius.circular(5),
             ),
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : palette.fg1,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? palette.onAccentCurrent : palette.fg1,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),

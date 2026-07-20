@@ -5,6 +5,57 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.12.1] — 2026-07-20
+
+### Fixed
+- **Updates use the canonical repository.** The in-app updater, release links,
+  installer metadata, and package metadata now point to `samuu98/GitOpen`;
+  installations no longer miss releases because the former fork stopped at
+  v1.10.1.
+- **Complete GitHub data.** Pull requests, changed files, reviews, review
+  comments, issue comments, workflow jobs, and check runs now load every API
+  page instead of silently truncating at 30–100 items. Network calls also time
+  out with a retryable error rather than leaving a panel spinning forever.
+- **Repository opening.** Selected folders are validated before persistence and
+  canonicalized to prevent duplicate entries through trailing separators or
+  filesystem links. Invalid folders now produce actionable activity feedback.
+- **Accurate recent repositories.** The welcome screen is ordered by the last
+  repository actually opened; reopening an existing entry moves it to the top.
+- **Working-copy performance.** Selecting a file asks Git only for that path
+  instead of parsing the entire working-copy diff, while retaining the preview
+  truncation guard and explicit “Load full diff” flow.
+- **Async UI lifecycle.** File staging, PR review, PR creation, folder picking,
+  cloning, and update checks no longer update disposed widgets after navigation.
+- **Activity-log startup race.** Operations started while history is loading are
+  merged into the hydrated log instead of being lost before completion.
+- **Light-theme selection contrast.** Commit, file, and stash selections use
+  adaptive foreground colors; primary/danger buttons and conflict choices meet
+  AA contrast in both themes.
+- **Keyboard and narrow-window usability.** Shared dialog buttons, settings
+  navigation, commit options, merge choices, and the repository selector are
+  keyboard-operable with visible focus. The title toolbar collapses below
+  1100 px so the supported 800 px minimum width no longer overflows.
+
+### Changed
+- Material controls now derive their color scheme from GitOpen's semantic teal,
+  blue, and error palette instead of falling back to Flutter's default purple.
+- Refreshed 13 compatible runtime and build dependencies, including Drift,
+  SQLite, Equatable, MSIX, and the Windows build toolchain packages.
+
+## [1.11.1] — 2026-07-08
+
+### Fixed
+- Scoped Git credential headers to the remote host so authenticated Git LFS
+  pushes do not leak or reject credentials when object storage uses another
+  host.
+
+## [1.11.0] — 2026-06-30
+
+### Added
+- Inline three-way merge cards for resolving conflict regions with ours,
+  theirs, both, or reversed-both choices.
+- A changed-file count badge on the Changes tab.
+
 ## [1.10.0] — 2026-06-22
 
 ### Added

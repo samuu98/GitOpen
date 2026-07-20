@@ -1,5 +1,8 @@
+import 'package:drift/drift.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gitopen/infrastructure/persistence/database.dart';
 import 'package:gitopen/infrastructure/persistence/repository_registry_impl.dart';
+
 import '../../_helpers/in_memory_db.dart';
 
 void main() {
@@ -39,10 +42,34 @@ void main() {
       final loc = await sut.add('/tmp/x');
       await Future<void>.delayed(const Duration(milliseconds: 100));
       await sut.touchLastOpened(loc.id);
-      final raw = await (db.select(db.repositories)
-            ..where((r) => r.id.equals(loc.id.value)))
-          .getSingle();
+      final raw = await (db.select(
+        db.repositories,
+      )..where((r) => r.id.equals(loc.id.value))).getSingle();
       expect(raw.lastOpenedUtc.isAfter(raw.createdUtc), isTrue);
+      await db.close();
+    });
+
+    test('list returns the most recently opened repository first', () async {
+      final db = newInMemoryDb();
+      final sut = DriftRepositoryRegistry(db);
+      final first = await sut.add('/tmp/first');
+      final second = await sut.add('/tmp/second');
+      await (db.update(
+        db.repositories,
+      )..where((r) => r.id.equals(first.id.value))).write(
+        RepositoriesCompanion(
+          lastOpenedUtc: Value(DateTime.utc(2026, 1, 2)),
+        ),
+      );
+      await (db.update(
+        db.repositories,
+      )..where((r) => r.id.equals(second.id.value))).write(
+        RepositoriesCompanion(
+          lastOpenedUtc: Value(DateTime.utc(2026)),
+        ),
+      );
+
+      expect((await sut.list()).map((r) => r.id), [first.id, second.id]);
       await db.close();
     });
   });

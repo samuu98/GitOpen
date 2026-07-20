@@ -164,6 +164,7 @@ class _FileRowState extends ConsumerState<FileRow> {
     final selected = _checkedHunks.toList()..sort();
     final hunksToStage = selected.map((i) => allHunks[i]).toList();
     await _actions.stageHunks(widget.repo, widget.entry.path, hunksToStage);
+    if (!mounted) return;
     setState(_checkedHunks.clear);
   }
 
@@ -173,6 +174,7 @@ class _FileRowState extends ConsumerState<FileRow> {
       widget.entry.path,
       _lineSelections(allHunks),
     );
+    if (!mounted) return;
     setState(_checkedLines.clear);
   }
 
@@ -196,6 +198,7 @@ class _FileRowState extends ConsumerState<FileRow> {
     final selected = _checkedHunks.toList()..sort();
     final hunks = selected.map((i) => allHunks[i]).toList();
     await _actions.unstageHunks(widget.repo, widget.entry.path, hunks);
+    if (!mounted) return;
     setState(_checkedHunks.clear);
   }
 
@@ -205,6 +208,7 @@ class _FileRowState extends ConsumerState<FileRow> {
       widget.entry.path,
       _lineSelections(allHunks),
     );
+    if (!mounted) return;
     setState(_checkedLines.clear);
   }
 
@@ -228,7 +232,7 @@ class _FileRowState extends ConsumerState<FileRow> {
       widget.entry.path,
       hunks,
     );
-    if (ok) setState(_checkedHunks.clear);
+    if (ok && mounted) setState(_checkedHunks.clear);
   }
 
   Future<void> _discardSelectedLines(List<DiffHunk> allHunks) async {
@@ -238,7 +242,7 @@ class _FileRowState extends ConsumerState<FileRow> {
       widget.entry.path,
       _lineSelections(allHunks),
     );
-    if (ok) setState(_checkedLines.clear);
+    if (ok && mounted) setState(_checkedLines.clear);
   }
 
   /// Staged rows expand against the index-vs-HEAD diff (for unstaging);
@@ -314,7 +318,7 @@ class _FileRowState extends ConsumerState<FileRow> {
                                   ? Icons.expand_more
                                   : Icons.chevron_right,
                               size: 14,
-                              color: isSelected ? Colors.white70 : palette.fg2,
+                              color: palette.fg2,
                             ),
                           ),
                         ),
@@ -339,7 +343,7 @@ class _FileRowState extends ConsumerState<FileRow> {
                                 ? Icons.check_box
                                 : Icons.check_box_outline_blank,
                             size: 14,
-                            color: isSelected ? Colors.white : palette.fg1,
+                            color: palette.fg1,
                           ),
                         ),
                       ),
@@ -361,7 +365,7 @@ class _FileRowState extends ConsumerState<FileRow> {
                           widget.displayName ?? widget.entry.path,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: isSelected ? Colors.white : palette.fg0,
+                            color: palette.fg0,
                             fontSize: 12.5,
                           ),
                         ),

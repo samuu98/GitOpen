@@ -44,6 +44,15 @@ void main() {
     _expectAa('dark remote/bg1', p.accentRemote, p.bg1);
     _expectAa('dark current/bg1', p.accentCurrent, p.bg1);
     _expectAa('dark err/bg1', p.accentErr, p.bg1);
+    _expectAa(
+      'dark onCurrent/current',
+      p.onAccentCurrent,
+      p.accentCurrent,
+    );
+    _expectAa('dark onRemote/remote', p.onAccentRemote, p.accentRemote);
+    _expectAa('dark onError/error', p.onAccentErr, p.accentErr);
+    _expectAa('dark selected primary', p.fg0, p.bgAccent);
+    _expectAa('dark selected secondary', p.fg1, p.bgAccent);
   });
 
   test('light palette text colors meet AA on common backgrounds', () {
@@ -55,5 +64,14 @@ void main() {
     _expectAa('light remote/bg1', p.accentRemote, p.bg1);
     _expectAa('light current/bg1', p.accentCurrent, p.bg1);
     _expectAa('light err/bg1', p.accentErr, p.bg1);
+    _expectAa(
+      'light onCurrent/current',
+      p.onAccentCurrent,
+      p.accentCurrent,
+    );
+    _expectAa('light onRemote/remote', p.onAccentRemote, p.accentRemote);
+    _expectAa('light onError/error', p.onAccentErr, p.accentErr);
+    _expectAa('light selected primary', p.fg0, p.bgAccent);
+    _expectAa('light selected secondary', p.fg1, p.bgAccent);
   });
 }

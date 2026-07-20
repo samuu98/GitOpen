@@ -58,7 +58,7 @@ Architecture: amd64
 Installed-Size: ${INSTALLED_SIZE}
 Depends: libgtk-3-0, libstdc++6, libc6, git
 Maintainer: s.porta & zN3utr4l <zN3utr4l@users.noreply.github.com>
-Homepage: https://github.com/zN3utr4l/GitOpen
+Homepage: https://github.com/samuu98/GitOpen
 Description: Cross-platform desktop git client
  GitOpen is a fast, native desktop git client built with Flutter.
  It wraps the system git CLI for all operations and provides a graph

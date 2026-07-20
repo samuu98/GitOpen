@@ -174,6 +174,24 @@ class GitOpenApp extends ConsumerWidget {
     final palette = theme == AppTheme.dark
         ? AppPalette.dark()
         : AppPalette.light();
+    final brightness = theme == AppTheme.dark
+        ? Brightness.dark
+        : Brightness.light;
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: palette.accentCurrent,
+          brightness: brightness,
+        ).copyWith(
+          primary: palette.accentCurrent,
+          onPrimary: palette.onAccentCurrent,
+          secondary: palette.accentRemote,
+          onSecondary: palette.onAccentRemote,
+          error: palette.accentErr,
+          onError: palette.onAccentErr,
+          surface: palette.bg2,
+          onSurface: palette.fg0,
+          outline: palette.borderStrong,
+        );
     const spacing = AppSpacing.desktop();
     const radii = AppRadii.desktop();
     const typography = AppTypography.desktop();
@@ -183,7 +201,8 @@ class GitOpenApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        brightness: theme == AppTheme.dark ? Brightness.dark : Brightness.light,
+        brightness: brightness,
+        colorScheme: colorScheme,
         scaffoldBackgroundColor: palette.bg1,
         splashFactory: InkSparkle.splashFactory,
         hoverColor: palette.bg3,
@@ -362,8 +381,9 @@ class _ShellState extends ConsumerState<Shell> {
                                   child: switch (shellBody) {
                                     ShellBody.settings => const SettingsPage(),
                                     ShellBody.welcome => const WelcomeScreen(),
-                                    ShellBody.repo =>
-                                      _RepoBody(repo: active!.location),
+                                    ShellBody.repo => _RepoBody(
+                                      repo: active!.location,
+                                    ),
                                   },
                                 );
                                 // The branches/remotes/tags sidebar is hidden
@@ -467,37 +487,46 @@ class _TitleBar extends ConsumerWidget {
     return WindowTitleBarBox(
       child: ColoredBox(
         color: palette.bg3,
-        child: Row(
-          children: [
-            // Brand: small, on its own draggable surface.
-            SizedBox(height: 38, child: MoveWindow(child: const _Brand())),
-            // Left drag spacer.
-            Expanded(child: MoveWindow()),
-            // Repo selector dropdown — non-draggable interactive area.
-            const RepoSelector(),
-            // Repository info (path / remote / git user) for the active repo.
-            if (active != null)
-              IconButton(
-                icon: Icon(Icons.info_outline, size: 15, color: palette.fg2),
-                tooltip: 'Repository info',
-                onPressed: () =>
-                    RepoInfoDialog.show(context, repo: active.location),
-              ),
-            const SizedBox(width: 8),
-            // Fetch / Pull / Push toolbar buttons.
-            const GitToolbar(),
-            // Right drag spacer.
-            Expanded(child: MoveWindow()),
-            // Settings icon button.
-            IconButton(
-              icon: Icon(Icons.settings, size: 16, color: palette.fg1),
-              tooltip: 'Settings',
-              onPressed: () =>
-                  ref.read(settingsOpenProvider.notifier).state = true,
-            ),
-            // Window controls (min/max/close) — interactive.
-            const _WindowControls(),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 1100;
+            return Row(
+              children: [
+                // Brand: small, on its own draggable surface.
+                SizedBox(height: 38, child: MoveWindow(child: const _Brand())),
+                // Left drag spacer.
+                Expanded(child: MoveWindow()),
+                // Repo selector dropdown — non-draggable interactive area.
+                RepoSelector(compact: compact),
+                // Repository info (path / remote / git user) for the active repo.
+                if (active != null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.info_outline,
+                      size: 15,
+                      color: palette.fg2,
+                    ),
+                    tooltip: 'Repository info',
+                    onPressed: () =>
+                        RepoInfoDialog.show(context, repo: active.location),
+                  ),
+                const SizedBox(width: 8),
+                // Fetch / Pull / Push toolbar buttons.
+                GitToolbar(compact: compact),
+                // Right drag spacer.
+                Expanded(child: MoveWindow()),
+                // Settings icon button.
+                IconButton(
+                  icon: Icon(Icons.settings, size: 16, color: palette.fg1),
+                  tooltip: 'Settings',
+                  onPressed: () =>
+                      ref.read(settingsOpenProvider.notifier).state = true,
+                ),
+                // Window controls (min/max/close) — interactive.
+                const _WindowControls(),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -555,8 +584,8 @@ class _WindowControls extends StatelessWidget {
       iconNormal: palette.fg1,
       mouseOver: palette.accentErr,
       mouseDown: palette.accentErr,
-      iconMouseOver: Colors.white,
-      iconMouseDown: Colors.white,
+      iconMouseOver: palette.onAccentErr,
+      iconMouseDown: palette.onAccentErr,
     );
     return Row(
       children: [

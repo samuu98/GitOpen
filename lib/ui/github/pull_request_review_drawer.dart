@@ -176,11 +176,12 @@ class _PullRequestReviewDrawerState
             ),
             token: widget.token,
           );
+      if (!mounted) return;
       _summary.clear();
       widget.onClearQueuedComments();
       _invalidateReviewData();
     } on Object catch (e) {
-      setState(() => _error = '$e');
+      if (mounted) setState(() => _error = '$e');
     }
   }
 
@@ -197,10 +198,11 @@ class _PullRequestReviewDrawerState
             body,
             token: widget.token,
           );
+      if (!mounted) return;
       _issueComment.clear();
       _invalidateReviewData();
     } on Object catch (e) {
-      setState(() => _error = '$e');
+      if (mounted) setState(() => _error = '$e');
     }
   }
 

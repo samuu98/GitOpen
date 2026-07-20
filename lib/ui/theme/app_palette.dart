@@ -17,10 +17,13 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     required this.fg2,
     required this.fg3,
     required this.accentCurrent,
+    required this.onAccentCurrent,
     required this.accentTag,
     required this.accentRemote,
+    required this.onAccentRemote,
     required this.accentWarn,
     required this.accentErr,
+    required this.onAccentErr,
     required this.lanePalette,
   });
 
@@ -35,14 +38,17 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     border: Color(0xFF343640),
     borderStrong: Color(0xFF474A56),
     fg0: Color(0xFFE5E7EB),
-    fg1: Color(0xFFC4C8D0),
+    fg1: Color(0xFFC7CBD3),
     fg2: Color(0xFFA0A6B2),
     fg3: Color(0xFF808895),
     accentCurrent: Color(0xFF55D6BE),
+    onAccentCurrent: Color(0xFF191A1D),
     accentTag: Color(0xFFE0C46F),
     accentRemote: Color(0xFF6CAEE8),
+    onAccentRemote: Color(0xFF191A1D),
     accentWarn: Color(0xFFDFA172),
     accentErr: Color(0xFFFF8B7D),
+    onAccentErr: Color(0xFF191A1D),
     lanePalette: [
       Color(0xFF55D6BE),
       Color(0xFFE0C46F),
@@ -70,10 +76,13 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     fg2: Color(0xFF596270),
     fg3: Color(0xFF6B7483),
     accentCurrent: Color(0xFF0A7E68),
+    onAccentCurrent: Color(0xFFFFFFFF),
     accentTag: Color(0xFF81600D),
     accentRemote: Color(0xFF1F5F9E),
+    onAccentRemote: Color(0xFFFFFFFF),
     accentWarn: Color(0xFF8B4B20),
     accentErr: Color(0xFFA52424),
+    onAccentErr: Color(0xFFFFFFFF),
     lanePalette: [
       Color(0xFF0A7E68),
       Color(0xFF81600D),
@@ -99,10 +108,13 @@ final class AppPalette extends ThemeExtension<AppPalette> {
   final Color fg2;
   final Color fg3;
   final Color accentCurrent;
+  final Color onAccentCurrent;
   final Color accentTag;
   final Color accentRemote;
+  final Color onAccentRemote;
   final Color accentWarn;
   final Color accentErr;
+  final Color onAccentErr;
   final List<Color> lanePalette;
 
   @override
@@ -121,10 +133,13 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     Color? fg2,
     Color? fg3,
     Color? accentCurrent,
+    Color? onAccentCurrent,
     Color? accentTag,
     Color? accentRemote,
+    Color? onAccentRemote,
     Color? accentWarn,
     Color? accentErr,
+    Color? onAccentErr,
     List<Color>? lanePalette,
   }) {
     return AppPalette(
@@ -142,10 +157,13 @@ final class AppPalette extends ThemeExtension<AppPalette> {
       fg2: fg2 ?? this.fg2,
       fg3: fg3 ?? this.fg3,
       accentCurrent: accentCurrent ?? this.accentCurrent,
+      onAccentCurrent: onAccentCurrent ?? this.onAccentCurrent,
       accentTag: accentTag ?? this.accentTag,
       accentRemote: accentRemote ?? this.accentRemote,
+      onAccentRemote: onAccentRemote ?? this.onAccentRemote,
       accentWarn: accentWarn ?? this.accentWarn,
       accentErr: accentErr ?? this.accentErr,
+      onAccentErr: onAccentErr ?? this.onAccentErr,
       lanePalette: lanePalette ?? this.lanePalette,
     );
   }
@@ -168,10 +186,17 @@ final class AppPalette extends ThemeExtension<AppPalette> {
       fg2: Color.lerp(fg2, other.fg2, t)!,
       fg3: Color.lerp(fg3, other.fg3, t)!,
       accentCurrent: Color.lerp(accentCurrent, other.accentCurrent, t)!,
+      onAccentCurrent: Color.lerp(
+        onAccentCurrent,
+        other.onAccentCurrent,
+        t,
+      )!,
       accentTag: Color.lerp(accentTag, other.accentTag, t)!,
       accentRemote: Color.lerp(accentRemote, other.accentRemote, t)!,
+      onAccentRemote: Color.lerp(onAccentRemote, other.onAccentRemote, t)!,
       accentWarn: Color.lerp(accentWarn, other.accentWarn, t)!,
       accentErr: Color.lerp(accentErr, other.accentErr, t)!,
+      onAccentErr: Color.lerp(onAccentErr, other.onAccentErr, t)!,
       lanePalette: lanePalette, // not lerped — palette swap is discrete
     );
   }

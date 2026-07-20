@@ -11,9 +11,15 @@ import 'package:gitopen/ui/toolbar/toolbar_buttons.dart';
 /// Toolbar dropdown to reveal the repo in the file explorer, a terminal or an
 /// installed editor.
 class OpenDropdown extends ConsumerStatefulWidget {
-  const OpenDropdown({required this.enabled, required this.repo, super.key});
+  const OpenDropdown({
+    required this.enabled,
+    required this.repo,
+    super.key,
+    this.compact = false,
+  });
   final bool enabled;
   final RepoLocation? repo;
+  final bool compact;
 
   @override
   ConsumerState<OpenDropdown> createState() => _OpenDropdownState();
@@ -35,6 +41,7 @@ class _OpenDropdownState extends ConsumerState<OpenDropdown> {
         icon: Icons.open_in_new,
         label: 'Open',
         enabled: widget.enabled,
+        compact: widget.compact,
         onTap: () => _menuController.isOpen
             ? _menuController.close()
             : _menuController.open(),
@@ -68,40 +75,46 @@ class _OpenDropdownState extends ConsumerState<OpenDropdown> {
     ];
 
     if (editors.isEmpty) {
-      items.add(AppMenuButton(
-        icon: Icons.code,
-        label: 'Open in VS Code',
-        onPressed: () {
-          _menuController.close();
-          unawaited(
-            _run(
-              () => ref.read(repoLauncherProvider).openInEditor(
-                    repo,
-                    const EditorTarget(
-                      id: 'vscode',
-                      displayName: 'VS Code',
-                      executable: 'code',
-                    ),
-                  ),
-            ),
-          );
-        },
-      ));
-    } else {
-      for (final editor in editors) {
-        items.add(AppMenuButton(
+      items.add(
+        AppMenuButton(
           icon: Icons.code,
-          label: 'Open in ${editor.displayName}',
+          label: 'Open in VS Code',
           onPressed: () {
             _menuController.close();
             unawaited(
               _run(
-                () =>
-                    ref.read(repoLauncherProvider).openInEditor(repo, editor),
+                () => ref
+                    .read(repoLauncherProvider)
+                    .openInEditor(
+                      repo,
+                      const EditorTarget(
+                        id: 'vscode',
+                        displayName: 'VS Code',
+                        executable: 'code',
+                      ),
+                    ),
               ),
             );
           },
-        ));
+        ),
+      );
+    } else {
+      for (final editor in editors) {
+        items.add(
+          AppMenuButton(
+            icon: Icons.code,
+            label: 'Open in ${editor.displayName}',
+            onPressed: () {
+              _menuController.close();
+              unawaited(
+                _run(
+                  () =>
+                      ref.read(repoLauncherProvider).openInEditor(repo, editor),
+                ),
+              );
+            },
+          ),
+        );
       }
     }
     return items;

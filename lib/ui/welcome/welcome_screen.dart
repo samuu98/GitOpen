@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
@@ -37,25 +39,28 @@ class WelcomeScreen extends ConsumerWidget {
             style: TextStyle(color: palette.fg2),
           ),
           const SizedBox(height: 24),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            AppButton.primary(
-              icon: Icons.folder_open,
-              label: 'Open repository',
-              onPressed: () => _openRepo(ref),
-            ),
-            const SizedBox(width: 12),
-            AppButton.secondary(
-              icon: Icons.download,
-              label: 'Clone',
-              onPressed: () => CloneDialog.show(context),
-            ),
-            const SizedBox(width: 12),
-            AppButton.secondary(
-              icon: Icons.fiber_new_outlined,
-              label: 'Init',
-              onPressed: () => _initRepo(ref),
-            ),
-          ]),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppButton.primary(
+                icon: Icons.folder_open,
+                label: 'Open repository',
+                onPressed: () => _openRepo(ref),
+              ),
+              const SizedBox(width: 12),
+              AppButton.secondary(
+                icon: Icons.download,
+                label: 'Clone',
+                onPressed: () => CloneDialog.show(context),
+              ),
+              const SizedBox(width: 12),
+              AppButton.secondary(
+                icon: Icons.fiber_new_outlined,
+                label: 'Init',
+                onPressed: () => _initRepo(ref),
+              ),
+            ],
+          ),
           if (recents.isNotEmpty) _RecentRepos(recents: recents),
         ],
       ),
@@ -66,9 +71,16 @@ class WelcomeScreen extends ConsumerWidget {
     final picker = ref.read(folderPickerProvider);
     final path = await picker.pickFolder('Open repository');
     if (path == null) return;
+    final ops = ref.read(operationsProvider.notifier);
+    final opId = ops.start(OpKind.other, 'Open repository');
     final manager = ref.read(workspaceManagerProvider.notifier);
-    final ws = await manager.open(path);
-    ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
+    try {
+      final ws = await manager.open(path);
+      ops.finishSuccess(opId);
+      ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
+    } on Object catch (error) {
+      ops.finishFailure(opId, '$error');
+    }
   }
 
   /// `git init` in a picked folder, then open it as a workspace. Failures are
@@ -85,10 +97,14 @@ class WelcomeScreen extends ConsumerWidget {
       ops.finishFailure(opId, message);
       return;
     }
-    ops.finishSuccess(opId);
     final manager = ref.read(workspaceManagerProvider.notifier);
-    final ws = await manager.open(path);
-    ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
+    try {
+      final ws = await manager.open(path);
+      ops.finishSuccess(opId);
+      ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
+    } on Object catch (error) {
+      ops.finishFailure(opId, '$error');
+    }
   }
 }
 
@@ -125,14 +141,26 @@ class _RecentRepos extends ConsumerWidget {
             for (final w in shown)
               _RecentTile(
                 workspace: w,
-                onOpen: () => ref
-                    .read(activeWorkspaceIdProvider.notifier)
-                    .state = w.location.id,
+                onOpen: () => unawaited(_openRecent(ref, w)),
               ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _openRecent(WidgetRef ref, Workspace workspace) async {
+    final ops = ref.read(operationsProvider.notifier);
+    final opId = ops.start(OpKind.other, 'Open repository');
+    try {
+      final opened = await ref
+          .read(workspaceManagerProvider.notifier)
+          .open(workspace.location.path);
+      ref.read(activeWorkspaceIdProvider.notifier).state = opened.location.id;
+      ops.finishSuccess(opId);
+    } on Object catch (error) {
+      ops.finishFailure(opId, '$error');
+    }
   }
 }
 

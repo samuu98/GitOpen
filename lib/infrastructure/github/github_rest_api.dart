@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show SocketException;
 
@@ -9,25 +10,28 @@ import 'package:http/http.dart' as http;
 /// injectable so tests drive it with `MockClient` (same pattern as the
 /// device-flow poller).
 final class GitHubRestApi implements GitHubApi {
-  GitHubRestApi({http.Client? client, this.baseUrl = 'https://api.github.com'})
-    : _client = client ?? http.Client();
+  GitHubRestApi({
+    http.Client? client,
+    this.baseUrl = 'https://api.github.com',
+    this.requestTimeout = const Duration(seconds: 30),
+  }) : _client = client ?? http.Client();
 
   final http.Client _client;
   final String baseUrl;
+  final Duration requestTimeout;
 
   @override
   Future<List<PullRequestInfo>> listPullRequests(
     RepoSlug slug, {
     required String token,
   }) async {
-    final body = await _get(
+    final body = await _getListPages(
       '/repos/${slug.owner}/${slug.repo}/pulls',
       token,
-      query: {'state': 'open', 'per_page': '50'},
+      query: {'state': 'open'},
     );
     return [
-      for (final pr in body as List<dynamic>)
-        _parsePullRequest(pr as Map<String, dynamic>),
+      for (final pr in body) _parsePullRequest(pr as Map<String, dynamic>),
     ];
   }
 
@@ -59,15 +63,13 @@ final class GitHubRestApi implements GitHubApi {
     int runId, {
     required String token,
   }) async {
-    final body = await _get(
+    final jobs = await _getMapListPages(
       '${_repoPath(slug)}/actions/runs/$runId/jobs',
       token,
-      query: {'per_page': '100'},
+      key: 'jobs',
     );
-    final jobs = (body as Map<String, dynamic>)['jobs'];
     return [
-      for (final job in (jobs as List<dynamic>? ?? const []))
-        _parseJob(job as Map<String, dynamic>),
+      for (final job in jobs) _parseJob(job as Map<String, dynamic>),
     ];
   }
 
@@ -121,7 +123,7 @@ final class GitHubRestApi implements GitHubApi {
           'X-GitHub-Api-Version': '2022-11-28',
         });
       final response = await http.Response.fromStream(
-        await _client.send(request),
+        await _client.send(request).timeout(requestTimeout),
       );
       if (response.statusCode == 302 || response.statusCode == 307) {
         final location = response.headers['location'];
@@ -131,7 +133,11 @@ final class GitHubRestApi implements GitHubApi {
             'GitHub did not return a log location.',
           );
         }
-        final log = await _client.get(Uri.parse(location));
+        final log = await _client
+            .get(Uri.parse(location))
+            .timeout(
+              requestTimeout,
+            );
         if (log.statusCode >= 200 && log.statusCode < 300) return log.body;
         throw GitHubApiException(
           GitHubApiErrorKind.notFound,
@@ -152,6 +158,11 @@ final class GitHubRestApi implements GitHubApi {
       throw GitHubApiException(GitHubApiErrorKind.network, e.message);
     } on SocketException catch (e) {
       throw GitHubApiException(GitHubApiErrorKind.network, e.message);
+    } on TimeoutException {
+      throw const GitHubApiException(
+        GitHubApiErrorKind.network,
+        'GitHub did not respond in time. Try again.',
+      );
     }
   }
 
@@ -161,14 +172,11 @@ final class GitHubRestApi implements GitHubApi {
     String headSha, {
     required String token,
   }) async {
-    final body = await _get(
+    final runs = await _getMapListPages(
       '/repos/${slug.owner}/${slug.repo}/commits/$headSha/check-runs',
       token,
-      query: {'per_page': '100'},
+      key: 'check_runs',
     );
-    final runs =
-        (body as Map<String, dynamic>)['check_runs'] as List<dynamic>? ??
-        const [];
     var succeeded = 0;
     var failed = 0;
     var pending = 0;
@@ -209,9 +217,12 @@ final class GitHubRestApi implements GitHubApi {
     int number, {
     required String token,
   }) async {
-    final body = await _get('${_pullPath(slug, number)}/files', token);
+    final body = await _getListPages(
+      '${_pullPath(slug, number)}/files',
+      token,
+    );
     return [
-      for (final file in body as List<dynamic>)
+      for (final file in body)
         _parsePullRequestFile(file as Map<String, dynamic>),
     ];
   }
@@ -222,10 +233,12 @@ final class GitHubRestApi implements GitHubApi {
     int number, {
     required String token,
   }) async {
-    final body = await _get('${_pullPath(slug, number)}/reviews', token);
+    final body = await _getListPages(
+      '${_pullPath(slug, number)}/reviews',
+      token,
+    );
     return [
-      for (final review in body as List<dynamic>)
-        _parseReview(review as Map<String, dynamic>),
+      for (final review in body) _parseReview(review as Map<String, dynamic>),
     ];
   }
 
@@ -235,9 +248,12 @@ final class GitHubRestApi implements GitHubApi {
     int number, {
     required String token,
   }) async {
-    final body = await _get('${_pullPath(slug, number)}/comments', token);
+    final body = await _getListPages(
+      '${_pullPath(slug, number)}/comments',
+      token,
+    );
     return [
-      for (final comment in body as List<dynamic>)
+      for (final comment in body)
         _parseReviewComment(comment as Map<String, dynamic>),
     ];
   }
@@ -248,12 +264,12 @@ final class GitHubRestApi implements GitHubApi {
     int number, {
     required String token,
   }) async {
-    final body = await _get(
+    final body = await _getListPages(
       '${_repoPath(slug)}/issues/$number/comments',
       token,
     );
     return [
-      for (final comment in body as List<dynamic>)
+      for (final comment in body)
         _parseIssueComment(comment as Map<String, dynamic>),
     ];
   }
@@ -527,6 +543,50 @@ mutation MarkReady($id: ID!) {
     return _request('GET', path, token, query: query);
   }
 
+  /// Reads every page of a list endpoint. GitHub caps `per_page` at 100; a
+  /// short (or empty) page terminates the walk. An exact final page of 100
+  /// causes one harmless empty request and avoids coupling this client to Link
+  /// header formatting across github.com and GitHub Enterprise.
+  Future<List<dynamic>> _getListPages(
+    String path,
+    String token, {
+    Map<String, String> query = const {},
+  }) async {
+    final all = <dynamic>[];
+    for (var page = 1; ; page++) {
+      final body = await _get(
+        path,
+        token,
+        query: {...query, 'per_page': '100', 'page': '$page'},
+      );
+      final items = body as List<dynamic>;
+      all.addAll(items);
+      if (items.length < 100) return all;
+    }
+  }
+
+  /// Pagination variant for endpoints whose list is nested in a JSON object
+  /// (Actions jobs and check runs).
+  Future<List<dynamic>> _getMapListPages(
+    String path,
+    String token, {
+    required String key,
+    Map<String, String> query = const {},
+  }) async {
+    final all = <dynamic>[];
+    for (var page = 1; ; page++) {
+      final body = await _get(
+        path,
+        token,
+        query: {...query, 'per_page': '100', 'page': '$page'},
+      );
+      final items =
+          (body as Map<String, dynamic>)[key] as List<dynamic>? ?? const [];
+      all.addAll(items);
+      if (items.length < 100) return all;
+    }
+  }
+
   Future<dynamic> _post(
     String path,
     String token, {
@@ -580,25 +640,31 @@ mutation MarkReady($id: ID!) {
     };
     final encodedBody = body == null ? null : jsonEncode(body);
     try {
-      response = switch (method) {
-        'GET' => await _client.get(uri, headers: headers),
-        'POST' => await _client.post(
+      final request = switch (method) {
+        'GET' => _client.get(uri, headers: headers),
+        'POST' => _client.post(
           uri,
           headers: headers,
           body: encodedBody,
         ),
-        'PATCH' => await _client.patch(
+        'PATCH' => _client.patch(
           uri,
           headers: headers,
           body: encodedBody,
         ),
-        'PUT' => await _client.put(uri, headers: headers, body: encodedBody),
+        'PUT' => _client.put(uri, headers: headers, body: encodedBody),
         _ => throw StateError('Unsupported HTTP method $method'),
       };
+      response = await request.timeout(requestTimeout);
     } on http.ClientException catch (e) {
       throw GitHubApiException(GitHubApiErrorKind.network, e.message);
     } on SocketException catch (e) {
       throw GitHubApiException(GitHubApiErrorKind.network, e.message);
+    } on TimeoutException {
+      throw const GitHubApiException(
+        GitHubApiErrorKind.network,
+        'GitHub did not respond in time. Try again.',
+      );
     }
     return _decodeResponse(response);
   }

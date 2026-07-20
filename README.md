@@ -1,8 +1,8 @@
 # GitOpen
 
-[![CI](https://github.com/zN3utr4l/GitOpen/actions/workflows/ci-gitopen.yml/badge.svg)](https://github.com/zN3utr4l/GitOpen/actions/workflows/ci-gitopen.yml)
-[![Latest release](https://img.shields.io/github/v/release/zN3utr4l/GitOpen?sort=semver)](https://github.com/zN3utr4l/GitOpen/releases/latest)
-[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-blue)](https://github.com/zN3utr4l/GitOpen/releases/latest)
+[![CI](https://github.com/samuu98/GitOpen/actions/workflows/ci-gitopen.yml/badge.svg)](https://github.com/samuu98/GitOpen/actions/workflows/ci-gitopen.yml)
+[![Latest release](https://img.shields.io/github/v/release/samuu98/GitOpen?sort=semver)](https://github.com/samuu98/GitOpen/releases/latest)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-blue)](https://github.com/samuu98/GitOpen/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A fast, cross-platform open-source **desktop git client** built with Flutter.
@@ -10,13 +10,14 @@ GitOpen wraps the system `git` CLI for every operation and presents a Fork-inspi
 graph view, full history and branch tooling, conflict resolution, and GitHub
 integration in a chromeless native window. Targets **Windows** and **Linux**.
 
-> Fork maintained by [zN3utr4l](https://github.com/zN3utr4l), based on the original
-> [GitOpen](https://github.com/samuu98/GitOpen) by s.porta (MIT).
+Maintained at [samuu98/GitOpen](https://github.com/samuu98/GitOpen) by
+[s.porta](https://github.com/samuu98) and
+[zN3utr4l](https://github.com/zN3utr4l) under the MIT license.
 
 ## Install
 
 Grab the latest build from the
-[**Releases**](https://github.com/zN3utr4l/GitOpen/releases/latest) page.
+[**Releases**](https://github.com/samuu98/GitOpen/releases/latest) page.
 
 **Windows** — download `GitOpen-Setup-<version>.exe` and run it (per-user install,
 no admin required).

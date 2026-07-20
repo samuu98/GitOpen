@@ -102,7 +102,15 @@ jobs:
           thresholds: '50 75'
 
       - name: Add coverage comment to PR
-        if: matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
+        # pull_request runs from forks intentionally receive a read-only token,
+        # even when this workflow requests pull-requests: write. The summary is
+        # still available in the job output; only same-repository PRs can post
+        # the sticky comment.
+        if: >-
+          matrix.os == 'ubuntu-latest' &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
         uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
         with:
           recreate: true

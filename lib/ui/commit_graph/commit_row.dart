@@ -43,10 +43,10 @@ class CommitRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final textColor = isSelected ? Colors.white : palette.fg0;
-    final mutedColor = isSelected ? Colors.white70 : palette.fg1;
-    final dateColor = isSelected ? Colors.white70 : palette.fg2;
-    final shaColor = isSelected ? Colors.white : palette.accentRemote;
+    final textColor = palette.fg0;
+    final mutedColor = palette.fg1;
+    final dateColor = palette.fg2;
+    final shaColor = isSelected ? palette.fg0 : palette.accentRemote;
     final date = _dateFmt.format(node.commit.author.when.toLocal());
     final refLabel = refs.isEmpty
         ? ''

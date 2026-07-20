@@ -30,11 +30,10 @@ class CommitCompose extends ConsumerStatefulWidget {
 
 /// Lookup of the effective author identity for the active repo — driving
 /// the small "Committing as …" header in the compose panel.
-final _composeIdentityProvider =
-    FutureProvider.autoDispose.family<({String? name, String? email}),
-            RepoLocation>(
-  (ref, repo) => ref.read(gitIdentityServiceProvider).readEffective(repo),
-);
+final _composeIdentityProvider = FutureProvider.autoDispose
+    .family<({String? name, String? email}), RepoLocation>(
+      (ref, repo) => ref.read(gitIdentityServiceProvider).readEffective(repo),
+    );
 
 class _CommitComposeState extends ConsumerState<CommitCompose> {
   final _ctl = TextEditingController();
@@ -91,8 +90,8 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
     final (subject, _) = _splitMessage(_ctl.text);
     // A normal commit needs a message AND staged content; an amend can proceed
     // with neither (it can just reword the previous commit).
-    final canCommit = !_busy &&
-        (_amend || (_ctl.text.trim().isNotEmpty && widget.hasStaged));
+    final canCommit =
+        !_busy && (_amend || (_ctl.text.trim().isNotEmpty && widget.hasStaged));
 
     return Container(
       decoration: BoxDecoration(
@@ -184,7 +183,9 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
       _amend ? 'Amend commit' : 'Commit',
       repo: widget.repo,
     );
-    final res = await ref.read(gitWriteOperationsProvider).commit(
+    final res = await ref
+        .read(gitWriteOperationsProvider)
+        .commit(
           widget.repo,
           CommitRequest(
             message: _ctl.text.trim(),
@@ -243,14 +244,15 @@ class _IdentityStrip extends StatelessWidget {
           child: RichText(
             overflow: TextOverflow.ellipsis,
             text: TextSpan(
-              style:
-                  TextStyle(color: palette.fg2, fontSize: 11.5, height: 1.2),
+              style: TextStyle(color: palette.fg2, fontSize: 11.5, height: 1.2),
               children: [
                 const TextSpan(text: 'Committing as '),
                 TextSpan(
                   text: name,
                   style: TextStyle(
-                      color: palette.fg0, fontWeight: FontWeight.w600),
+                    color: palette.fg0,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -258,8 +260,7 @@ class _IdentityStrip extends StatelessWidget {
         ),
         if (amend)
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: palette.accentWarn.withValues(alpha: 0.18),
               border: Border.all(color: palette.accentWarn),
@@ -322,8 +323,9 @@ class _MessageFieldState extends State<_MessageField> {
       decoration: BoxDecoration(
         color: palette.bg1,
         border: Border.all(
-            color: _focused ? palette.accentCurrent : palette.border,
-            width: _focused ? 1.2 : 1),
+          color: _focused ? palette.accentCurrent : palette.border,
+          width: _focused ? 1.2 : 1,
+        ),
         borderRadius: AppRadii.of(context).controlRadius,
       ),
       child: Shortcuts(
@@ -460,13 +462,15 @@ class _OptionPillState extends State<_OptionPill> {
     final tip = widget.tooltipLabel ?? widget.label;
     return Tooltip(
       message: active ? '$tip — on' : '$tip — off',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
+      child: Semantics(
+        button: true,
+        toggled: active,
+        label: tip,
+        child: InkWell(
           onTap: widget.onTap,
+          excludeFromSemantics: true,
+          onHover: (hovered) => setState(() => _hover = hovered),
+          borderRadius: AppRadii.of(context).controlRadius,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 80),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -482,17 +486,18 @@ class _OptionPillState extends State<_OptionPill> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(widget.icon,
-                    size: 12,
-                    color: active ? palette.accentCurrent : palette.fg2),
+                Icon(
+                  widget.icon,
+                  size: 12,
+                  color: active ? palette.accentCurrent : palette.fg2,
+                ),
                 const SizedBox(width: 5),
                 Text(
                   widget.label,
                   style: TextStyle(
                     color: fg,
                     fontSize: 11.5,
-                    fontWeight:
-                        active ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: active ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
@@ -543,7 +548,7 @@ class _CommitSplitButton extends StatelessWidget {
       );
     }
     final label = amend ? 'Amend' : 'Commit';
-    final fg = enabled ? Colors.white : palette.fg3;
+    final fg = enabled ? palette.onAccentCurrent : palette.fg3;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: enabled ? palette.accentCurrent : palette.bg3,
@@ -583,21 +588,33 @@ class _CommitSplitButton extends StatelessWidget {
           Container(
             width: 1,
             height: 16,
-            color: enabled ? Colors.white24 : palette.border,
+            color: enabled
+                ? palette.onAccentCurrent.withValues(alpha: 0.28)
+                : palette.border,
           ),
           Tooltip(
             message: 'Commit and Push',
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: enabled ? (d) => onCaret(d.globalPosition) : null,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
-                child: Icon(Icons.expand_more, size: 16, color: fg),
+            child: Builder(
+              builder: (caretContext) => InkWell(
+                onTap: enabled ? () => _openCaretMenu(caretContext) : null,
+                borderRadius: radii.controlRadius,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 6,
+                  ),
+                  child: Icon(Icons.expand_more, size: 16, color: fg),
+                ),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _openCaretMenu(BuildContext context) {
+    final box = context.findRenderObject()! as RenderBox;
+    onCaret(box.localToGlobal(Offset(0, box.size.height)));
   }
 }

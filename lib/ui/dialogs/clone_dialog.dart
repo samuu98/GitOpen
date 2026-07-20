@@ -115,7 +115,7 @@ class _State extends ConsumerState<CloneDialog> {
 
   Future<void> _pickDest() async {
     final dir = await getDirectoryPath();
-    if (dir != null) _destCtl.text = dir;
+    if (dir != null && mounted) _destCtl.text = dir;
   }
 
   Future<void> _clone() async {
@@ -129,6 +129,7 @@ class _State extends ConsumerState<CloneDialog> {
     final ops = ref.read(operationsProvider.notifier);
     final id = ops.start(OpKind.clone, 'Cloning $url');
     final write = ref.read(gitWriteOperationsProvider);
+    final errorText = ref.read(gitErrorTextProvider);
     try {
       await for (final ev in write.clone(url, dest)) {
         ops.updateProgress(id, ev.fraction, ev.phase);
@@ -136,12 +137,14 @@ class _State extends ConsumerState<CloneDialog> {
       ops.finishSuccess(id);
       if (_openAfter && mounted) {
         final manager = ref.read(workspaceManagerProvider.notifier);
+        final active = ref.read(activeWorkspaceIdProvider.notifier);
         final ws = await manager.open(dest);
-        ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
+        if (!mounted) return;
+        active.state = ws.location.id;
       }
       if (mounted) Navigator.pop(context);
     } on Object catch (e) {
-      final message = ref.read(gitErrorTextProvider)(e);
+      final message = errorText(e);
       ops.finishFailure(id, message);
       // Inline error + retry: the dialog stays open with the inputs intact
       // so the user can fix the URL/destination and try again.
