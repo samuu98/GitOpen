@@ -47,6 +47,19 @@ void FlutterWindow::OnDestroy() {
   Win32Window::OnDestroy();
 }
 
+void FlutterWindow::OnWindowRestoredFromMinimized() {
+  // Coming back from the taskbar, nothing in the Dart tree is necessarily
+  // dirty, so the engine has no reason to schedule a frame — and if its
+  // surface was dropped while iconic, there is nothing on screen to keep.
+  // Ask for one explicitly, the same way OnCreate does for the first frame.
+  // Belt and braces with the SIZE_MINIMIZED guard in Win32Window: that one
+  // stops the surface being resized away, this one repaints if it was lost
+  // anyway.
+  if (flutter_controller_) {
+    flutter_controller_->ForceRedraw();
+  }
+}
+
 LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
