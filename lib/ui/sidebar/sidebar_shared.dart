@@ -21,16 +21,30 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 /// (a folder chevron, a leaf branch's marker, or a flat row's icon) sits in the
 /// same column, and each nesting level adds one [kSidebarIndentStep].
 ///
-/// - [kSidebarChevronIndent]: x of a section-header chevron and of every
-///   level-1 row's leading glyph (top-level folders, folderless branches, and
-///   flat rows) — they all line up in the same column.
-/// - [kSidebarIndentStep]: extra indent per nesting level (a branch inside a
-///   folder is one step past the folder).
-/// - [kSidebarRowIndent]: flat rows (tags, stashes, submodules, worktrees) and
-///   empty hints — level-1 leaves, so they share the chevron column.
+/// - [kSidebarChevronIndent]: x of a SECTION HEADER's chevron.
+/// - [kSidebarIndentStep]: extra indent per nesting level.
+/// - [kSidebarRowGlyphIndent]: glyph column of a row *inside* a section — one
+///   step in from its header, because the rows are the header's children. A
+///   branch nested in a folder is one step further again.
+/// - [kSidebarLabelIndent]: x of a level-1 row's *label*, i.e. just past its
+///   glyph column.
+/// - [kSidebarRowIndent]: rows with NO leading glyph (tags, stashes,
+///   submodules) and empty hints. They are padded straight to the label
+///   column — padding them to the glyph column instead is what left
+///   "No submodules" sticking out to the left of every other label.
 const double kSidebarChevronIndent = 14;
 const double kSidebarIndentStep = 14;
-const double kSidebarRowIndent = kSidebarChevronIndent;
+
+/// Width reserved for a row's leading glyph (chevron / current-checkout tick)
+/// and the gap between it and the label.
+const double kSidebarGlyphColumnWidth = 14;
+const double kSidebarGlyphGap = 4;
+
+const double kSidebarRowGlyphIndent =
+    kSidebarChevronIndent + kSidebarIndentStep;
+const double kSidebarLabelIndent =
+    kSidebarRowGlyphIndent + kSidebarGlyphColumnWidth + kSidebarGlyphGap;
+const double kSidebarRowIndent = kSidebarLabelIndent;
 
 /// Selects [sha] in the graph and asks the graph panel to scroll it into
 /// view. Also switches the main view back to the graph if the user is

@@ -48,11 +48,12 @@ void main() {
       );
       await tester.pump();
 
-      // The "origin" row's left padding is the chevron column, NOT something
-      // smaller (it had regressed to 6px, left of the section header at 14px).
+      // The "origin" row's left padding is the row glyph column — one step
+      // inside the REMOTES header, NOT level with it and not further left
+      // (it had regressed to 6px, left of the section header at 14px).
       expect(
         _leftOf(tester, find.text('origin'), Container),
-        kSidebarChevronIndent,
+        kSidebarRowGlyphIndent,
       );
     });
 
@@ -75,6 +76,25 @@ void main() {
         _leftOf(tester, find.text('v1.0.0'), Padding),
         kSidebarRowIndent,
       );
+    });
+
+    // Flat rows and empty hints have no leading glyph, so putting their text
+    // in the glyph column left them sticking out ~18px to the left of every
+    // other label in the panel — "No submodules" was the visible symptom.
+    test('flat rows label in the same column as chevron-led rows', () {
+      expect(
+        kSidebarRowIndent,
+        kSidebarLabelIndent,
+        reason: 'a glyph-less row must start where a glyph-led row label '
+            'starts, not where its glyph starts',
+      );
+      expect(
+        kSidebarLabelIndent,
+        kSidebarRowGlyphIndent + kSidebarGlyphColumnWidth + kSidebarGlyphGap,
+      );
+      // Section content nests inside its header rather than sitting level
+      // with it.
+      expect(kSidebarRowGlyphIndent, greaterThan(kSidebarChevronIndent));
     });
   });
 }

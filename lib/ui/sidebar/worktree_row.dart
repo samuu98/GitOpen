@@ -43,12 +43,14 @@ class WorktreeRow extends ConsumerWidget {
         child: InkWell(
           onTap: _isThisCheckout ? null : () => _open(ref),
           child: Padding(
+            // Glyph-led row (like a branch leaf): pad to the glyph column and
+            // let the marker box carry the label out to the label column.
             padding: const EdgeInsets.only(
-                left: kSidebarRowIndent, right: 26, top: 3, bottom: 3),
+                left: kSidebarRowGlyphIndent, right: 26, top: 3, bottom: 3),
             child: Row(
               children: [
                 SizedBox(
-                  width: 12,
+                  width: kSidebarGlyphColumnWidth,
                   child: _isThisCheckout
                       ? Text(
                           '✓',
@@ -59,7 +61,7 @@ class WorktreeRow extends ConsumerWidget {
                         )
                       : null,
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: kSidebarGlyphGap),
                 Expanded(
                   child: Tooltip(
                     message: worktree.path,
@@ -72,12 +74,22 @@ class WorktreeRow extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: palette.fg3,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
+                // Flexible, not a bare Text: a long branch name (they are
+                // routinely longer than the whole panel) demanded its full
+                // intrinsic width, which starved the Expanded above it down
+                // to ZERO — the worktree's folder name vanished and the row
+                // rendered as a lone tick followed by an overflowing branch
+                // name, which read as a tick stranded far from its label.
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: palette.fg3,
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                    ),
                   ),
                 ),
               ],

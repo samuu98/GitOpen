@@ -13,16 +13,36 @@ final class BranchTreeNode {
 }
 
 class BranchTree {
-  static List<BranchTreeNode> build(Iterable<Branch> branches) {
+  /// Builds the folder forest for [branches], splitting each name on `/`.
+  ///
+  /// [stripPrefix] drops a leading `<prefix>/` segment from the *displayed*
+  /// hierarchy while leaving [BranchTreeNode.fullPath] fully qualified. The
+  /// REMOTES section needs this: remote branches are named `origin/main`, and
+  /// the section already renders a header per remote, so without stripping the
+  /// sidebar read "REMOTES > origin > origin > main". Keeping `fullPath`
+  /// qualified means two remotes with same-named folders still get distinct
+  /// collapse keys.
+  static List<BranchTreeNode> build(
+    Iterable<Branch> branches, {
+    String stripPrefix = '',
+  }) {
     final roots = <BranchTreeNode>[];
     final lookup = <String, BranchTreeNode>{};
+    final prefix = stripPrefix.isEmpty ? '' : '$stripPrefix/';
 
     for (final b in branches) {
-      final parts = b.name.split('/');
+      final stripped = prefix.isNotEmpty && b.name.startsWith(prefix);
+      // What the user sees: the name minus the stripped remote segment.
+      final display = stripped ? b.name.substring(prefix.length) : b.name;
+      if (display.isEmpty) continue;
+      final parts = display.split('/');
       BranchTreeNode? parent;
-      var currentPath = '';
+      // …while the collapse key keeps the segment, so two remotes with a
+      // same-named folder don't share one expand/collapse state.
+      var currentPath = stripped ? stripPrefix : '';
       for (var i = 0; i < parts.length; i++) {
-        currentPath = i == 0 ? parts[0] : '$currentPath/${parts[i]}';
+        currentPath =
+            currentPath.isEmpty ? parts[0] : '$currentPath/${parts[i]}';
         final isLast = i == parts.length - 1;
         var node = lookup[currentPath];
         if (node == null) {

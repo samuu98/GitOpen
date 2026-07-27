@@ -109,21 +109,24 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
               child: Container(
                 color: _hover ? palette.bg3 : Colors.transparent,
                 padding: const EdgeInsets.only(
-                  left: kSidebarChevronIndent,
+                  left: kSidebarRowGlyphIndent,
                   right: 6,
                   top: 3,
                   bottom: 3,
                 ),
                 child: Row(
                   children: [
+                    // Same glyph column + gap as a branch-tree folder, so the
+                    // remote name lands in the shared label column and its
+                    // branches nest exactly one step past it. (The cloud icon
+                    // that used to sit between chevron and name pushed the
+                    // label 17px right of every other level-1 row.)
                     Icon(
                       _open ? Icons.expand_more : Icons.chevron_right,
-                      size: 14,
+                      size: kSidebarGlyphColumnWidth,
                       color: palette.fg3,
                     ),
-                    const SizedBox(width: 2),
-                    Icon(Icons.cloud_outlined, size: 13, color: palette.fg2),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: kSidebarGlyphGap),
                     Expanded(
                       child: Text(
                         widget.remote.name,
@@ -135,7 +138,9 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
                         ),
                       ),
                     ),
-                    if (branchCount > 0)
+                    Icon(Icons.cloud_outlined, size: 13, color: palette.fg3),
+                    if (branchCount > 0) ...[
+                      const SizedBox(width: 6),
                       Text(
                         '$branchCount',
                         style: TextStyle(
@@ -143,6 +148,7 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
                           fontSize: 11,
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -151,7 +157,13 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
         ),
         if (_open)
           BranchTreeView(
-            nodes: BranchTree.build(widget.remote.branches),
+            // Remote branches are named "origin/main"; the header above
+            // already says "origin", so strip it or the tree renders a second
+            // "origin" folder underneath it.
+            nodes: BranchTree.build(
+              widget.remote.branches,
+              stripPrefix: widget.remote.name,
+            ),
             depth: 1,
             repo: widget.repo,
           ),

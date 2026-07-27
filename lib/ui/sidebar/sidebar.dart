@@ -273,10 +273,10 @@ class _SectionState extends State<_Section> {
             child: Row(children: [
               Icon(
                 _open ? Icons.expand_more : Icons.chevron_right,
-                size: 14,
+                size: kSidebarGlyphColumnWidth,
                 color: palette.fg3,
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: kSidebarGlyphGap),
               Expanded(
                 child: Text(
                   widget.title,
