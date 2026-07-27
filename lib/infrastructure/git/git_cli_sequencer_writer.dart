@@ -69,8 +69,16 @@ final class GitCliSequencerWriter {
   Future<GitResult<void>> mergeAbort(RepoLocation r) =>
       _git.runVoid(r, ['merge', '--abort']);
 
+  /// Concludes a conflicted merge the user has resolved and staged.
+  ///
+  /// `git merge --continue` accepts NO other arguments — passing `--no-edit`
+  /// (which `cherry-pick`/`revert --continue` do accept) makes git bail out
+  /// with "fatal: --continue expects no arguments", leaving the user stuck on
+  /// the conflict panel. It does open the commit-message editor though, and
+  /// there is no terminal behind a desktop app, so the editor is neutralised
+  /// with `-c core.editor=true` — the same trick [rebaseContinue] uses.
   Future<GitResult<CommitSha>> mergeContinue(RepoLocation r) =>
-      _git.runThenHead(r, ['merge', '--continue', '--no-edit']);
+      _git.runThenHead(r, ['-c', 'core.editor=true', 'merge', '--continue']);
 
   Future<GitResult<MergePreview>> previewMerge(
     RepoLocation r,
