@@ -346,9 +346,9 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
   }
 
   Widget _renderNode(BranchTreeNode n, int depth) {
-    // Base indent aligns the top-level folder chevron under the section
-    // header chevron; each level nests one step. See sidebar_shared.dart.
-    final indent = kSidebarChevronIndent + depth * kSidebarIndentStep;
+    // Base indent puts a top-level row one step inside its section header;
+    // each further level nests one more step. See sidebar_shared.dart.
+    final indent = kSidebarRowGlyphIndent + depth * kSidebarIndentStep;
     if (n.children.isEmpty) {
       final branch = n.branch;
       final current = branch?.isCurrent ?? false;
@@ -391,7 +391,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                   SizedBox(
                     // Match the folder chevron width so leaf names align with
                     // folder names too.
-                    width: 14,
+                    width: kSidebarGlyphColumnWidth,
                     child: current
                         ? Text(
                             '✓',
@@ -402,7 +402,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                           )
                         : null,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: kSidebarGlyphGap),
                   Expanded(
                     child: Text(
                       n.name,
@@ -513,10 +513,10 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
               children: [
                 Icon(
                   open ? Icons.expand_more : Icons.chevron_right,
-                  size: 14,
+                  size: kSidebarGlyphColumnWidth,
                   color: AppPalette.of(context).fg3,
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: kSidebarGlyphGap),
                 Expanded(
                   child: Text(
                     n.name,

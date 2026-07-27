@@ -5,6 +5,35 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.12.2] — 2026-07-27
+
+### Fixed
+- **Continuing a merge after resolving conflicts.** "Continue" ran
+  `git merge --continue --no-edit`, but that command accepts no other
+  arguments, so it always failed with `fatal: --continue expects no arguments`
+  and left the conflict panel stuck.
+- **Commits touching many files no longer freeze the Changes view.** The diff
+  list is rendered eagerly (so "reveal this file" can scroll to any file), and
+  nothing bounded it across files: a 120-file commit built 12 000 diff-line
+  widgets in a single frame. Files past a render budget now start collapsed
+  behind their header and expand on click.
+- **Sidebar alignment.** Rows without a leading glyph — tags, stashes,
+  submodules and the "No submodules"-style empty hints — were padded into the
+  glyph column, so their text sat ~18px left of every other label. All labels
+  now share one column, and a section's rows nest one step inside its header
+  instead of sitting level with it.
+- **Worktree rows.** A branch name longer than the panel claimed the whole
+  row, starving the worktree's folder name to zero width; the row rendered as
+  a lone tick next to an overflowing branch name. Both now ellipsize.
+- **Remotes no longer repeat their own name.** Remote branches are named
+  `origin/main`, and the branch tree split that into a folder, so the sidebar
+  read `REMOTES > origin > origin > main`.
+- **Black, unresponsive window after restoring from the taskbar.** Minimizing
+  resized the Flutter render surface down to the iconic client area (measured
+  64x11), because the window only suppressed that for `SC_MINIMIZE` and not
+  for `Win+D`, `Win+M` or a shell-driven `ShowWindow`. The surface is now left
+  alone while minimized, and a repaint is forced on restore.
+
 ## [1.12.1] — 2026-07-20
 
 ### Fixed

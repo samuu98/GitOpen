@@ -198,11 +198,33 @@ Win32Window::MessageHandler(HWND hwnd,
       return 0;
     }
     case WM_SIZE: {
+      // A minimized window reports a degenerate client area (Windows hands
+      // back the iconic strip — measured 64x11 on this app, not the 1538x916
+      // it had). Forwarding that to the Flutter child tears its render
+      // surface down and rebuilds it at a bogus size on every minimize, and
+      // when the surface does not come back the window paints black with no
+      // frames until the process is killed.
+      //
+      // bitsdojo_window suppresses WM_SIZE only while it is handling
+      // WM_SYSCOMMAND/SC_MINIMIZE (its `during_minimize` flag), which misses
+      // Win+D, Win+M, "show desktop" and any ShowWindow(SW_MINIMIZE) driven
+      // by the shell or another process — all of which reach us here.
+      // Nothing needs resizing while iconic anyway: the restore sends its own
+      // WM_SIZE with the real client area.
+      if (wparam == SIZE_MINIMIZED) {
+        is_minimized_ = true;
+        return 0;
+      }
+      const bool restoring = is_minimized_;
+      is_minimized_ = false;
       RECT rect = GetClientArea();
       if (child_content_ != nullptr) {
         // Size and position the child window.
         MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
                    rect.bottom - rect.top, TRUE);
+      }
+      if (restoring) {
+        OnWindowRestoredFromMinimized();
       }
       return 0;
     }

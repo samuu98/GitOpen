@@ -71,8 +71,20 @@ class Win32Window {
   // Called when Destroy is called.
   virtual void OnDestroy();
 
+  // Called once per minimize→restore round trip, after the child window has
+  // been resized back to the real client area. FlutterWindow overrides it to
+  // force a frame, so the window can never come back from the taskbar showing
+  // nothing. Deliberately NOT called for ordinary resizes: a drag-resize
+  // sends a stream of SIZE_RESTORED messages that are already producing
+  // frames.
+  virtual void OnWindowRestoredFromMinimized() {}
+
  private:
   friend class WindowClassRegistrar;
+
+  // True between a WM_SIZE/SIZE_MINIMIZED and the WM_SIZE that restores the
+  // window, so the restore can be told apart from a plain resize.
+  bool is_minimized_ = false;
 
   // OS callback called by message pump. Handles the WM_NCCREATE message which
   // is passed when the non-client area is being created and enables automatic

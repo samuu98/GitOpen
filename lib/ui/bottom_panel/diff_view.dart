@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
+import 'package:gitopen/application/diff/diff_render_budget.dart';
 import 'package:gitopen/application/diff/image_preview.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
@@ -133,19 +134,38 @@ class _DiffViewState extends ConsumerState<DiffView> {
             if (mounted) _reveal(reveal);
           });
         }
+        // Bound the work of the first frame: a commit touching many files
+        // would otherwise build every line of every file at once (the list is
+        // eager by design — see _blockKeys).
+        final expanded = initiallyExpandedPaths(d.files);
+        final collapsedCount = d.files.length - expanded.length;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 6, 12, 0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  WordDiffToggle(),
-                  SizedBox(width: 4),
-                  IgnoreWhitespaceToggle(),
-                  SizedBox(width: 4),
-                  SplitDiffToggle(),
+                  if (collapsedCount > 0)
+                    Expanded(
+                      child: Text(
+                        'Large diff — $collapsedCount of ${d.files.length} '
+                        'files start collapsed. Click a file to expand it.',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.fg2,
+                          fontSize: 11.5,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    )
+                  else
+                    const Spacer(),
+                  const WordDiffToggle(),
+                  const SizedBox(width: 4),
+                  const IgnoreWhitespaceToggle(),
+                  const SizedBox(width: 4),
+                  const SplitDiffToggle(),
                 ],
               ),
             ),
@@ -167,6 +187,7 @@ class _DiffViewState extends ConsumerState<DiffView> {
                           file: f,
                           repo: widget.repo,
                           sha: widget.sha,
+                          initiallyCollapsed: !expanded.contains(f.path),
                         ),
                     ],
                   ),
@@ -185,11 +206,17 @@ class _FileDiffBlock extends ConsumerStatefulWidget {
     required this.file,
     required this.repo,
     required this.sha,
+    required this.initiallyCollapsed,
     super.key,
   });
   final FileDiff file;
   final RepoLocation repo;
   final CommitSha sha;
+
+  /// Set for files past the view's render budget — see
+  /// [initiallyExpandedPaths]. Only the initial value; once the user toggles
+  /// this file, their choice sticks for the session.
+  final bool initiallyCollapsed;
 
   @override
   ConsumerState<_FileDiffBlock> createState() => _FileDiffBlockState();
@@ -200,7 +227,7 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
   bool _full = false;
 
   /// File block collapsed to just its header (diff hidden). Session-scoped.
-  bool _collapsed = false;
+  late bool _collapsed = widget.initiallyCollapsed;
 
   /// Expand this file (used when a reveal request targets it).
   void expand() {
