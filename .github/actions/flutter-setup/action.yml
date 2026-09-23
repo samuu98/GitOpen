@@ -19,15 +19,16 @@ runs:
       shell: bash
       run: flutter pub get
 
-    # Cache build_runner output so codegen is incremental (~80s -> ~20s warm).
-    # Exact key (lib sources unchanged) => full hit; the pubspec.lock prefix
-    # restore-key gives a warm incremental base. build_runner re-checks inputs,
-    # so a partial restore can never produce stale generated code.
+    # Only the drift schema and builder configuration affect generated output.
+    # Cache the published files too: .dart_tool/build alone does not transfer
+    # generated Dart files between jobs. build_runner validates restored inputs.
     - name: Cache codegen output
       uses: actions/cache@v5
       with:
-        path: .dart_tool/build
-        key: codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-${{ hashFiles('lib/**/*.dart') }}
+        path: |
+          .dart_tool/build
+          lib/**/*.g.dart
+        key: codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-${{ hashFiles('build.yaml', 'lib/infrastructure/persistence/database.dart', 'lib/infrastructure/persistence/tables/**/*.dart') }}
         restore-keys: |
           codegen-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-
           codegen-${{ runner.os }}-
