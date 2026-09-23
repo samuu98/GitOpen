@@ -47,7 +47,18 @@ jobs:
         # `flutter test` prints a non-JSON "Resolving dependencies…" preamble to
         # stdout; keep only JSON event lines so the reporter can parse it. GitHub
         # runs bash with `pipefail`, so a real test failure still fails the step.
-        run: flutter test --machine --coverage --total-shards 3 --shard-index ${{ matrix.shard }} | grep '^{' > test-results.json
+        run: |
+          mapfile -d '' files < <(find test -type f -name '*_test.dart' -print0 | LC_ALL=C sort -z)
+          shard=${{ matrix.shard }}
+          selected=()
+          for index in "${!files[@]}"; do
+            if (( index % 3 == shard )); then
+              selected+=("${files[index]}")
+            fi
+          done
+          ((${#selected[@]} > 0))
+          printf '%s\n' "${selected[@]}" > shard-files.txt
+          flutter test --machine --coverage "${selected[@]}" | grep '^{' > test-results.json
 
       - name: Upload shard reports
         if: always()
@@ -57,6 +68,7 @@ jobs:
           path: |
             test-results.json
             coverage/lcov.info
+            shard-files.txt
           if-no-files-found: error
 
   report:
@@ -72,6 +84,16 @@ jobs:
         with:
           pattern: test-shard-*
           path: shards
+
+      - name: Verify shard file coverage
+        shell: bash
+        run: |
+          find test -type f -name '*_test.dart' -print | LC_ALL=C sort > expected-files.txt
+          for shard in 0 1 2; do
+            cat "shards/test-shard-$shard/shard-files.txt"
+          done | LC_ALL=C sort > actual-files.txt
+          echo "Expected $(wc -l < expected-files.txt) files; assigned $(wc -l < actual-files.txt)"
+          diff -u expected-files.txt actual-files.txt
 
       - name: Merge shard reports
         run: node scripts/ci/merge-reports.mjs shards 3
