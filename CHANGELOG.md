@@ -13,6 +13,12 @@ All notable changes to GitOpen are documented here. The format is based on
   interactive rebase edit stop is recognized in a linked worktree.
 - **Special-character Git paths.** File trees, merge and revert conflicts,
   and submodule lists retain decoded non-ASCII paths.
+- **Clone dialog.** It can no longer be dismissed mid-clone; Cancel stops
+  git and closes the dialog as soon as the clone is cancelled.
+- **Git LFS transfers.** A second pull/push on the same repository is
+  disabled while one runs, and cancelling a transfer stops `git lfs`.
+- **Working-copy actions.** Stage, unstage, discard and hunk actions show
+  the Git error instead of failing silently, and ignore repeated clicks.
 
 ## [1.12.2] — 2026-07-27
 
