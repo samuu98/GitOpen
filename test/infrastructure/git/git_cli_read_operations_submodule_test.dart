@@ -27,6 +27,19 @@ void main() {
   }
 
   group('GitCliReadOperations.getSubmodules', () {
+    test('returns a UTF-8 submodule path', () async {
+      final f = await RepoFixture.withSubmodule();
+      try {
+        final moved = await Process.run('git', ['mv', 'sub', 'café'],
+            workingDirectory: f.path);
+        expect(moved.exitCode, 0);
+        final subs = await GitCliReadOperations().getSubmodules(loc(f));
+        expect(subs.single.path, 'café');
+      } finally {
+        await f.dispose();
+      }
+    });
+
     test('returns empty list when the repo has no submodules', () async {
       final f = await RepoFixture.withLinearHistory(1);
       try {

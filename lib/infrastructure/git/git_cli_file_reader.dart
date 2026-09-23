@@ -100,11 +100,12 @@ final class GitCliFileReader {
     final stdout = await _runner.run(repo.path, [
       'ls-tree',
       '-l',
+      '-z',
       if (recursive) '-r',
       ref,
     ]);
     final entries = <FileTreeEntry>[];
-    for (final line in stdout.split('\n')) {
+    for (final line in stdout.split('\x00')) {
       if (line.isEmpty) continue;
       final tabIdx = line.indexOf('\t');
       if (tabIdx < 0) continue;

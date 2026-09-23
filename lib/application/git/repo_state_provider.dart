@@ -18,6 +18,8 @@ final repoStateProvider =
       probe.dirExists(repo, 'rebase-apply')) {
     return InProgressOp.rebase;
   }
-  if (probe.fileExists(repo, 'REVERT_HEAD')) return InProgressOp.revert;
+  if (probe.fileExists(repo, 'REVERT_HEAD')) {
+    return InProgressOp.revert;
+  }
   return InProgressOp.none;
 });

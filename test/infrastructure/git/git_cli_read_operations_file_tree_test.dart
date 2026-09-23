@@ -62,5 +62,35 @@ void main() {
         await f.dispose();
       }
     });
+
+    test('returns UTF-8 and spaced paths without Git quoting', () async {
+      final f = await RepoFixture.empty();
+      try {
+        for (final name in ['café.txt', 'with space.txt']) {
+          await File(p.join(f.path, name)).writeAsString(name);
+        }
+        await Process.run('git', ['add', '-A'], workingDirectory: f.path);
+        await Process.run('git', [
+          'commit',
+          '-qm',
+          'paths',
+        ], workingDirectory: f.path);
+        final head = await Process.run('git', [
+          'rev-parse',
+          'HEAD',
+        ], workingDirectory: f.path);
+        final entries = await GitCliReadOperations().getFileTree(
+          loc(f),
+          CommitSha((head.stdout as String).trim()),
+          '',
+        );
+        expect(
+          entries.map((e) => e.fullPath),
+          containsAll(['café.txt', 'with space.txt']),
+        );
+      } finally {
+        await f.dispose();
+      }
+    });
   });
 }

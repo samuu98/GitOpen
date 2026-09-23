@@ -5,6 +5,15 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.12.3] — 2026-09-23
+
+### Fixed
+- **Operation state in linked worktrees and submodules.** Merge, rebase,
+  cherry-pick, and revert markers now resolve through Git's own paths; an
+  interactive rebase edit stop is recognized in a linked worktree.
+- **Special-character Git paths.** File trees, merge and revert conflicts,
+  and submodule lists retain decoded non-ASCII paths.
+
 ## [1.12.2] — 2026-07-27
 
 ### Fixed

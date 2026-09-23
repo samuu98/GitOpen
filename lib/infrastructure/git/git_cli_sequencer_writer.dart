@@ -8,6 +8,7 @@ import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
 import 'package:gitopen/infrastructure/git/git_result_runner.dart';
+import 'package:gitopen/infrastructure/git/io_git_dir_probe.dart';
 import 'package:path/path.dart' as p;
 
 /// The conflict-bearing sequencing commands (merge, rebase, cherry-pick,
@@ -95,6 +96,7 @@ final class GitCliSequencerWriter {
         'merge-tree',
         '--write-tree',
         '--name-only',
+        '-z',
         '--no-messages',
         head,
         ref,
@@ -102,13 +104,11 @@ final class GitCliSequencerWriter {
     );
     if (result.exitCode == 0) return const GitSuccess(MergePreviewClean());
     if (result.exitCode == 1) {
-      final lines = (result.stdout as String)
-          .split('\n')
-          .map((l) => l.trim())
-          .where((l) => l.isNotEmpty)
-          .toList();
-      // First line is the conflicted tree OID; the rest are paths.
-      final paths = lines.length > 1 ? lines.sublist(1) : const <String>[];
+      final lines = (result.stdout as String).split('\x00');
+      // First token is the conflicted tree OID; the rest are paths.
+      final paths = lines.length > 1
+          ? lines.sublist(1).where((line) => line.isNotEmpty).toList()
+          : const <String>[];
       return GitSuccess(MergePreviewConflicts(paths));
     }
     final err = result.stderr.toString();
@@ -289,8 +289,9 @@ final class GitCliSequencerWriter {
       if (result.exitCode == 0) {
         // A todo with an `edit` line exits 0 while the rebase is still in
         // progress, stopped at that commit.
-        if (Directory(p.join(r.path, '.git', 'rebase-merge')).existsSync() ||
-            Directory(p.join(r.path, '.git', 'rebase-apply')).existsSync()) {
+        const probe = IoGitDirProbe();
+        if (probe.dirExists(r, 'rebase-merge') ||
+            probe.dirExists(r, 'rebase-apply')) {
           return const GitSuccess(RebaseStoppedForEdit());
         }
         if (out.contains('is up to date') || out.contains('up to date')) {
@@ -374,11 +375,11 @@ final class GitCliSequencerWriter {
     if (combined.contains('CONFLICT')) {
       final status = await _git.runner.run(
         r.path,
-        ['diff', '--name-only', '--diff-filter=U'],
+        ['diff', '--name-only', '--diff-filter=U', '-z'],
       );
       return GitSuccess(
         RevertConflict(
-          status.split('\n').where((l) => l.isNotEmpty).toList(),
+          status.split('\x00').where((l) => l.isNotEmpty).toList(),
         ),
       );
     }

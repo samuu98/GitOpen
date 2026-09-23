@@ -483,7 +483,9 @@ final class GitCliRefReader {
     //   "<flag><40-hex> <path>[ (<describe>)]"
     // where <flag> is one of ' ', '-', '+', 'U'. The describe suffix is
     // present only for initialized submodules and is optional.
-    final stdout = await _runner.run(repo.path, ['submodule', 'status']);
+    final stdout = await _runner.run(repo.path, [
+      '-c', 'core.quotePath=false', 'submodule', 'status',
+    ]);
     if (stdout.trim().isEmpty) return [];
 
     // flag, sha, path, optional "(describe)".  The path can contain spaces, so
