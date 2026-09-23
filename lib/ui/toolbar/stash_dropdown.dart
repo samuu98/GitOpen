@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/diff/diff_result.dart';
 import 'package:gitopen/domain/refs/stash.dart';
@@ -128,15 +129,86 @@ class _StashDropdownState extends ConsumerState<StashDropdown> {
   }
 
   Future<void> _stashSave(RepoLocation repo) async {
-    final msg = await appPromptText(
-      context,
-      'Stash changes',
-      label: 'Message (optional)',
+    final status = ref.read(workingCopyStatusProvider(repo)).value;
+    final hasStaged =
+        status?.any(
+          (entry) => entry.indexState != WorkingFileState.unmodified,
+        ) ??
+        false;
+    final ctl = TextEditingController();
+    var stagedOnly = false;
+    final choice = await showDialog<({String message, bool stagedOnly})>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AppDialog(
+          title: 'Stash changes',
+          width: 420,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ctl,
+                autofocus: true,
+                decoration: appInputDecoration(
+                  ctx,
+                  label: 'Message (optional)',
+                ),
+              ),
+              CheckboxListTile(
+                title: const Text('Staged changes only'),
+                value: stagedOnly,
+                onChanged: hasStaged
+                    ? (value) =>
+                          setDialogState(() => stagedOnly = value ?? false)
+                    : null,
+              ),
+            ],
+          ),
+          actions: [
+            AppButton.secondary(
+              label: 'Cancel',
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            AppButton.primary(
+              label: 'Stash',
+              onPressed: () => Navigator.pop(
+                ctx,
+                (message: ctl.text.trim(), stagedOnly: stagedOnly),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
-    if (!mounted) return;
+    ctl.dispose();
+    if (!mounted || choice == null) return;
+    if (choice.stagedOnly) {
+      final result = await ref
+          .read(gitActionsServiceProvider)
+          .stashSave(
+            repo,
+            choice.message,
+            stagedOnly: true,
+          );
+      if (!mounted) return;
+      if (result.outcome == ActionOutcome.success) {
+        ref
+          ..invalidate(repoStatusProvider(repo))
+          ..invalidate(workingCopyStatusProvider(repo));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.message ?? 'Stash failed')),
+        );
+      }
+      return;
+    }
     await ref
         .read(gitActionsControllerProvider)
-        .stashSave(context, repo, msg?.trim() ?? '');
+        .stashSave(
+          context,
+          repo,
+          choice.message,
+        );
   }
 
   Future<void> _stashSelectedFile(

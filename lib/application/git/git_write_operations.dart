@@ -181,7 +181,14 @@ abstract interface class GitWriteOperations {
     RepoLocation r,
     String message, {
     bool includeUntracked = false,
+    bool stagedOnly = false,
     List<String> paths = const [],
+  });
+  Future<GitResult<void>> stashPatch(
+    RepoLocation r,
+    List<String> patches,
+    String message, {
+    List<String>? worktreePatches,
   });
   Future<GitResult<void>> stashPop(RepoLocation r, int index);
   Future<GitResult<void>> stashApply(RepoLocation r, int index);

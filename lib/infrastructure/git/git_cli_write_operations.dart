@@ -6,6 +6,7 @@ import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/git/merge_outcome.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/infrastructure/git/git_cli_partial_stash_writer.dart';
 import 'package:gitopen/infrastructure/git/git_cli_ref_writer.dart';
 import 'package:gitopen/infrastructure/git/git_cli_sequencer_writer.dart';
 import 'package:gitopen/infrastructure/git/git_cli_sync_writer.dart';
@@ -28,12 +29,14 @@ final class GitCliWriteOperations implements GitWriteOperations {
     final git = GitResultRunner(r);
     _worktree = GitCliWorktreeWriter(git);
     _refs = GitCliRefWriter(git);
+    _partialStash = GitCliPartialStashWriter(git);
     _sequencer = GitCliSequencerWriter(git);
     _sync = GitCliSyncWriter(r);
   }
 
   late final GitCliWorktreeWriter _worktree;
   late final GitCliRefWriter _refs;
+  late final GitCliPartialStashWriter _partialStash;
   late final GitCliSequencerWriter _sequencer;
   late final GitCliSyncWriter _sync;
 
@@ -188,12 +191,27 @@ final class GitCliWriteOperations implements GitWriteOperations {
     RepoLocation r,
     String message, {
     bool includeUntracked = false,
+    bool stagedOnly = false,
     List<String> paths = const [],
   }) => _refs.stashSave(
     r,
     message,
     includeUntracked: includeUntracked,
+    stagedOnly: stagedOnly,
     paths: paths,
+  );
+
+  @override
+  Future<GitResult<void>> stashPatch(
+    RepoLocation r,
+    List<String> patches,
+    String message, {
+    List<String>? worktreePatches,
+  }) => _partialStash.stashPatch(
+    r,
+    patches,
+    message,
+    worktreePatches: worktreePatches,
   );
 
   @override
@@ -359,6 +377,5 @@ final class GitCliWriteOperations implements GitWriteOperations {
     RepoLocation r,
     String remoteRef, {
     AuthSpec? auth,
-  }) =>
-      _sync.deleteRemoteBranch(r, remoteRef, auth: auth);
+  }) => _sync.deleteRemoteBranch(r, remoteRef, auth: auth);
 }

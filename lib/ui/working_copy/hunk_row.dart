@@ -14,6 +14,7 @@ class HunkRow extends StatelessWidget {
     required this.selectedLines,
     required this.onToggleLine,
     required this.onAction,
+    this.onStash,
     super.key,
   });
   final DiffHunk hunk;
@@ -29,6 +30,7 @@ class HunkRow extends StatelessWidget {
 
   /// Inline per-hunk action: discard (unstaged) or unstage (staged).
   final VoidCallback? onAction;
+  final VoidCallback? onStash;
 
   @override
   Widget build(BuildContext context) {
@@ -74,6 +76,13 @@ class HunkRow extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (!staged)
+                      IconButton(
+                        onPressed: onStash,
+                        icon: const Icon(Icons.inventory_outlined, size: 13),
+                        tooltip: 'Stash hunk ${index + 1}',
+                        visualDensity: VisualDensity.compact,
+                      ),
                     Tooltip(
                       message: staged ? 'Unstage hunk' : 'Discard hunk',
                       waitDuration: const Duration(milliseconds: 400),

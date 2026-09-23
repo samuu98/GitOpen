@@ -70,12 +70,21 @@ class _FakeWrite implements GitWriteOperations {
     RepoLocation r,
     String message, {
     bool includeUntracked = false,
+    bool stagedOnly = false,
     List<String> paths = const [],
   }) async {
     lastStashIncludeUntracked = includeUntracked;
     lastStashPaths = List.of(paths);
     return voidResult;
   }
+
+  @override
+  Future<GitResult<void>> stashPatch(
+    RepoLocation r,
+    List<String> patches,
+    String message, {
+    List<String>? worktreePatches,
+  }) async => voidResult;
 
   @override
   Future<GitResult<void>> stashPop(RepoLocation r, int index) async =>

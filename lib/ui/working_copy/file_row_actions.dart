@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/diff/build_patch_for_hunks.dart';
 import 'package:gitopen/application/diff/build_patch_for_lines.dart';
+import 'package:gitopen/application/git/build_stash_worktree_patch.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/providers.dart';
@@ -128,6 +129,57 @@ final class FileRowActions {
     _ref
       ..invalidate(repoStatusProvider(repo))
       ..invalidate(unstagedFileDiffProvider((repo, path)));
+    return true;
+  }
+
+  Future<bool> stashHunks(
+    RepoLocation repo,
+    String path,
+    List<DiffHunk> hunks,
+  ) => _stashPatches(repo, path, [buildPatchForHunks(path, hunks)]);
+
+  Future<bool> stashLines(
+    RepoLocation repo,
+    String path,
+    List<LineSelection> selections,
+  ) => _stashPatches(
+    repo,
+    path,
+    _patches(path, selections),
+    worktreePatches: [
+      for (final selection in selections)
+        if (selection.lines.isNotEmpty)
+          buildStashWorktreePatch(path, selection.hunk, selection.lines),
+    ],
+  );
+
+  Future<bool> _stashPatches(
+    RepoLocation repo,
+    String path,
+    List<String> patches, {
+    List<String>? worktreePatches,
+  }) async {
+    if (patches.isEmpty) return false;
+    final result = await _ref
+        .read(gitActionsServiceProvider)
+        .stashPatch(
+          repo,
+          patches,
+          'Selected changes in $path',
+          worktreePatches: worktreePatches,
+        );
+    if (result.outcome != ActionOutcome.success) {
+      if (_context.mounted) {
+        ScaffoldMessenger.of(_context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? 'Stash failed'),
+            backgroundColor: AppPalette.of(_context).accentErr,
+          ),
+        );
+      }
+      return false;
+    }
+    _invalidateDiffs(repo, path);
     return true;
   }
 

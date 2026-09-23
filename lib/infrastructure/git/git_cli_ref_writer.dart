@@ -111,10 +111,12 @@ final class GitCliRefWriter {
     RepoLocation r,
     String message, {
     bool includeUntracked = false,
+    bool stagedOnly = false,
     List<String> paths = const [],
   }) {
     final args = <String>['stash', 'push', '-m', message];
     if (includeUntracked) args.add('-u');
+    if (stagedOnly) args.add('--staged');
     if (paths.isNotEmpty) {
       args
         ..add('--')

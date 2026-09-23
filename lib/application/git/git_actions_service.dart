@@ -431,6 +431,7 @@ final class GitActionsService {
     RepoLocation repo,
     String message, {
     bool includeUntracked = false,
+    bool stagedOnly = false,
     List<String> paths = const [],
   }) => _simple(
     'Stash',
@@ -438,8 +439,19 @@ final class GitActionsService {
       repo,
       message,
       includeUntracked: includeUntracked,
+      stagedOnly: stagedOnly,
       paths: paths,
     ),
+  );
+
+  Future<ActionResult> stashPatch(
+    RepoLocation repo,
+    List<String> patches,
+    String message, {
+    List<String>? worktreePatches,
+  }) => _simple(
+    'Stash',
+    _write.stashPatch(repo, patches, message, worktreePatches: worktreePatches),
   );
 
   /// `git stash apply stash@{index}`.

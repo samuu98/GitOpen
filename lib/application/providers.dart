@@ -42,6 +42,7 @@ import 'package:gitopen/infrastructure/auth/github_credential_tester.dart';
 import 'package:gitopen/infrastructure/auth/github_device_flow.dart';
 import 'package:gitopen/infrastructure/auth/github_user_service.dart';
 import 'package:gitopen/infrastructure/auth/secure_auth_profile_store.dart';
+import 'package:gitopen/infrastructure/git/git_cli_commit_template_reader.dart';
 import 'package:gitopen/infrastructure/git/git_cli_read_operations.dart';
 import 'package:gitopen/infrastructure/git/git_cli_write_operations.dart';
 import 'package:gitopen/infrastructure/git/git_identity_service.dart';
@@ -103,6 +104,11 @@ final loggerProvider = Provider<LoggerPort>((ref) => const AppLoggerPort());
 final gitReadOperationsProvider = Provider<GitReadOperations>((ref) {
   return GitCliReadOperations(runner: ref.watch(gitProcessRunnerProvider));
 });
+
+final gitCommitTemplateReaderProvider = Provider<GitCliCommitTemplateReader>(
+  (ref) =>
+      GitCliCommitTemplateReader(runner: ref.watch(gitProcessRunnerProvider)),
+);
 
 final repositoryRegistryProvider = Provider<RepositoryRegistry>((ref) {
   return DriftRepositoryRegistry(ref.watch(appDatabaseProvider));

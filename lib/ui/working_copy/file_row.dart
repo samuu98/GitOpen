@@ -199,6 +199,45 @@ class _FileRowState extends ConsumerState<FileRow> {
     });
   }
 
+  Future<void> _stashSelectedHunks(List<DiffHunk> allHunks) async {
+    await _runAction(() async {
+      final selected = _checkedHunks.toList()..sort();
+      final ok = await _actions.stashHunks(
+        widget.repo,
+        widget.entry.path,
+        selected.map((i) => allHunks[i]).toList(),
+      );
+      if (ok && mounted) setState(_checkedHunks.clear);
+    });
+  }
+
+  Future<void> _stashSelectedLines(List<DiffHunk> allHunks) async {
+    await _runAction(() async {
+      final ok = await _actions.stashLines(
+        widget.repo,
+        widget.entry.path,
+        _lineSelections(allHunks),
+      );
+      if (ok && mounted) setState(_checkedLines.clear);
+    });
+  }
+
+  Future<void> _stashHunk(DiffHunk hunk, int index) async {
+    await _runAction(() async {
+      final ok = await _actions.stashHunks(
+        widget.repo,
+        widget.entry.path,
+        [hunk],
+      );
+      if (ok && mounted) {
+        setState(() {
+          _checkedHunks.remove(index);
+          _checkedLines.remove(index);
+        });
+      }
+    });
+  }
+
   Future<void> _discardHunk(DiffHunk hunk, int index) async {
     await _runAction(() async {
       final ok = await _actions.discardHunk(
@@ -453,29 +492,47 @@ class _FileRowState extends ConsumerState<FileRow> {
                 : () => _unstageSelectedHunks(hunks),
           );
         }
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _selectionButton(
-              label: byLines ? 'Stage selected lines' : 'Stage selected hunks',
-              onPressed: _acting
-                  ? null
-                  : byLines
-                  ? () => _stageSelectedLines(hunks)
-                  : () => _stageSelectedHunks(hunks),
+        return Flexible(
+          flex: 3,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _selectionButton(
+                  label: byLines
+                      ? 'Stage selected lines'
+                      : 'Stage selected hunks',
+                  onPressed: _acting
+                      ? null
+                      : byLines
+                      ? () => _stageSelectedLines(hunks)
+                      : () => _stageSelectedHunks(hunks),
+                ),
+                _selectionButton(
+                  label: byLines
+                      ? 'Stash selected lines'
+                      : 'Stash selected hunks',
+                  onPressed: _acting
+                      ? null
+                      : byLines
+                      ? () => _stashSelectedLines(hunks)
+                      : () => _stashSelectedHunks(hunks),
+                ),
+                _selectionButton(
+                  label: byLines
+                      ? 'Discard selected lines'
+                      : 'Discard selected hunks',
+                  danger: true,
+                  onPressed: _acting
+                      ? null
+                      : byLines
+                      ? () => _discardSelectedLines(hunks)
+                      : () => _discardSelectedHunks(hunks),
+                ),
+              ],
             ),
-            _selectionButton(
-              label: byLines
-                  ? 'Discard selected lines'
-                  : 'Discard selected hunks',
-              danger: true,
-              onPressed: _acting
-                  ? null
-                  : byLines
-                  ? () => _discardSelectedLines(hunks)
-                  : () => _discardSelectedHunks(hunks),
-            ),
-          ],
+          ),
         );
       },
       orElse: () => const SizedBox.shrink(),
@@ -549,6 +606,9 @@ class _FileRowState extends ConsumerState<FileRow> {
                     : () => widget.isStaged
                           ? _unstageHunk(fileDiff.hunks[i], i)
                           : _discardHunk(fileDiff.hunks[i], i),
+                onStash: _acting || widget.isStaged
+                    ? null
+                    : () => _stashHunk(fileDiff.hunks[i], i),
               ),
           ],
         );
