@@ -28,6 +28,36 @@ List<CommitNode> _layoutInIsolate(List<CommitInfo> commits) {
 /// UI rather than spinning forever.
 const _gitLogTimeout = Duration(seconds: 60);
 
+/// Cancelling the subscription also runs the log reader's cleanup, which
+/// terminates its git process.
+Future<List<CommitInfo>> collectGraphCommits(
+  Stream<CommitInfo> stream,
+  Duration timeout,
+) async {
+  final commits = <CommitInfo>[];
+  final result = Completer<List<CommitInfo>>();
+  final subscription = stream.listen(
+    commits.add,
+    onError: (Object error, StackTrace stack) {
+      if (!result.isCompleted) result.completeError(error, stack);
+    },
+    onDone: () {
+      if (!result.isCompleted) result.complete(commits);
+    },
+  );
+  final timer = Timer(timeout, () {
+    if (result.isCompleted) return;
+    unawaited(subscription.cancel());
+    result.completeError(TimeoutException('git log timed out', timeout));
+  });
+  try {
+    return await result.future;
+  } finally {
+    timer.cancel();
+    unawaited(subscription.cancel());
+  }
+}
+
 /// Commits fetched in the first page and added on each scroll-to-load. A small
 /// first page paints fast; more stream in as the user scrolls, so large repos
 /// no longer block on a single 2000-commit `git log` + full layout.
@@ -37,6 +67,7 @@ const int graphPageSize = 300;
 /// at [graphPageSize] and grows by a page each time the user scrolls near the
 /// bottom; [commitGraphDataProvider] re-runs and re-lays-out the larger
 /// window (keeping the visible graph via skipLoadingOnReload).
+/// Keep this small user setting across repository switches.
 final graphLimitProvider =
     StateProvider.family<int, RepoLocation>((ref, repo) => graphPageSize);
 
@@ -56,7 +87,7 @@ class GraphData {
 }
 
 final commitGraphDataProvider =
-    FutureProvider.family<GraphData, RepoLocation>((
+    FutureProvider.autoDispose.family<GraphData, RepoLocation>((
   ref,
   repo,
 ) async {
@@ -70,6 +101,7 @@ final commitGraphDataProvider =
   // graph behaves exactly as before search existed.
   final logger = ref.read(loggerProvider);
   final search = ref.watch(commitSearchProvider);
+  final takeCommits = ref.watch(graphLimitProvider(repo));
 
   logger.i('graph: start load for ${repo.displayName}');
   // Share the branch fetch with the sidebar — same repo, same data, no
@@ -88,7 +120,6 @@ final commitGraphDataProvider =
   // Load only the current page window; it grows as the user scrolls toward the
   // bottom. Bodies are loaded on demand in the details panel, so each row
   // costs ~150 bytes.
-  final takeCommits = ref.watch(graphLimitProvider(repo));
   final query = CommitQuery(
     take: takeCommits,
     refs: refsForLog.isEmpty ? null : refsForLog,
@@ -104,21 +135,19 @@ final commitGraphDataProvider =
   );
   final List<CommitInfo> commits;
   try {
-    commits = await git
-        .getCommits(repo, query)
-        .toList()
-        .timeout(
-          _gitLogTimeout,
-          onTimeout: () => throw TimeoutException(
-            'git log did not return within ${_gitLogTimeout.inSeconds}s '
-            'on ${repo.displayName}.  Repo is likely very large; try '
-            'hiding some branches or check that .git is on local disk.',
-            _gitLogTimeout,
-          ),
-        );
-  } on TimeoutException catch (e) {
-    logger.w('graph: git log timeout — ${e.message}');
-    rethrow;
+    commits = await collectGraphCommits(
+      git.getCommits(repo, query),
+      _gitLogTimeout,
+    );
+  } on TimeoutException {
+    final error = TimeoutException(
+      'git log did not return within ${_gitLogTimeout.inSeconds}s '
+      'on ${repo.displayName}.  Repo is likely very large; try '
+      'hiding some branches or check that .git is on local disk.',
+      _gitLogTimeout,
+    );
+    logger.w('graph: git log timeout — ${error.message}');
+    throw error;
   }
   logger.i('graph: commits=${commits.length} — computing layout (isolate)');
   // Run the layout in a background isolate so a big graph cannot pin the

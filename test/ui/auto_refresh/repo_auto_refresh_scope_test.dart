@@ -14,8 +14,10 @@ import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
+import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/auto_refresh/repo_auto_refresh_scope.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
+import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 class _FakeWatcher implements RepoWatcher {
   final controller = StreamController<RepoChange>.broadcast();
@@ -40,7 +42,13 @@ class _CountingRead implements GitReadOperations {
   @override
   Future<RepoStatus> getStatus(RepoLocation repo) async {
     statusCalls++;
-    return const RepoStatus(isDetached: false, isBare: false, entries: []);
+    return RepoStatus(isDetached: false, isBare: false, entries: [
+      WorkingFileEntry(
+        path: 'change$statusCalls.txt',
+        indexState: WorkingFileState.unmodified,
+        workingTreeState: WorkingFileState.modified,
+      ),
+    ]);
   }
 
   @override
@@ -87,8 +95,12 @@ void main() {
           repo: repo,
           child: Column(children: [
             Consumer(builder: (context, ref, _) {
-              ref.watch(repoStatusProvider(repo));
-              return const SizedBox();
+              final status = ref.watch(repoStatusProvider(repo)).value;
+              return Text('status:${status?.entries.first.path}');
+            }),
+            Consumer(builder: (context, ref, _) {
+              final entries = ref.watch(workingCopyStatusProvider(repo)).value;
+              return Text('entries:${entries?.first.path}');
             }),
             Consumer(builder: (context, ref, _) {
               ref.watch(commitGraphDataProvider(repo));
@@ -116,6 +128,26 @@ void main() {
 
     expect(read.statusCalls, greaterThan(statusBase)); // status reloaded
     expect(read.commitsCalls, commitsBase); // graph NOT re-logged
+    await watcher.controller.close();
+  });
+
+  testWidgets('one status call feeds entries and status on each refresh',
+      (tester) async {
+    final watcher = _FakeWatcher();
+    final read = _CountingRead();
+    final repo = RepoLocation(RepoId.newId(), 'unused', 't');
+    await pump(tester, watcher, read, repo);
+    expect(read.statusCalls, 1);
+    expect(find.text('status:change1.txt'), findsOneWidget);
+    expect(find.text('entries:change1.txt'), findsOneWidget);
+
+    watcher.controller.add(RepoChange.mergeState);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    expect(read.statusCalls, 2);
+    expect(find.text('status:change2.txt'), findsOneWidget);
+    expect(find.text('entries:change2.txt'), findsOneWidget);
     await watcher.controller.close();
   });
 

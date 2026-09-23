@@ -20,6 +20,16 @@ All notable changes to GitOpen are documented here. The format is based on
 - **Working-copy actions.** Stage, unstage, discard and hunk actions show
   the Git error instead of failing silently, and ignore repeated clicks.
 
+### Performance
+- **One `git status` per refresh.** The Changes panel and the status bar
+  share a single status read.
+- **Large change lists build lazily**, so thousands of changed files no
+  longer stall the UI.
+- **Timed-out git processes are killed.** A graph load past 60 s and a
+  branch-divergence read past 3 s now stop their `git` process.
+- **Switching repositories releases the previous one's data** (status,
+  branches, graph, LFS), keeping only the graph length you scrolled to.
+
 ## [1.12.2] — 2026-07-27
 
 ### Fixed

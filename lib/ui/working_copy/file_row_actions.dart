@@ -43,7 +43,7 @@ final class FileRowActions {
         ? await write.unstageFiles(repo, [path])
         : await write.stageFiles(repo, [path]);
     if (!_succeeded(result, isStaged ? 'Unstage' : 'Stage')) return false;
-    _ref.invalidate(workingCopyStatusProvider(repo));
+    _ref.invalidate(repoStatusProvider(repo));
     return true;
   }
 
@@ -105,7 +105,7 @@ final class FileRowActions {
         .stagePatch(repo, patch);
     if (!_succeeded(result, 'Stage')) return false;
     _ref
-      ..invalidate(workingCopyStatusProvider(repo))
+      ..invalidate(repoStatusProvider(repo))
       ..invalidate(unstagedFileDiffProvider((repo, path)));
     return true;
   }
@@ -126,7 +126,7 @@ final class FileRowActions {
       }
     }
     _ref
-      ..invalidate(workingCopyStatusProvider(repo))
+      ..invalidate(repoStatusProvider(repo))
       ..invalidate(unstagedFileDiffProvider((repo, path)));
     return true;
   }
@@ -206,7 +206,7 @@ final class FileRowActions {
         .discardHunk(context, repo, patch);
     if (result.outcome != ActionOutcome.success) return false;
     _ref
-      ..invalidate(workingCopyStatusProvider(repo))
+      ..invalidate(repoStatusProvider(repo))
       ..invalidate(unstagedFileDiffProvider((repo, path)));
     return true;
   }
@@ -295,7 +295,7 @@ final class FileRowActions {
 
   void _invalidateDiffs(RepoLocation repo, String path) {
     _ref
-      ..invalidate(workingCopyStatusProvider(repo))
+      ..invalidate(repoStatusProvider(repo))
       ..invalidate(unstagedFileDiffProvider((repo, path)))
       ..invalidate(stagedFileDiffProvider((repo, path)));
   }

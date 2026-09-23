@@ -160,7 +160,7 @@ class _StashDropdownState extends ConsumerState<StashDropdown> {
           paths: [path],
         );
     ref
-      ..invalidate(workingCopyStatusProvider(repo))
+      ..invalidate(repoStatusProvider(repo))
       ..invalidate(unstagedFileDiffProvider((repo, path)))
       ..invalidate(stagedFileDiffProvider((repo, path)));
   }

@@ -54,9 +54,11 @@ final class GitCliRefReader {
   ) async {
     const fmt = '%(refname:short)%00%(upstream:track)';
     try {
-      final out = await _runner
-          .run(repo.path, ['for-each-ref', '--format=$fmt', 'refs/heads'])
-          .timeout(const Duration(seconds: 3));
+      final out = await _runner.run(
+        repo.path,
+        ['for-each-ref', '--format=$fmt', 'refs/heads'],
+        timeout: const Duration(seconds: 3),
+      );
       final map = <String, ({int ahead, int behind})>{};
       for (final line in const LineSplitter().convert(out)) {
         if (line.isEmpty) continue;

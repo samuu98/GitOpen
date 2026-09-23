@@ -10,7 +10,6 @@ import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/discard_changes.dart';
 import 'package:gitopen/ui/working_copy/file_row.dart';
-import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 class FileList extends ConsumerStatefulWidget {
   const FileList({
@@ -26,6 +25,8 @@ class FileList extends ConsumerStatefulWidget {
   @override
   ConsumerState<FileList> createState() => _FileListState();
 }
+
+typedef _VisibleNode = ({PathTreeNode<WorkingFileEntry> node, int depth});
 
 class _FileListState extends ConsumerState<FileList> {
   final Set<String> _collapsedUnstaged = {};
@@ -57,7 +58,7 @@ class _FileListState extends ConsumerState<FileList> {
           ),
         );
       }
-      ref.invalidate(workingCopyStatusProvider(repo));
+      if (mounted) ref.invalidate(repoStatusProvider(repo));
     } finally {
       if (mounted) setState(() => _writing = false);
     }
@@ -85,116 +86,131 @@ class _FileListState extends ConsumerState<FileList> {
     );
     final unstaged = widget.unstaged;
     final staged = widget.staged;
-    return ListView(
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(12, 6, 12, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [FileListModeToggle()],
-          ),
-        ),
-        Header(
-          title: 'Unstaged (${unstaged.length})',
-          actions: [
-            HeaderAction(
-              'Discard all',
-              unstaged.isEmpty || _writing ? null : _discardAll,
-              danger: true,
+    final unstagedTree = asTree
+        ? _visibleNodes(unstaged, _collapsedUnstaged)
+        : null;
+    final stagedTree = asTree ? _visibleNodes(staged, _collapsedStaged) : null;
+    final unstagedCount = unstagedTree?.length ?? unstaged.length;
+    final stagedCount = stagedTree?.length ?? staged.length;
+    final stagedHeader = unstagedCount + 2;
+    return ListView.builder(
+      itemCount: stagedHeader + 1 + stagedCount,
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return const Padding(
+            padding: EdgeInsets.fromLTRB(12, 6, 12, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [FileListModeToggle()],
             ),
-            HeaderAction(
-              'Stage all',
-              unstaged.isEmpty || _writing
-                  ? null
-                  : () => _writeAll(stage: true),
-            ),
-          ],
-        ),
-        ..._entryRows(
-          unstaged,
-          isStaged: false,
-          asTree: asTree,
-          collapsed: _collapsedUnstaged,
-        ),
-        Header(
-          title: 'Staged (${staged.length})',
-          actions: [
-            HeaderAction(
-              'Unstage all',
-              staged.isEmpty || _writing ? null : () => _writeAll(stage: false),
-            ),
-          ],
-        ),
-        ..._entryRows(
+          );
+        }
+        if (index == 1) {
+          return Header(
+            title: 'Unstaged (${unstaged.length})',
+            actions: [
+              HeaderAction(
+                'Discard all',
+                unstaged.isEmpty || _writing ? null : _discardAll,
+                danger: true,
+              ),
+              HeaderAction(
+                'Stage all',
+                unstaged.isEmpty || _writing
+                    ? null
+                    : () => _writeAll(stage: true),
+              ),
+            ],
+          );
+        }
+        if (index < stagedHeader) {
+          return _entryRow(
+            unstaged,
+            unstagedTree,
+            index - 2,
+            isStaged: false,
+            collapsed: _collapsedUnstaged,
+          );
+        }
+        if (index == stagedHeader) {
+          return Header(
+            title: 'Staged (${staged.length})',
+            actions: [
+              HeaderAction(
+                'Unstage all',
+                staged.isEmpty || _writing
+                    ? null
+                    : () => _writeAll(stage: false),
+              ),
+            ],
+          );
+        }
+        return _entryRow(
           staged,
+          stagedTree,
+          index - stagedHeader - 1,
           isStaged: true,
-          asTree: asTree,
           collapsed: _collapsedStaged,
-        ),
-      ],
+        );
+      },
     );
   }
 
-  List<Widget> _entryRows(
-    List<WorkingFileEntry> entries, {
-    required bool isStaged,
-    required bool asTree,
-    required Set<String> collapsed,
-  }) {
-    if (!asTree) {
-      return [
-        for (final e in entries)
-          FileRow(repo: widget.repo, entry: e, isStaged: isStaged),
-      ];
+  List<_VisibleNode> _visibleNodes(
+    List<WorkingFileEntry> entries,
+    Set<String> collapsed,
+  ) {
+    final rows = <_VisibleNode>[];
+    void visit(List<PathTreeNode<WorkingFileEntry>> nodes, int depth) {
+      for (final node in nodes) {
+        rows.add((node: node, depth: depth));
+        if (node.item == null && !collapsed.contains(node.path)) {
+          visit(node.children, depth + 1);
+        }
+      }
     }
-    final nodes = buildFileTree(entries, (e) => e.path);
-    return _nodeRows(nodes, isStaged: isStaged, depth: 0, collapsed: collapsed);
+
+    visit(buildFileTree(entries, (e) => e.path), 0);
+    return rows;
   }
 
-  List<Widget> _nodeRows(
-    List<PathTreeNode<WorkingFileEntry>> nodes, {
+  Widget _entryRow(
+    List<WorkingFileEntry> entries,
+    List<_VisibleNode>? tree,
+    int index, {
     required bool isStaged,
-    required int depth,
     required Set<String> collapsed,
   }) {
-    final rows = <Widget>[];
-    for (final node in nodes) {
-      final item = node.item;
-      if (item != null) {
-        rows.add(
-          FileRow(
-            repo: widget.repo,
-            entry: item,
-            isStaged: isStaged,
-            displayName: node.name,
-            indent: depth * 14.0,
-          ),
-        );
-        continue;
-      }
-      final isCollapsed = collapsed.contains(node.path);
-      rows.add(
-        _DirRow(
-          name: node.name,
-          depth: depth,
-          collapsed: isCollapsed,
-          onTap: () => setState(() {
-            if (!collapsed.add(node.path)) collapsed.remove(node.path);
-          }),
-        ),
+    if (tree == null) {
+      final entry = entries[index];
+      return FileRow(
+        key: ValueKey('${isStaged ? 's' : 'u'}:${entry.path}'),
+        repo: widget.repo,
+        entry: entry,
+        isStaged: isStaged,
       );
-      if (!isCollapsed) {
-        rows.addAll(
-          _nodeRows(
-            node.children,
-            isStaged: isStaged,
-            depth: depth + 1,
-            collapsed: collapsed,
-          ),
-        );
-      }
     }
-    return rows;
+    final (:node, :depth) = tree[index];
+    final item = node.item;
+    if (item != null) {
+      return FileRow(
+        key: ValueKey('${isStaged ? 's' : 'u'}:${item.path}'),
+        repo: widget.repo,
+        entry: item,
+        isStaged: isStaged,
+        displayName: node.name,
+        indent: depth * 14.0,
+      );
+    }
+    return _DirRow(
+      key: ValueKey('${isStaged ? 's' : 'u'}:${node.path}'),
+      name: node.name,
+      depth: depth,
+      collapsed: collapsed.contains(node.path),
+      onTap: () => setState(() {
+        if (!collapsed.add(node.path)) collapsed.remove(node.path);
+      }),
+    );
   }
 }
 
@@ -204,6 +220,7 @@ class _DirRow extends StatelessWidget {
     required this.depth,
     required this.collapsed,
     required this.onTap,
+    super.key,
   });
   final String name;
   final int depth;

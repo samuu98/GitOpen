@@ -6,7 +6,6 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
-import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 /// Discards working-tree changes for the supplied entries.
 ///
@@ -44,11 +43,11 @@ Future<bool> discardEntries(
           ),
         );
       }
-      ref.invalidate(workingCopyStatusProvider(repo));
+      ref.invalidate(repoStatusProvider(repo));
       return false;
     }
   }
-  ref.invalidate(workingCopyStatusProvider(repo));
+  ref.invalidate(repoStatusProvider(repo));
   return true;
 }
 

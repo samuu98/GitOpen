@@ -14,6 +14,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/file_list.dart';
+import 'package:gitopen/ui/working_copy/file_row.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 /// FileList watches [appSettingsProvider]; the default chain would build
@@ -33,6 +34,7 @@ Widget _host(
   Widget child, {
   Map<String, dynamic> settings = const {},
   GitWriteOperations? write,
+  double width = 520,
 }) {
   return ProviderScope(
     overrides: [
@@ -44,7 +46,7 @@ Widget _host(
     child: MaterialApp(
       theme: ThemeData(extensions: [AppPalette.dark()]),
       home: Scaffold(
-        body: SizedBox(width: 520, height: 360, child: child),
+        body: SizedBox(width: width, height: 360, child: child),
       ),
     ),
   );
@@ -176,6 +178,40 @@ void main() {
     await tester.pump();
     expect(find.text('a.dart'), findsNothing);
     expect(find.text('b.dart'), findsNothing);
+  });
+
+  testWidgets('2000 changed files build only visible rows', (tester) async {
+    final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
+    final unstaged = List.generate(
+      1000,
+      (i) => WorkingFileEntry(
+        path: 'unstaged/$i.txt',
+        indexState: WorkingFileState.unmodified,
+        workingTreeState: WorkingFileState.modified,
+      ),
+    );
+    final staged = List.generate(
+      1000,
+      (i) => WorkingFileEntry(
+        path: 'staged/$i.txt',
+        indexState: WorkingFileState.added,
+        workingTreeState: WorkingFileState.unmodified,
+      ),
+    );
+    await tester.pumpWidget(
+      _host(
+        FileList(repo: repo, unstaged: unstaged, staged: staged),
+        width: 700,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unstaged (1000)'), findsOneWidget);
+    expect(
+      tester.widget<ListView>(find.byType(ListView)).childrenDelegate,
+      isA<SliverChildBuilderDelegate>(),
+    );
+    expect(find.byType(FileRow).evaluate().length, lessThan(50));
   });
 }
 

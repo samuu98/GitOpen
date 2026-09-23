@@ -10,7 +10,6 @@ import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
 import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
-import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 /// Invisible host for a repo's auto-refresh. Subscribes to the
 /// [repoWatcherProvider] stream (debounced 400 ms so multi-command operations
@@ -119,9 +118,7 @@ class _RepoAutoRefreshScopeState extends ConsumerState<RepoAutoRefreshScope> {
     if (!mounted) return;
     final repo = widget.repo;
     if (scopes.contains(RepoRefreshScope.worktree)) {
-      ref
-        ..invalidate(repoStatusProvider(repo))
-        ..invalidate(workingCopyStatusProvider(repo));
+      ref.invalidate(repoStatusProvider(repo));
     }
     if (scopes.contains(RepoRefreshScope.refs)) {
       ref
