@@ -11,73 +11,80 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
   checks: write
   pull-requests: write
 
 jobs:
-  build-and-test:
-    # Single-OS matrix on purpose. The suite is platform-agnostic Dart + the
-    # git CLI, and Linux runs it much faster than Windows (process spawn + I/O
-    # for the many real-git fixture tests). Windows-specific code is compiled
-    # and exercised by CD's native build, so one OS is enough for the PR gate.
-    # Kept as a matrix (not a plain job) so the required check name stays
-    # "build-and-test (ubuntu-latest)", and the per-step `if: ubuntu-latest`
-    # guards below keep re-adding Windows a one-line change.
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-
+  analyze:
+    runs-on: ubuntu-latest
     steps:
-      # First-party (`actions/*`) actions stay on a major-version tag.
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          fetch-tags: true
 
-      - name: Linux desktop deps
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            ninja-build \
-            libgtk-3-dev \
-            liblzma-dev \
-            libstdc++-12-dev
-
-      # Shared setup (Flutter + pub get + cached codegen) — see
-      # .github/actions/flutter-setup.
       - name: Flutter setup
         uses: ./.github/actions/flutter-setup
 
-      # Static analysis is platform-independent — run once on Linux instead of
-      # on every matrix OS (trims the slower Windows job).
       - name: Analyze
-        if: matrix.os == 'ubuntu-latest'
         run: flutter analyze
+
+  test-shard:
+    name: test-shard (${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Flutter setup
+        uses: ./.github/actions/flutter-setup
 
       - name: Test
         shell: bash
         # `flutter test` prints a non-JSON "Resolving dependencies…" preamble to
         # stdout; keep only JSON event lines so the reporter can parse it. GitHub
         # runs bash with `pipefail`, so a real test failure still fails the step.
-        run: flutter test --machine --coverage | grep '^{' > test-results.json
+        run: flutter test --machine --coverage --total-shards 3 --shard-index ${{ matrix.shard }} | grep '^{' > test-results.json
+
+      - name: Upload shard reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-shard-${{ matrix.shard }}
+          path: |
+            test-results.json
+            coverage/lcov.info
+          if-no-files-found: error
+
+  report:
+    needs: test-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download shard reports
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-shard-*
+          path: shards
+
+      - name: Merge shard reports
+        run: node scripts/ci/merge-reports.mjs shards 3
 
       - name: Publish test results
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         if: always()
         with:
-          name: 'GitOpen Tests (${{ matrix.os }})'
+          name: 'GitOpen Tests (ubuntu-latest)'
           path: 'test-results.json'
           reporter: 'flutter-json'
 
-      # Coverage tooling runs on Linux only: CodeCoverageSummary is a Docker
-      # action and one report per PR is enough. Generated *.g.dart is excluded
-      # so the number reflects hand-written code.
       - name: Convert coverage to Cobertura
-        if: matrix.os == 'ubuntu-latest'
         run: |
           pip install lcov_cobertura
           # Drop generated files from coverage (lcov_cobertura --excludes matches
@@ -86,7 +93,6 @@ jobs:
           lcov_cobertura coverage/lcov.clean.info -o coverage/cobertura.xml
 
       - name: Code coverage summary
-        if: matrix.os == 'ubuntu-latest'
         uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95 # v1.3.0
         with:
           filename: 'coverage/cobertura.xml'
@@ -107,7 +113,6 @@ jobs:
         # still available in the job output; only same-repository PRs can post
         # the sticky comment.
         if: >-
-          matrix.os == 'ubuntu-latest' &&
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
@@ -119,10 +124,73 @@ jobs:
       # Mirrors the NE.* "check vulnerable packages" step: scan pubspec.lock
       # against the OSV database. Informational (continue-on-error); Linux-only.
       - name: Scan dependencies for vulnerabilities
-        if: matrix.os == 'ubuntu-latest'
+        if: always()
         continue-on-error: true
         run: |
           curl -sSfL -o osv-scanner \
             https://github.com/google/osv-scanner/releases/download/v2.3.8/osv-scanner_linux_amd64
           chmod +x osv-scanner
           ./osv-scanner scan source --lockfile=pubspec.lock
+
+  build-and-test:
+    name: build-and-test (ubuntu-latest)
+    needs: [analyze, test-shard, report]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all gates
+        env:
+          ANALYZE_RESULT: ${{ needs.analyze.result }}
+          TEST_RESULT: ${{ needs['test-shard'].result }}
+          REPORT_RESULT: ${{ needs.report.result }}
+        run: |
+          for result in "$ANALYZE_RESULT" "$TEST_RESULT" "$REPORT_RESULT"; do
+            if [ "$result" != success ]; then
+              echo "Gate failed or skipped: analyze=$ANALYZE_RESULT test=$TEST_RESULT report=$REPORT_RESULT"
+              exit 1
+            fi
+          done
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Flutter setup
+        uses: ./.github/actions/flutter-setup
+
+      - name: Build Flutter (Windows)
+        run: flutter build windows --release
+
+      - name: Compile Inno Setup installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc installer\windows\gitopen.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Linux desktop deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libgtk-3-dev \
+            liblzma-dev \
+            libstdc++-12-dev
+
+      - name: Flutter setup
+        uses: ./.github/actions/flutter-setup
+
+      - name: Build Flutter (Linux)
+        run: flutter build linux --release
