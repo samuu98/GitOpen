@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/files/path_tree.dart';
+import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
@@ -29,13 +30,59 @@ class FileList extends ConsumerStatefulWidget {
 class _FileListState extends ConsumerState<FileList> {
   final Set<String> _collapsedUnstaged = {};
   final Set<String> _collapsedStaged = {};
+  bool _writing = false;
+
+  Future<void> _writeAll({required bool stage}) async {
+    if (_writing) return;
+    setState(() => _writing = true);
+    try {
+      final repo = widget.repo;
+      final write = ref.read(gitWriteOperationsProvider);
+      final result = stage
+          ? await write.stageFiles(
+              repo,
+              widget.unstaged.map((e) => e.path).toList(),
+            )
+          : await write.unstageFiles(
+              repo,
+              widget.staged.map((e) => e.path).toList(),
+            );
+      if (mounted && result is GitFailure<void>) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${stage ? 'Stage' : 'Unstage'} failed: ${result.message}',
+            ),
+            backgroundColor: AppPalette.of(context).accentErr,
+          ),
+        );
+      }
+      ref.invalidate(workingCopyStatusProvider(repo));
+    } finally {
+      if (mounted) setState(() => _writing = false);
+    }
+  }
+
+  Future<void> _discardAll() async {
+    if (_writing) return;
+    setState(() => _writing = true);
+    try {
+      await confirmAndDiscardAll(
+        context,
+        ref,
+        widget.repo,
+        widget.unstaged,
+      );
+    } finally {
+      if (mounted) setState(() => _writing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final asTree = ref.watch(
       appSettingsProvider.select((s) => s.fileListsAsTree),
     );
-    final repo = widget.repo;
     final unstaged = widget.unstaged;
     final staged = widget.staged;
     return ListView(
@@ -52,24 +99,14 @@ class _FileListState extends ConsumerState<FileList> {
           actions: [
             HeaderAction(
               'Discard all',
-              unstaged.isEmpty
-                  ? null
-                  : () => confirmAndDiscardAll(context, ref, repo, unstaged),
+              unstaged.isEmpty || _writing ? null : _discardAll,
               danger: true,
             ),
             HeaderAction(
               'Stage all',
-              unstaged.isEmpty
+              unstaged.isEmpty || _writing
                   ? null
-                  : () async {
-                      await ref
-                          .read(gitWriteOperationsProvider)
-                          .stageFiles(
-                            repo,
-                            unstaged.map((e) => e.path).toList(),
-                          );
-                      ref.invalidate(workingCopyStatusProvider(repo));
-                    },
+                  : () => _writeAll(stage: true),
             ),
           ],
         ),
@@ -84,17 +121,7 @@ class _FileListState extends ConsumerState<FileList> {
           actions: [
             HeaderAction(
               'Unstage all',
-              staged.isEmpty
-                  ? null
-                  : () async {
-                      await ref
-                          .read(gitWriteOperationsProvider)
-                          .unstageFiles(
-                            repo,
-                            staged.map((e) => e.path).toList(),
-                          );
-                      ref.invalidate(workingCopyStatusProvider(repo));
-                    },
+              staged.isEmpty || _writing ? null : () => _writeAll(stage: false),
             ),
           ],
         ),

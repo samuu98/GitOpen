@@ -612,35 +612,42 @@ final class GitActionsService {
       repo: repo,
       onCancel: () {
         cancelled = true;
-        unawaited(sub?.cancel());
-        if (!done.isCompleted) done.complete();
+        final active = sub;
+        if (active == null) {
+          if (!done.isCompleted) done.complete();
+        } else {
+          unawaited(
+            active.cancel().then((_) {
+              if (!done.isCompleted) done.complete();
+            }),
+          );
+        }
       },
-    );
-    final resolved = profileResolved ? profile : await _resolveProfile(repo);
-    // Cancelled while resolving auth — don't start the git stream.
-    if (cancelled) {
-      progress.failure(id, 'Cancelled');
-      return const ActionResult(ActionOutcome.failed);
-    }
-    sub = streamFactory(resolved?.spec).listen(
-      (ev) => progress.progress(id, ev.fraction, ev.phase),
-      onError: (Object e, StackTrace s) {
-        if (!done.isCompleted) done.completeError(e, s);
-      },
-      onDone: () {
-        if (!done.isCompleted) done.complete();
-      },
-      cancelOnError: true,
     );
     try {
+      final resolved = profileResolved ? profile : await _resolveProfile(repo);
+      // Cancelled while resolving auth — don't start the git stream.
+      if (cancelled) {
+        return const ActionResult(ActionOutcome.failed);
+      }
+      sub = streamFactory(resolved?.spec).listen(
+        (ev) => progress.progress(id, ev.fraction, ev.phase),
+        onError: (Object e, StackTrace s) {
+          if (!done.isCompleted) done.completeError(e, s);
+        },
+        onDone: () {
+          if (!done.isCompleted) done.complete();
+        },
+        cancelOnError: true,
+      );
       await done.future;
       if (cancelled) {
-        progress.failure(id, 'Cancelled');
         return const ActionResult(ActionOutcome.failed);
       }
       progress.success(id);
       return const ActionResult.reads(ActionOutcome.success);
     } on Object catch (e) {
+      if (cancelled) return const ActionResult(ActionOutcome.failed);
       // Classify ONLY git's stderr (via the injected extractor) — never the
       // full exception string, which embeds the argv and would false-positive.
       final reason = _classifier.classify(_errorText(e));
@@ -667,6 +674,8 @@ final class GitActionsService {
       _log?.w('git $label failed: $e');
       progress.failure(id, e.toString());
       return const ActionResult(ActionOutcome.failed);
+    } finally {
+      await sub?.cancel();
     }
   }
 }

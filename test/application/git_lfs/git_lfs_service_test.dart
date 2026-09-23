@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_spec.dart';
@@ -64,6 +66,42 @@ void main() {
     expect(progress.phases, contains('Downloading'));
   });
 
+  test('auth resolver failure closes the LFS activity', () async {
+    final progress = _FakeProgressSink();
+    final result = await GitLfsService(
+      lfs: _FakeLfsOperations(),
+      resolveProfile: (_) async => throw StateError('store unavailable'),
+      errorText: (e) => e.toString(),
+    ).fetch(_repo, prompt: _NoopAuthPrompt(), progress: progress);
+
+    expect(result.outcome, ActionOutcome.failed);
+    expect(progress.failures, 1);
+  });
+
+  test('cancel stops the LFS stream and leaves activity cancelled', () async {
+    final listening = Completer<void>();
+    var streamCancelled = false;
+    final stream = StreamController<GitProgress>()
+      ..onListen = listening.complete
+      ..onCancel = (() => streamCancelled = true);
+    final lfs = _FakeLfsOperations()..pendingStream = stream.stream;
+    final progress = _FakeProgressSink();
+    final result = GitLfsService(
+      lfs: lfs,
+      resolveProfile: (_) async => null,
+      errorText: (e) => e.toString(),
+    ).fetch(_repo, prompt: _NoopAuthPrompt(), progress: progress);
+
+    await listening.future.timeout(const Duration(seconds: 5));
+    progress.cancel();
+    expect((await result).outcome, ActionOutcome.failed);
+    expect(streamCancelled, isTrue);
+    expect(progress.cancelled, isTrue);
+    expect(progress.failures, 0);
+    expect(progress.successes, 0);
+    await stream.close();
+  });
+
   test(
     'push auth failure prompts and retries with the chosen account',
     () async {
@@ -95,6 +133,7 @@ const _chosen = AuthProfile(
 final class _FakeLfsOperations implements GitLfsOperations {
   String? trackedPattern;
   GitProgress? progress;
+  Stream<GitProgress>? pendingStream;
   bool failSimple = false;
 
   /// Errors thrown by successive sync calls (fetch/pull/push); once the
@@ -139,6 +178,10 @@ final class _FakeLfsOperations implements GitLfsOperations {
   @override
   Stream<GitProgress> fetch(RepoLocation repo, {AuthSpec? auth}) async* {
     syncCalls++;
+    if (pendingStream case final stream?) {
+      yield* stream;
+      return;
+    }
     if (syncErrors.isNotEmpty) {
       throw StateError(syncErrors.removeAt(0));
     }
@@ -155,6 +198,15 @@ final class _FakeLfsOperations implements GitLfsOperations {
 
 final class _FakeProgressSink implements ProgressSink {
   final phases = <String>[];
+  int failures = 0;
+  int successes = 0;
+  bool cancelled = false;
+  void Function()? _onCancel;
+
+  void cancel() {
+    cancelled = true;
+    _onCancel?.call();
+  }
 
   @override
   String start(
@@ -162,8 +214,10 @@ final class _FakeProgressSink implements ProgressSink {
     String label, {
     RepoLocation? repo,
     void Function()? onCancel,
-  }) =>
-      'op';
+  }) {
+    _onCancel = onCancel;
+    return 'op';
+  }
 
   @override
   void progress(String id, double? fraction, String phase) {
@@ -171,10 +225,10 @@ final class _FakeProgressSink implements ProgressSink {
   }
 
   @override
-  void success(String id) {}
+  void success(String id) => successes++;
 
   @override
-  void failure(String id, String message) {}
+  void failure(String id, String message) => failures++;
 }
 
 final class _NoopAuthPrompt implements AuthPrompt {

@@ -1,10 +1,11 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 /// Discards working-tree changes for the supplied entries.
@@ -13,6 +14,7 @@ import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 /// `git clean`; tracked files use `git checkout -- <paths>`. Returns true
 /// when the operation completed without errors.
 Future<bool> discardEntries(
+  BuildContext context,
   WidgetRef ref,
   RepoLocation repo,
   List<WorkingFileEntry> entries,
@@ -27,10 +29,27 @@ Future<bool> discardEntries(
     }
   }
   final write = ref.read(gitWriteOperationsProvider);
-  final r1 = await write.discardChanges(repo, tracked);
-  final r2 = await write.cleanUntracked(repo, untracked);
+  for (final (paths, run) in [
+    (tracked, () => write.discardChanges(repo, tracked)),
+    (untracked, () => write.cleanUntracked(repo, untracked)),
+  ]) {
+    if (paths.isEmpty) continue;
+    final result = await run();
+    if (result is GitFailure<void>) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Discard failed: ${result.message}'),
+            backgroundColor: AppPalette.of(context).accentErr,
+          ),
+        );
+      }
+      ref.invalidate(workingCopyStatusProvider(repo));
+      return false;
+    }
+  }
   ref.invalidate(workingCopyStatusProvider(repo));
-  return r1 is GitSuccess && r2 is GitSuccess;
+  return true;
 }
 
 Future<void> confirmAndDiscardAll(
@@ -45,12 +64,16 @@ Future<void> confirmAndDiscardAll(
   final trackedCount = entries.length - untrackedCount;
   final parts = <String>[];
   if (trackedCount > 0) {
-    parts.add('discard local changes to $trackedCount tracked file'
-        '${trackedCount == 1 ? '' : 's'}');
+    parts.add(
+      'discard local changes to $trackedCount tracked file'
+      '${trackedCount == 1 ? '' : 's'}',
+    );
   }
   if (untrackedCount > 0) {
-    parts.add('delete $untrackedCount untracked file'
-        '${untrackedCount == 1 ? '' : 's'}');
+    parts.add(
+      'delete $untrackedCount untracked file'
+      '${untrackedCount == 1 ? '' : 's'}',
+    );
   }
   final confirmed = await ConfirmDialog.show(
     context,
@@ -59,6 +82,6 @@ Future<void> confirmAndDiscardAll(
     confirmLabel: 'Discard all',
     dangerous: true,
   );
-  if (!confirmed) return;
-  await discardEntries(ref, repo, entries);
+  if (!confirmed || !context.mounted) return;
+  await discardEntries(context, ref, repo, entries);
 }

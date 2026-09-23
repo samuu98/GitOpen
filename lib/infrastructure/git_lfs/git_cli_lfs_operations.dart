@@ -18,12 +18,40 @@ import 'package:path/path.dart' as p;
 /// process runner; install is always `--local` so a missing global hook
 /// setup is never mutated behind the user's back.
 final class GitCliLfsOperations implements GitLfsOperations {
-  GitCliLfsOperations({GitProcessRunner? runner})
-    : _runner = runner ?? GitProcessRunner(),
-      _git = GitResultRunner(runner ?? GitProcessRunner());
+  GitCliLfsOperations({
+    GitProcessRunner? runner,
+    Future<Process> Function(
+      String executable,
+      List<String> args,
+      String workingDirectory,
+      Map<String, String> environment,
+    )?
+    startProcess,
+  }) : _runner = runner ?? GitProcessRunner(),
+       _git = GitResultRunner(runner ?? GitProcessRunner()),
+       _startProcess = startProcess ?? _defaultStartProcess;
 
   final GitProcessRunner _runner;
   final GitResultRunner _git;
+  final Future<Process> Function(
+    String executable,
+    List<String> args,
+    String workingDirectory,
+    Map<String, String> environment,
+  )
+  _startProcess;
+
+  static Future<Process> _defaultStartProcess(
+    String executable,
+    List<String> args,
+    String workingDirectory,
+    Map<String, String> environment,
+  ) => Process.start(
+    executable,
+    args,
+    workingDirectory: workingDirectory,
+    environment: environment,
+  );
 
   @override
   Future<GitLfsStatus> status(RepoLocation repo) async {
@@ -115,12 +143,13 @@ final class GitCliLfsOperations implements GitLfsOperations {
         ? args
         : <String>[...helper.extraArgs, ...args];
     final stderrBuf = StringBuffer();
+    Process? proc;
     try {
-      final proc = await Process.start(
+      proc = await _startProcess(
         _runner.executable,
         effectiveArgs,
-        workingDirectory: repo.path,
-        environment: buildGitEnvironment(helper.env),
+        repo.path,
+        buildGitEnvironment(helper.env),
       );
       // Merge stdout and stderr into one line stream so neither pipe can
       // fill up and block the child while the other is being read.
@@ -159,6 +188,8 @@ final class GitCliLfsOperations implements GitLfsOperations {
         );
       }
     } finally {
+      proc?.kill();
+      await proc?.exitCode;
       helper.dispose();
     }
   }

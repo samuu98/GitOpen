@@ -28,7 +28,7 @@ class HunkRow extends StatelessWidget {
   final ValueChanged<int> onToggleLine;
 
   /// Inline per-hunk action: discard (unstaged) or unstage (staged).
-  final VoidCallback onAction;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {

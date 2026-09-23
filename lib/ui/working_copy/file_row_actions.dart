@@ -1,13 +1,16 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/diff/build_patch_for_hunks.dart';
 import 'package:gitopen/application/diff/build_patch_for_lines.dart';
+import 'package:gitopen/application/git/git_actions_service.dart';
+import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
+import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/toolbar/toolbar_prompt.dart';
 import 'package:gitopen/ui/working_copy/discard_changes.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
@@ -24,23 +27,24 @@ typedef LineSelection = ({DiffHunk hunk, Set<int> lines});
 /// confirmation return `true` when the action proceeded so the caller knows
 /// whether to clear its selection.
 final class FileRowActions {
-  FileRowActions(this._ref);
+  FileRowActions(this._ref, this._context);
   final WidgetRef _ref;
+  final BuildContext _context;
 
   // --- File-level ---------------------------------------------------------
 
-  Future<void> toggleStage(
+  Future<bool> toggleStage(
     RepoLocation repo,
     String path, {
     required bool isStaged,
   }) async {
     final write = _ref.read(gitWriteOperationsProvider);
-    if (isStaged) {
-      await write.unstageFiles(repo, [path]);
-    } else {
-      await write.stageFiles(repo, [path]);
-    }
+    final result = isStaged
+        ? await write.unstageFiles(repo, [path])
+        : await write.stageFiles(repo, [path]);
+    if (!_succeeded(result, isStaged ? 'Unstage' : 'Stage')) return false;
     _ref.invalidate(workingCopyStatusProvider(repo));
+    return true;
   }
 
   Future<void> stash(
@@ -84,75 +88,97 @@ final class FileRowActions {
       confirmLabel: isUntracked ? 'Delete' : 'Discard',
       dangerous: true,
     );
-    if (!confirmed) return;
-    await discardEntries(_ref, repo, [entry]);
+    if (!confirmed || !context.mounted) return;
+    await discardEntries(context, _ref, repo, [entry]);
   }
 
   // --- Stage (unstaged rows) ---------------------------------------------
 
-  Future<void> stageHunks(
+  Future<bool> stageHunks(
     RepoLocation repo,
     String path,
     List<DiffHunk> hunks,
   ) async {
     final patch = buildPatchForHunks(path, hunks);
-    await _ref.read(gitWriteOperationsProvider).stagePatch(repo, patch);
+    final result = await _ref
+        .read(gitWriteOperationsProvider)
+        .stagePatch(repo, patch);
+    if (!_succeeded(result, 'Stage')) return false;
     _ref
       ..invalidate(workingCopyStatusProvider(repo))
       ..invalidate(unstagedFileDiffProvider((repo, path)));
+    return true;
   }
 
-  Future<void> stageLines(
+  Future<bool> stageLines(
     RepoLocation repo,
     String path,
     List<LineSelection> selections,
   ) async {
     final patches = _patches(path, selections);
-    if (patches.isEmpty) return;
+    if (patches.isEmpty) return false;
     final write = _ref.read(gitWriteOperationsProvider);
     for (final patch in patches) {
-      await write.stagePatch(repo, patch);
+      final result = await write.stagePatch(repo, patch);
+      if (!_succeeded(result, 'Stage')) {
+        _invalidateDiffs(repo, path);
+        return false;
+      }
     }
     _ref
       ..invalidate(workingCopyStatusProvider(repo))
       ..invalidate(unstagedFileDiffProvider((repo, path)));
+    return true;
   }
 
   // --- Unstage (staged rows) — reverse-apply the index-vs-HEAD patch via
   // `git apply --cached --reverse`; non-destructive, so no confirm. ---
 
-  Future<void> unstageHunks(
+  Future<bool> unstageHunks(
     RepoLocation repo,
     String path,
     List<DiffHunk> hunks,
   ) async {
     final patch = buildPatchForHunks(path, hunks);
-    await _ref.read(gitWriteOperationsProvider).unstagePatch(repo, patch);
+    final result = await _ref
+        .read(gitWriteOperationsProvider)
+        .unstagePatch(repo, patch);
+    if (!_succeeded(result, 'Unstage')) return false;
     _invalidateDiffs(repo, path);
+    return true;
   }
 
-  Future<void> unstageLines(
+  Future<bool> unstageLines(
     RepoLocation repo,
     String path,
     List<LineSelection> selections,
   ) async {
     final patches = _patches(path, selections);
-    if (patches.isEmpty) return;
+    if (patches.isEmpty) return false;
     final write = _ref.read(gitWriteOperationsProvider);
     for (final patch in patches) {
-      await write.unstagePatch(repo, patch);
+      final result = await write.unstagePatch(repo, patch);
+      if (!_succeeded(result, 'Unstage')) {
+        _invalidateDiffs(repo, path);
+        return false;
+      }
     }
     _invalidateDiffs(repo, path);
+    return true;
   }
 
-  Future<void> unstageHunk(
+  Future<bool> unstageHunk(
     RepoLocation repo,
     String path,
     DiffHunk hunk,
   ) async {
     final patch = buildPatchForHunks(path, [hunk]);
-    await _ref.read(gitWriteOperationsProvider).unstagePatch(repo, patch);
+    final result = await _ref
+        .read(gitWriteOperationsProvider)
+        .unstagePatch(repo, patch);
+    if (!_succeeded(result, 'Unstage')) return false;
     _invalidateDiffs(repo, path);
+    return true;
   }
 
   // --- Discard (unstaged rows) — reverse-apply to the working tree via the
@@ -175,9 +201,10 @@ final class FileRowActions {
     );
     if (!confirmed || !context.mounted) return false;
     final patch = buildPatchForHunks(path, [hunk]);
-    await _ref
+    final result = await _ref
         .read(gitActionsControllerProvider)
         .discardHunk(context, repo, patch);
+    if (result.outcome != ActionOutcome.success) return false;
     _ref
       ..invalidate(workingCopyStatusProvider(repo))
       ..invalidate(unstagedFileDiffProvider((repo, path)));
@@ -201,9 +228,10 @@ final class FileRowActions {
     );
     if (!confirmed || !context.mounted) return false;
     final patch = buildPatchForHunks(path, hunks);
-    await _ref
+    final result = await _ref
         .read(gitActionsControllerProvider)
         .discardHunk(context, repo, patch);
+    if (result.outcome != ActionOutcome.success) return false;
     _invalidateDiffs(repo, path);
     return true;
   }
@@ -228,7 +256,11 @@ final class FileRowActions {
     if (patches.isEmpty) return false;
     final controller = _ref.read(gitActionsControllerProvider);
     for (final patch in patches) {
-      await controller.discardHunk(context, repo, patch);
+      final result = await controller.discardHunk(context, repo, patch);
+      if (result.outcome != ActionOutcome.success) {
+        _invalidateDiffs(repo, path);
+        return false;
+      }
       if (!context.mounted) return true;
     }
     _invalidateDiffs(repo, path);
@@ -236,6 +268,20 @@ final class FileRowActions {
   }
 
   // --- Helpers ------------------------------------------------------------
+
+  bool _succeeded(GitResult<void> result, String label) {
+    if (result is GitSuccess<void>) return true;
+    final failure = result as GitFailure<void>;
+    if (_context.mounted) {
+      ScaffoldMessenger.of(_context).showSnackBar(
+        SnackBar(
+          content: Text('$label failed: ${failure.message}'),
+          backgroundColor: AppPalette.of(_context).accentErr,
+        ),
+      );
+    }
+    return false;
+  }
 
   List<String> _patches(String path, List<LineSelection> selections) {
     final patches = <String>[];
