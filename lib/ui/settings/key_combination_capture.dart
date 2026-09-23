@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 class KeyCombinationCapture extends StatefulWidget {
   const KeyCombinationCapture({
-    required this.onCaptured, required this.onCancel, super.key, this.initial,
+    required this.onCaptured,
+    required this.onCancel,
+    super.key,
+    this.initial,
   });
   final LogicalKeySet? initial;
   final void Function(LogicalKeySet) onCaptured;
@@ -23,8 +27,9 @@ class _State extends State<KeyCombinationCapture> {
   void initState() {
     super.initState();
     _captured = widget.initial;
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _focusNode.requestFocus());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _focusNode.requestFocus(),
+    );
   }
 
   @override
@@ -62,8 +67,9 @@ class _State extends State<KeyCombinationCapture> {
   @override
   Widget build(BuildContext context) {
     final p = AppPalette.of(context);
-    return AlertDialog(
-      title: const Text('Press a key combination'),
+    return AppDialog(
+      title: 'Press a key combination',
+      width: 360,
       content: Focus(
         focusNode: _focusNode,
         onKeyEvent: _onKey,
@@ -75,27 +81,34 @@ class _State extends State<KeyCombinationCapture> {
             color: p.bg2,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(
-              _describe(_captured),
-              style: TextStyle(
-                color: p.fg0,
-                fontSize: 16,
-                fontFamily: 'monospace',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _describe(_captured),
+                style: TextStyle(
+                  color: p.fg0,
+                  fontSize: 16,
+                  fontFamily: 'monospace',
+                ),
               ),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(_error!, style: TextStyle(color: p.accentErr, fontSize: 12)),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: TextStyle(color: p.accentErr, fontSize: 12),
+                ),
+              ],
             ],
-          ]),
+          ),
         ),
       ),
       actions: [
         TextButton(onPressed: widget.onCancel, child: const Text('Cancel')),
         ElevatedButton(
-          onPressed:
-              _captured == null ? null : () => widget.onCaptured(_captured!),
+          onPressed: _captured == null
+              ? null
+              : () => widget.onCaptured(_captured!),
           child: const Text('Save'),
         ),
       ],

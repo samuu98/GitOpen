@@ -14,10 +14,29 @@ import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/lfs/lfs_panel.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 void main() {
+  testWidgets('add pattern opens in AppDialog', (tester) async {
+    await _pumpLfs(
+      tester,
+      status: const GitLfsStatus(
+        isInstalled: true,
+        version: '3.6.1',
+        isRepoConfigured: true,
+        hasAttributes: true,
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Add pattern'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppDialog), findsOneWidget);
+    expect(find.text('Track pattern with Git LFS'), findsOneWidget);
+  });
+
   testWidgets('second LFS transfer tap is disabled while busy', (
     tester,
   ) async {

@@ -5,6 +5,7 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_empty_state.dart';
 import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/lfs/lfs_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -256,8 +257,8 @@ class _AddPatternDialogState extends State<_AddPatternDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Track pattern with Git LFS'),
+    return AppDialog(
+      title: 'Track pattern with Git LFS',
       content: TextField(
         key: const Key('lfs-pattern-input'),
         controller: _controller,
