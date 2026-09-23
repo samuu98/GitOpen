@@ -6,6 +6,7 @@ import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/git/merge_outcome.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/infrastructure/git/git_cli_bisect.dart';
 import 'package:gitopen/infrastructure/git/git_cli_partial_stash_writer.dart';
 import 'package:gitopen/infrastructure/git/git_cli_ref_writer.dart';
 import 'package:gitopen/infrastructure/git/git_cli_sequencer_writer.dart';
@@ -32,6 +33,7 @@ final class GitCliWriteOperations implements GitWriteOperations {
     _partialStash = GitCliPartialStashWriter(git);
     _sequencer = GitCliSequencerWriter(git);
     _sync = GitCliSyncWriter(r);
+    _bisect = GitCliBisect(r);
   }
 
   late final GitCliWorktreeWriter _worktree;
@@ -39,6 +41,26 @@ final class GitCliWriteOperations implements GitWriteOperations {
   late final GitCliPartialStashWriter _partialStash;
   late final GitCliSequencerWriter _sequencer;
   late final GitCliSyncWriter _sync;
+  late final GitCliBisect _bisect;
+
+  @override
+  Future<GitResult<void>> bisectStart(
+    RepoLocation r,
+    String bad,
+    String good,
+  ) => _bisect.start(r, bad, good);
+
+  @override
+  Future<GitResult<void>> bisectGood(RepoLocation r) => _bisect.good(r);
+
+  @override
+  Future<GitResult<void>> bisectBad(RepoLocation r) => _bisect.bad(r);
+
+  @override
+  Future<GitResult<void>> bisectSkip(RepoLocation r) => _bisect.skip(r);
+
+  @override
+  Future<GitResult<void>> bisectReset(RepoLocation r) => _bisect.reset(r);
 
   // ---- Working tree / index ----------------------------------------------
 

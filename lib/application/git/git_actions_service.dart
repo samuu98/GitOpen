@@ -266,6 +266,31 @@ final class GitActionsService {
     RepoDataScope.repoState,
   };
 
+  Future<ActionResult> bisectStart(
+    RepoLocation repo,
+    String bad,
+    String good,
+  ) => _simple(
+    'Start bisect',
+    _write.bisectStart(repo, bad, good),
+    invalidate: _localScope,
+  );
+
+  Future<ActionResult> bisectGood(RepoLocation repo) =>
+      _simple('Bisect good', _write.bisectGood(repo), invalidate: _localScope);
+
+  Future<ActionResult> bisectBad(RepoLocation repo) =>
+      _simple('Bisect bad', _write.bisectBad(repo), invalidate: _localScope);
+
+  Future<ActionResult> bisectSkip(RepoLocation repo) =>
+      _simple('Bisect skip', _write.bisectSkip(repo), invalidate: _localScope);
+
+  Future<ActionResult> bisectReset(RepoLocation repo) => _simple(
+    'Reset bisect',
+    _write.bisectReset(repo),
+    invalidate: _localScope,
+  );
+
   /// `git merge <ref>` with the given [strategy].
   Future<ActionResult> merge(
     RepoLocation repo,

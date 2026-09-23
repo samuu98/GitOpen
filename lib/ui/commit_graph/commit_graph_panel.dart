@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/commit_graph/commit_node.dart';
 import 'package:gitopen/application/commit_search_provider.dart';
+import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/git/repo_state_provider.dart';
 import 'package:gitopen/application/providers.dart';
@@ -14,6 +15,7 @@ import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
+import 'package:gitopen/ui/commit_graph/bisect_banner.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_search_field.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
@@ -87,6 +89,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
   Widget build(BuildContext context) {
     final repo = widget.repo;
     final async = ref.watch(commitGraphDataProvider(repo));
+    final bisectAsync = ref.watch(bisectStateProvider(repo));
     final palette = AppPalette.of(context);
 
     // Listen for scroll requests from the sidebar / other panels.
@@ -109,6 +112,23 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const CommitGraphSearchField(),
+          if (bisectAsync.value case final state?)
+            BisectBanner(
+              state: state,
+              onAction: _runBisectAction,
+              onSelect: (sha) {
+                ref.read(selectedCommitShaProvider.notifier).state = sha;
+                ref.read(scrollRequestProvider.notifier).state = sha;
+              },
+            )
+          else if (bisectAsync.hasError)
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                'Bisect state: ${bisectAsync.error}',
+                style: TextStyle(color: palette.accentErr),
+              ),
+            ),
           Expanded(
             child: async.when(
               skipLoadingOnReload: true,
@@ -217,6 +237,8 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     final repo = widget.repo;
     final sha = commit.sha;
     final canUndoLastCommit = await _canUndoLastCommit(ref, repo, commit);
+    final bisectRunning =
+        await ref.read(repoStateProvider(repo).future) == InProgressOp.bisect;
     if (!context.mounted) return;
     final selected = await AppContextMenu.show<String>(
       context,
@@ -246,6 +268,12 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
           value: 'edit_commit',
           label: 'Edit (amend) here…',
           icon: Icons.build_outlined,
+        ),
+        AppMenuItem(
+          value: 'bisect_start',
+          label: 'Start bisect here…',
+          icon: Icons.travel_explore,
+          enabled: !bisectRunning,
         ),
         const AppMenuDivider(),
         const AppMenuItem(
@@ -311,6 +339,9 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     if (selected == null || !context.mounted) return;
 
     switch (selected) {
+      case 'bisect_start':
+        await _startBisect(context, sha);
+
       case 'merge':
         final current = await currentBranchName(ref, repo);
         if (!context.mounted) return;
@@ -425,6 +456,108 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
       case 'reset_hard':
         await _doReset(context, ref, sha, ResetMode.hard);
     }
+  }
+
+  Future<String?> _runBisectAction(BisectAction action) async {
+    final service = ref.read(gitActionsServiceProvider);
+    final repo = widget.repo;
+    final result = await switch (action) {
+      BisectAction.good => service.bisectGood(repo),
+      BisectAction.bad => service.bisectBad(repo),
+      BisectAction.skip => service.bisectSkip(repo),
+      BisectAction.reset => service.bisectReset(repo),
+    };
+    _refreshBisect();
+    return result.outcome == ActionOutcome.failed ? result.message : null;
+  }
+
+  void _refreshBisect() {
+    final repo = widget.repo;
+    ref
+      ..invalidate(bisectStateProvider(repo))
+      ..invalidate(repoStateProvider(repo))
+      ..invalidate(gitReadOperationsProvider)
+      ..invalidate(repoStatusProvider(repo))
+      ..invalidate(commitGraphDataProvider(repo));
+  }
+
+  Future<void> _startBisect(BuildContext context, CommitSha bad) async {
+    final controller = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        var busy = false;
+        String? error;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final palette = AppPalette.of(ctx);
+            return AppDialog(
+              title: 'Start bisect at ${bad.short()}',
+              subtitle: 'This commit is bad. Enter a known good commit or tag.',
+              busy: busy,
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    enabled: !busy,
+                    decoration: appInputDecoration(
+                      ctx,
+                      label: 'Known good commit or tag',
+                    ),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(error!, style: TextStyle(color: palette.accentErr)),
+                  ],
+                ],
+              ),
+              actions: [
+                AppButton.secondary(
+                  label: 'Cancel',
+                  onPressed: busy ? null : () => Navigator.pop(ctx),
+                ),
+                AppButton.primary(
+                  label: 'Start',
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final good = controller.text.trim();
+                          if (good.isEmpty) {
+                            setDialogState(
+                              () => error = 'Enter a known good ref.',
+                            );
+                            return;
+                          }
+                          setDialogState(() {
+                            busy = true;
+                            error = null;
+                          });
+                          final result = await ref
+                              .read(gitActionsServiceProvider)
+                              .bisectStart(widget.repo, bad.value, good);
+                          _refreshBisect();
+                          if (!ctx.mounted) return;
+                          if (result.outcome == ActionOutcome.success) {
+                            Navigator.pop(ctx);
+                          } else {
+                            setDialogState(() {
+                              busy = false;
+                              error =
+                                  result.message ?? 'Could not start bisect.';
+                            });
+                          }
+                        },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
   }
 
   Future<bool> _canUndoLastCommit(

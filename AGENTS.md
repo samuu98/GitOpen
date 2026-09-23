@@ -66,9 +66,10 @@ See `.claude/memory/project-map.md` for the module map and
 - Windows installer: `flutter build windows --release` + Inno Setup
   (`installer/windows/gitopen.iss`); msix config lives in `pubspec.yaml`.
 - Linux `.deb`: `bash scripts/build-deb.sh`.
-- CD builds release artifacts on every tagged release; the PR gate runs only
-  `flutter analyze` + `flutter test` and does **not** compile native runners or
-  the installer.
+- CD builds release artifacts on every tagged release. PR CI runs `analyze`,
+  3 test shards (split by file) and a `report` job, aggregated into the required
+  `build-and-test (ubuntu-latest)` check; it also builds the Windows installer
+  and the Linux bundle, which are not required checks.
 
 ## Git workflow
 

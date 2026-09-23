@@ -1,8 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/git/bisect_state.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 
-enum InProgressOp { none, merge, cherryPick, rebase, revert }
+enum InProgressOp { none, merge, cherryPick, rebase, revert, bisect }
+
+final bisectStateProvider = FutureProvider.family
+    .autoDispose<BisectState?, RepoLocation>((ref, repo) {
+  return ref.watch(gitReadOperationsProvider).getBisectState(repo);
+});
 
 final repoStateProvider =
     FutureProvider.family.autoDispose<InProgressOp, RepoLocation>(
@@ -20,6 +26,10 @@ final repoStateProvider =
   }
   if (probe.fileExists(repo, 'REVERT_HEAD')) {
     return InProgressOp.revert;
+  }
+  if (probe.fileExists(repo, 'BISECT_LOG') ||
+      probe.fileExists(repo, 'BISECT_START')) {
+    return InProgressOp.bisect;
   }
   return InProgressOp.none;
 });

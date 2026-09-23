@@ -436,8 +436,11 @@ class _RepoBody extends ConsumerWidget {
     // Every in-progress sequencer op (merge, cherry-pick, revert AND rebase)
     // routes to the conflict panel — a paused `git rebase` previously left
     // the user with no continue/abort UI at all.
-    final hasConflict =
-        inProgressOp != null && inProgressOp != InProgressOp.none;
+    // A bisect is not a conflict: it keeps the normal views, and the graph
+    // shows its banner.
+    final hasConflict = inProgressOp != null &&
+        inProgressOp != InProgressOp.none &&
+        inProgressOp != InProgressOp.bisect;
     return RepoAutoRefreshScope(
       repo: repo,
       child: Column(

@@ -31,6 +31,16 @@ final class RebaseTodoEntry {
 }
 
 abstract interface class GitWriteOperations {
+  Future<GitResult<void>> bisectStart(
+    RepoLocation r,
+    String bad,
+    String good,
+  );
+  Future<GitResult<void>> bisectGood(RepoLocation r);
+  Future<GitResult<void>> bisectBad(RepoLocation r);
+  Future<GitResult<void>> bisectSkip(RepoLocation r);
+  Future<GitResult<void>> bisectReset(RepoLocation r);
+
   /// Initialises a new repository at [directory] (`git init <dir>`), creating
   /// the directory (and parents) when missing.
   Future<GitResult<void>> initRepo(String directory);

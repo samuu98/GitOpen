@@ -5,7 +5,19 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
-## [1.12.3] — 2026-09-23
+## [1.13.0] — 2026-09-23
+
+### Added
+- **Guided `git bisect`.** Start from a commit in the graph ("Start bisect
+  here…"), pick a known good commit, then mark each candidate Good, Bad
+  or Skip from the banner, which shows the steps left and the first bad
+  commit when git finds it. The other views stay usable while bisecting.
+- **Stash selected hunks or lines** from the Changes panel, leaving the
+  rest of the file, the index and untracked files untouched.
+- **Stash staged changes only** (`git stash push --staged`).
+- **`commit.template` support.** The commit box is pre-filled with the
+  configured template (comment lines removed), refilled after each commit,
+  and an unedited template cannot be committed.
 
 ### Fixed
 - **Operation state in linked worktrees and submodules.** Merge, rebase,
