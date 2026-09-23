@@ -100,7 +100,6 @@ final class GitCliBisect {
       r'^# first bad commit: \[([0-9a-f]{40})\]',
       multiLine: true,
     ).firstMatch(log);
-    final firstBad = match == null ? null : CommitSha(match.group(1)!);
     final count = int.parse(
       (await _runner.run(repo.path, [
         'rev-list',
@@ -109,6 +108,13 @@ final class GitCliBisect {
         for (final sha in good) '^${sha.value}',
       ])).trim(),
     );
+    // Older git does not log the result; one commit left between the bounds
+    // is the first bad one.
+    final firstBad = match != null
+        ? CommitSha(match.group(1)!)
+        : count == 1
+        ? bad
+        : null;
     final stepsLeft = firstBad != null || count <= 1
         ? 0
         : (math.log(count) / math.ln2).ceil();
