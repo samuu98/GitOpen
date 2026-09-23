@@ -1,0 +1,3 @@
+# Real-git fixtures spawn many child processes. The default on a 22-core
+# Windows host is 11 concurrent suites, which can exhaust the 30s test budget.
+concurrency: 2

@@ -12,6 +12,10 @@ import '../../_helpers/repo_fixture.dart';
 
 void main() {
   RepoLocation loc(RepoFixture f) => RepoLocation(RepoId.newId(), f.path, 't');
+  late RepoFixture template;
+
+  setUpAll(() async => template = await RepoFixture.withSubmodule());
+  tearDownAll(() async => template.dispose());
 
   /// Deinitialises the `sub` submodule so its working tree is removed and
   /// `git submodule status` reports it as uninitialized (`-` prefix).
@@ -28,7 +32,7 @@ void main() {
 
   group('GitCliReadOperations.getSubmodules', () {
     test('returns a UTF-8 submodule path', () async {
-      final f = await RepoFixture.withSubmodule();
+      final f = await template.copy();
       try {
         final moved = await Process.run('git', ['mv', 'sub', 'café'],
             workingDirectory: f.path);
@@ -51,7 +55,7 @@ void main() {
     });
 
     test('lists the submodule as up-to-date after add', () async {
-      final f = await RepoFixture.withSubmodule();
+      final f = await template.copy();
       try {
         final sut = GitCliReadOperations();
         final subs = await sut.getSubmodules(loc(f));
@@ -66,7 +70,7 @@ void main() {
     });
 
     test('reports uninitialized after deinit', () async {
-      final f = await RepoFixture.withSubmodule();
+      final f = await template.copy();
       try {
         await deinit(f.path);
         final sut = GitCliReadOperations();
@@ -83,7 +87,7 @@ void main() {
 
   group('GitCliWriteOperations.updateSubmodule', () {
     test('init + update re-initializes a deinitialized submodule', () async {
-      final f = await RepoFixture.withSubmodule();
+      final f = await template.copy();
       try {
         await deinit(f.path);
         final read = GitCliReadOperations();
@@ -115,7 +119,7 @@ void main() {
 
     test('updateAllSubmodules with init re-initializes all submodules',
         () async {
-      final f = await RepoFixture.withSubmodule();
+      final f = await template.copy();
       try {
         await deinit(f.path);
         final write = GitCliWriteOperations();
