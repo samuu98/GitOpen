@@ -280,6 +280,8 @@ final class AppMotion extends ThemeExtension<AppMotion> {
     required this.normal,
     required this.slow,
     required this.curve,
+    required this.indicatorDelay,
+    required this.indicatorMinimum,
   });
 
   const factory AppMotion.standard() = AppMotion._standard;
@@ -288,12 +290,22 @@ final class AppMotion extends ThemeExtension<AppMotion> {
     : fast = const Duration(milliseconds: 120),
       normal = const Duration(milliseconds: 160),
       slow = const Duration(milliseconds: 200),
-      curve = Curves.easeOutCubic;
+      curve = Curves.easeOutCubic,
+      indicatorDelay = const Duration(milliseconds: 150),
+      indicatorMinimum = const Duration(milliseconds: 400);
 
   final Duration fast;
   final Duration normal;
   final Duration slow;
   final Curve curve;
+
+  /// How long an action may run before its pending indicator appears. Anything
+  /// that finishes sooner shows nothing at all instead of flashing a spinner.
+  final Duration indicatorDelay;
+
+  /// How long a pending indicator stays once it is shown, so a fast refresh
+  /// cannot make it blink out the frame after it appeared.
+  final Duration indicatorMinimum;
 
   @override
   AppMotion copyWith({
@@ -301,12 +313,16 @@ final class AppMotion extends ThemeExtension<AppMotion> {
     Duration? normal,
     Duration? slow,
     Curve? curve,
+    Duration? indicatorDelay,
+    Duration? indicatorMinimum,
   }) {
     return AppMotion(
       fast: fast ?? this.fast,
       normal: normal ?? this.normal,
       slow: slow ?? this.slow,
       curve: curve ?? this.curve,
+      indicatorDelay: indicatorDelay ?? this.indicatorDelay,
+      indicatorMinimum: indicatorMinimum ?? this.indicatorMinimum,
     );
   }
 
@@ -318,6 +334,16 @@ final class AppMotion extends ThemeExtension<AppMotion> {
       normal: _lerpDuration(normal, other.normal, t),
       slow: _lerpDuration(slow, other.slow, t),
       curve: t < 0.5 ? curve : other.curve,
+      indicatorDelay: _lerpDuration(
+        indicatorDelay,
+        other.indicatorDelay,
+        t,
+      ),
+      indicatorMinimum: _lerpDuration(
+        indicatorMinimum,
+        other.indicatorMinimum,
+        t,
+      ),
     );
   }
 

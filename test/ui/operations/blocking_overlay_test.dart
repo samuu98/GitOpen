@@ -57,17 +57,22 @@ void main() {
     await tester.tap(find.text('hit me'));
     expect(tapped, isTrue);
 
-    // Busy: overlay shows its label and absorbs the tap.
+    // Busy: nothing for the first frames (no flicker), then the overlay shows
+    // its label and absorbs the tap.
     tapped = false;
-    container.read(busyProvider.notifier).begin('Fetching');
+    container.read(busyProvider.notifier).begin('fetch', 'Fetching');
     await tester.pump();
+    expect(find.text('Fetching'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('Fetching'), findsOneWidget);
     await tester.tap(find.text('hit me'), warnIfMissed: false);
     expect(tapped, isFalse);
 
-    // Idle again: overlay gone.
-    container.read(busyProvider.notifier).end();
+    // Idle again: held for the minimum window, then gone.
+    container.read(busyProvider.notifier).end('fetch');
     await tester.pump();
+    expect(find.text('Fetching'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Fetching'), findsNothing);
   });
 }

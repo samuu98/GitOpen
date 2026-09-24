@@ -31,6 +31,8 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     required this.interactionDisabledOpacity,
     required this.interactionSelected,
     required this.interactionSelectedHover,
+    required this.scrim,
+    required this.shadow,
     required this.lanePalette,
   });
 
@@ -63,6 +65,8 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     interactionDisabledOpacity: 0.45,
     interactionSelected: Color(0xFF0B5A84),
     interactionSelectedHover: Color(0xFF17688F),
+    scrim: Color(0x66000000),
+    shadow: Color(0x80000000),
     lanePalette: [
       Color(0xFF55D6BE),
       Color(0xFFE0C46F),
@@ -104,6 +108,8 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     interactionDisabledOpacity: 0.45,
     interactionSelected: Color(0xFFCBE7FF),
     interactionSelectedHover: Color(0xFFB8DDFB),
+    scrim: Color(0x4D1F2328),
+    shadow: Color(0x331F2328),
     lanePalette: [
       Color(0xFF0A7E68),
       Color(0xFF81600D),
@@ -143,6 +149,12 @@ final class AppPalette extends ThemeExtension<AppPalette> {
   final double interactionDisabledOpacity;
   final Color interactionSelected;
   final Color interactionSelectedHover;
+
+  /// Dim laid over the app behind a modal/blocking surface.
+  final Color scrim;
+
+  /// Drop shadow for surfaces that float above the shell (toasts, menus).
+  final Color shadow;
   final List<Color> lanePalette;
 
   @override
@@ -175,6 +187,8 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     double? interactionDisabledOpacity,
     Color? interactionSelected,
     Color? interactionSelectedHover,
+    Color? scrim,
+    Color? shadow,
     List<Color>? lanePalette,
   }) {
     return AppPalette(
@@ -209,6 +223,8 @@ final class AppPalette extends ThemeExtension<AppPalette> {
       interactionSelected: interactionSelected ?? this.interactionSelected,
       interactionSelectedHover:
           interactionSelectedHover ?? this.interactionSelectedHover,
+      scrim: scrim ?? this.scrim,
+      shadow: shadow ?? this.shadow,
       lanePalette: lanePalette ?? this.lanePalette,
     );
   }
@@ -275,6 +291,8 @@ final class AppPalette extends ThemeExtension<AppPalette> {
         other.interactionSelectedHover,
         t,
       )!,
+      scrim: Color.lerp(scrim, other.scrim, t)!,
+      shadow: Color.lerp(shadow, other.shadow, t)!,
       lanePalette: lanePalette, // not lerped — palette swap is discrete
     );
   }

@@ -17,6 +17,7 @@ import 'package:gitopen/domain/status/repo_status.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/auto_refresh/repo_auto_refresh_scope.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 class _FakeWatcher implements RepoWatcher {
@@ -165,6 +166,45 @@ void main() {
 
     expect(read.statusCalls, greaterThan(statusBase));
     expect(read.commitsCalls, greaterThan(commitsBase));
+    await watcher.controller.close();
+  });
+
+  testWidgets('watcher events join an action refresh instead of doubling it',
+      (tester) async {
+    final watcher = _FakeWatcher();
+    final read = _CountingRead();
+    final repo = RepoLocation(RepoId.newId(), 'unused', 't');
+    await pump(tester, watcher, read, repo);
+    final statusBase = read.statusCalls;
+
+    // A git action is running: its refresh already covers the worktree.
+    final gate = Completer<void>();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(RepoAutoRefreshScope)),
+    );
+    final run = container.read(actionRunnerProvider).runAndRefresh<void>(
+      key: 'merge:feature',
+      repo: repo,
+      scopes: const {RefreshScope.status},
+      action: () => gate.future,
+    );
+    await tester.pump();
+    // The write moved .git, so the watcher fires for the same data.
+    watcher.controller.add(RepoChange.mergeState);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(read.statusCalls, statusBase, reason: 'the watcher waits');
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+    await run;
+    expect(read.statusCalls, statusBase + 1, reason: 'one refresh, not two');
+
+    // Watching resumes normally afterwards.
+    watcher.controller.add(RepoChange.mergeState);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    expect(read.statusCalls, statusBase + 2);
     await watcher.controller.close();
   });
 

@@ -6,15 +6,15 @@ import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/git/merge_outcome.dart';
-import 'package:gitopen/application/git/repo_state_provider.dart';
 import 'package:gitopen/application/git/stash_safety_operations.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/settings/app_settings.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/git/git_action_bridges.dart';
-import 'package:gitopen/ui/theme/app_palette.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 
 /// Exposes [GitActionsController] — the single UI entry point for git actions.
 final gitActionsControllerProvider = Provider<GitActionsController>(
@@ -38,6 +38,8 @@ class GitActionsController {
     return _run(
       context,
       repo,
+      key: 'fetch',
+      scopes: _refScopes,
       (prompt, progress) => _ref
           .read(gitActionsServiceProvider)
           .fetch(repo, prompt: prompt, progress: progress),
@@ -55,6 +57,8 @@ class GitActionsController {
     return _run(
       context,
       repo,
+      key: 'pull',
+      scopes: _fullScopes,
       (prompt, progress) => _ref
           .read(gitActionsServiceProvider)
           .pull(repo, strategy, prompt: prompt, progress: progress),
@@ -74,6 +78,8 @@ class GitActionsController {
     return _run(
       context,
       repo,
+      key: 'push:${remote ?? ''}/${branch ?? ''}',
+      scopes: _refScopes,
       (prompt, progress) => _ref
           .read(gitActionsServiceProvider)
           .push(
@@ -97,6 +103,8 @@ class GitActionsController {
     return _run(
       context,
       repo,
+      key: 'push-tag:$tagName',
+      scopes: _tagScopes,
       (prompt, progress) => _ref
           .read(gitActionsServiceProvider)
           .pushTag(repo, tagName, prompt: prompt, progress: progress),
@@ -112,6 +120,8 @@ class GitActionsController {
     return _run(
       context,
       repo,
+      key: 'fetch:$remoteName',
+      scopes: _refScopes,
       (prompt, progress) => _ref
           .read(gitActionsServiceProvider)
           .fetchRemote(repo, remoteName, prompt: prompt, progress: progress),
@@ -127,6 +137,8 @@ class GitActionsController {
     return _run(
       context,
       repo,
+      key: 'pr-checkout:$number',
+      scopes: _fullScopes,
       (prompt, progress) => _ref
           .read(gitActionsServiceProvider)
           .checkoutPullRequest(
@@ -145,8 +157,9 @@ class GitActionsController {
     String ref,
     MergeStrategy strategy,
   ) => _runLocal(
-    context,
     repo,
+    key: 'merge:$ref',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).merge(repo, ref, strategy),
   );
 
@@ -156,8 +169,9 @@ class GitActionsController {
     RepoLocation repo,
     String upstream,
   ) => _runLocal(
-    context,
     repo,
+    key: 'rebase:$upstream',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).rebase(repo, upstream),
   );
 
@@ -167,8 +181,9 @@ class GitActionsController {
     RepoLocation repo,
     CommitSha sha,
   ) => _runLocal(
-    context,
     repo,
+    key: 'cherry-pick:${sha.value}',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).cherryPick(repo, sha),
   );
 
@@ -178,8 +193,9 @@ class GitActionsController {
     RepoLocation repo,
     CommitSha sha,
   ) => _runLocal(
-    context,
     repo,
+    key: 'revert:${sha.value}',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).revert(repo, sha),
   );
 
@@ -190,8 +206,9 @@ class GitActionsController {
     CommitSha to,
     ResetMode mode,
   ) => _runLocal(
-    context,
     repo,
+    key: 'reset:${to.value}',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).reset(repo, to, mode),
   );
 
@@ -202,8 +219,9 @@ class GitActionsController {
     CommitSha onto,
     List<RebaseTodoEntry> plan,
   ) => _runLocal(
-    context,
     repo,
+    key: 'rebase-i:${onto.value}',
+    scopes: _fullScopes,
     () => _ref
         .read(gitActionsServiceProvider)
         .interactiveRebase(repo, onto, plan),
@@ -216,8 +234,9 @@ class GitActionsController {
     CommitSha sha,
     String message,
   ) => _runLocal(
-    context,
     repo,
+    key: 'reword:${sha.value}',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).rewordCommit(repo, sha, message),
   );
 
@@ -227,8 +246,9 @@ class GitActionsController {
     RepoLocation repo,
     CommitSha sha,
   ) => _runLocal(
-    context,
     repo,
+    key: 'edit:${sha.value}',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).editAtCommit(repo, sha),
   );
 
@@ -238,11 +258,11 @@ class GitActionsController {
     RepoLocation repo,
     String ref,
   ) => _runLocal(
-    context,
     repo,
+    key: 'checkout:$ref',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).checkout(repo, ref),
     busyLabel: 'Checking out $ref…',
-    afterSuccess: () => _waitForCheckoutRefresh(repo),
   );
 
   /// `git checkout --track <remoteRef>` (remote branch → local branch).
@@ -251,11 +271,11 @@ class GitActionsController {
     RepoLocation repo,
     String remoteRef,
   ) => _runLocal(
-    context,
     repo,
+    key: 'checkout:$remoteRef',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).checkoutTrack(repo, remoteRef),
     busyLabel: 'Checking out $remoteRef…',
-    afterSuccess: () => _waitForCheckoutRefresh(repo),
   );
 
   /// `git branch <name>` (optionally at [at], optionally checked out).
@@ -266,8 +286,9 @@ class GitActionsController {
     CommitSha? at,
     bool checkout = false,
   }) => _runLocal(
-    context,
     repo,
+    key: 'branch-create:$name',
+    scopes: checkout ? _fullScopes : _refScopes,
     () => _ref
         .read(gitActionsServiceProvider)
         .createBranch(repo, name, at: at, checkout: checkout),
@@ -280,8 +301,9 @@ class GitActionsController {
     String oldName,
     String newName,
   ) => _runLocal(
-    context,
     repo,
+    key: 'branch-rename:$oldName',
+    scopes: _refScopes,
     () => _ref
         .read(gitActionsServiceProvider)
         .renameBranch(repo, oldName, newName),
@@ -294,8 +316,10 @@ class GitActionsController {
     String name, {
     bool force = false,
   }) => _runLocal(
-    context,
     repo,
+    key: 'branch-delete:$name',
+    scopes: _refScopes,
+    busyLabel: 'Deleting branch $name…',
     () => _ref
         .read(gitActionsServiceProvider)
         .deleteBranch(repo, name, force: force),
@@ -310,6 +334,8 @@ class GitActionsController {
     return _run(
       context,
       repo,
+      key: 'branch-delete-remote:$remoteRef',
+      scopes: _refScopes,
       (prompt, progress) => _ref
           .read(gitActionsServiceProvider)
           .deleteRemoteBranch(
@@ -358,8 +384,9 @@ class GitActionsController {
     String branch,
     String upstream,
   ) => _runLocal(
-    context,
     repo,
+    key: 'upstream:$branch',
+    scopes: _refScopes,
     () => _ref
         .read(gitActionsServiceProvider)
         .setUpstream(repo, branch, upstream),
@@ -373,8 +400,9 @@ class GitActionsController {
     CommitSha? at,
     String? message,
   }) => _runLocal(
-    context,
     repo,
+    key: 'tag-create:$name',
+    scopes: _tagScopes,
     () => _ref
         .read(gitActionsServiceProvider)
         .createTag(repo, name, at: at, message: message),
@@ -386,8 +414,9 @@ class GitActionsController {
     RepoLocation repo,
     String name,
   ) => _runLocal(
-    context,
     repo,
+    key: 'tag-delete:$name',
+    scopes: _tagScopes,
     () => _ref.read(gitActionsServiceProvider).deleteTag(repo, name),
   );
 
@@ -399,8 +428,9 @@ class GitActionsController {
     bool includeUntracked = false,
     List<String> paths = const [],
   }) => _runLocal(
-    context,
     repo,
+    key: 'stash-save',
+    scopes: _stashScopes,
     () => _ref
         .read(gitActionsServiceProvider)
         .stashSave(
@@ -440,14 +470,15 @@ class GitActionsController {
         message: 'Stash check failed: $message',
         severity: MessageSeverity.error,
       );
-      _showSnack(context, result.message!, result.severity);
+      _ref.read(actionFeedbackProvider).showActionFailure(result.message!);
       return result;
     }
     final paths = (checked as GitSuccess<List<String>>).value;
     if (paths.isEmpty) {
       return _runLocal(
-        context,
         repo,
+        key: 'stash-restore:$index',
+        scopes: _stashScopes,
         () => pop
             ? _ref.read(gitActionsServiceProvider).stashPop(repo, index)
             : _ref.read(gitActionsServiceProvider).stashApply(repo, index),
@@ -482,7 +513,8 @@ class GitActionsController {
     if (confirmed != true || !context.mounted) {
       return const ActionResult(ActionOutcome.failed);
     }
-    return _runLocal(context, repo, () async {
+    return _runLocal(repo, key: 'stash-restore:$index',
+        scopes: _stashScopes, () async {
       final result = await safety.applyPreservingLocal(repo, index, pop: pop);
       return switch (result) {
         GitSuccess<StashRestoreResult>(:final value) when value.hasConflict =>
@@ -516,8 +548,9 @@ class GitActionsController {
     RepoLocation repo,
     int index,
   ) => _runLocal(
-    context,
     repo,
+    key: 'stash-drop:$index',
+    scopes: _stashScopes,
     () => _ref.read(gitActionsServiceProvider).stashDrop(repo, index),
   );
 
@@ -528,8 +561,9 @@ class GitActionsController {
     String path, {
     required bool ours,
   }) => _runLocal(
-    context,
     repo,
+    key: 'conflict-side:$path',
+    scopes: _worktreeScopes,
     () => _ref
         .read(gitActionsServiceProvider)
         .takeConflictSide(repo, path, ours: ours),
@@ -541,16 +575,18 @@ class GitActionsController {
     RepoLocation repo,
     String patch,
   ) => _runLocal(
-    context,
     repo,
+    key: 'discard-hunk:${patch.hashCode}',
+    scopes: _worktreeScopes,
     () => _ref.read(gitActionsServiceProvider).discardHunk(repo, patch),
   );
 
   /// `git merge --abort`.
   Future<ActionResult> mergeAbort(BuildContext context, RepoLocation repo) =>
       _runLocal(
-        context,
         repo,
+        key: 'merge-abort',
+        scopes: _fullScopes,
         () => _ref.read(gitActionsServiceProvider).mergeAbort(repo),
       );
 
@@ -559,8 +595,9 @@ class GitActionsController {
     BuildContext context,
     RepoLocation repo,
   ) => _runLocal(
-    context,
     repo,
+    key: 'merge-continue',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).mergeContinue(repo),
   );
 
@@ -569,8 +606,9 @@ class GitActionsController {
     BuildContext context,
     RepoLocation repo,
   ) => _runLocal(
-    context,
     repo,
+    key: 'cherry-pick-abort',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).cherryPickAbort(repo),
   );
 
@@ -579,16 +617,18 @@ class GitActionsController {
     BuildContext context,
     RepoLocation repo,
   ) => _runLocal(
-    context,
     repo,
+    key: 'cherry-pick-continue',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).cherryPickContinue(repo),
   );
 
   /// `git revert --abort`.
   Future<ActionResult> revertAbort(BuildContext context, RepoLocation repo) =>
       _runLocal(
-        context,
         repo,
+        key: 'revert-abort',
+        scopes: _fullScopes,
         () => _ref.read(gitActionsServiceProvider).revertAbort(repo),
       );
 
@@ -597,16 +637,18 @@ class GitActionsController {
     BuildContext context,
     RepoLocation repo,
   ) => _runLocal(
-    context,
     repo,
+    key: 'revert-continue',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).revertContinue(repo),
   );
 
   /// `git rebase --abort`.
   Future<ActionResult> rebaseAbort(BuildContext context, RepoLocation repo) =>
       _runLocal(
-        context,
         repo,
+        key: 'rebase-abort',
+        scopes: _fullScopes,
         () => _ref.read(gitActionsServiceProvider).rebaseAbort(repo),
       );
 
@@ -615,102 +657,117 @@ class GitActionsController {
     BuildContext context,
     RepoLocation repo,
   ) => _runLocal(
-    context,
     repo,
+    key: 'rebase-continue',
+    scopes: _fullScopes,
     () => _ref.read(gitActionsServiceProvider).rebaseContinue(repo),
   );
 
+  /// Streamed network action: the progress record it starts stays running
+  /// until the runner's refresh lands, so the toast never claims success
+  /// before the graph and sidebar show the new commits.
   Future<ActionResult> _run(
     BuildContext context,
     RepoLocation repo,
-    Future<ActionResult> Function(AuthPrompt prompt, ProgressSink progress) op,
-  ) async {
-    final busy = _ref.read(busyProvider.notifier)..begin();
-    try {
-      final result = await op(
-        DialogAuthPrompt(context, _ref),
-        OperationsProgressSink(_ref),
-      );
-      _invalidate(repo, result.invalidate);
-      final message = result.message;
-      if (message != null && context.mounted) {
-        _showSnack(context, message, result.severity);
-      }
-      return result;
-    } finally {
-      busy.end();
-    }
-  }
-
-  Future<ActionResult> _runLocal(
-    BuildContext context,
-    RepoLocation repo,
-    Future<ActionResult> Function() op, {
-    String? busyLabel,
-    Future<void> Function()? afterSuccess,
+    Future<ActionResult> Function(AuthPrompt prompt, ProgressSink progress)
+    op, {
+    required String key,
+    required Set<RefreshScope> scopes,
   }) async {
-    final busy = _ref.read(busyProvider.notifier)..begin(busyLabel);
-    try {
-      final result = await op();
-      _invalidate(repo, result.invalidate);
-      if (result.outcome == ActionOutcome.success) {
-        await afterSuccess?.call();
-      }
-      final message = result.message;
-      if (message != null && context.mounted) {
-        _showSnack(context, message, result.severity);
-      }
-      return result;
-    } finally {
-      busy.end();
-    }
-  }
-
-  Future<void> _waitForCheckoutRefresh(RepoLocation repo) async {
-    _ref
-      ..invalidate(repoStatusProvider(repo))
-      ..invalidate(localBranchesProvider(repo))
-      ..invalidate(remoteBranchesProvider(repo));
-    await Future.wait<void>([
-      _ignoreRefreshError(_ref.read(repoStatusProvider(repo).future)),
-      _ignoreRefreshError(_ref.read(branchesProvider(repo).future)),
-    ]);
-  }
-
-  Future<void> _ignoreRefreshError<T>(Future<T> future) async {
-    try {
-      await future;
-    } on Object {
-      // The checkout already completed; let the normal consumers render the
-      // provider error instead of keeping the blocking overlay stuck.
-    }
-  }
-
-  void _invalidate(RepoLocation repo, Set<RepoDataScope> scopes) {
-    // Needs no context; runs whether or not the caller is still mounted.
-    for (final scope in scopes) {
-      switch (scope) {
-        case RepoDataScope.reads:
-          _ref.invalidate(gitReadOperationsProvider);
-        case RepoDataScope.repoState:
-          _ref.invalidate(repoStateProvider(repo));
-      }
-    }
-  }
-
-  void _showSnack(
-    BuildContext context,
-    String message,
-    MessageSeverity? severity,
-  ) {
-    final palette = AppPalette.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: severity == MessageSeverity.error
-            ? palette.accentErr
-            : null,
+    return _finish(
+      await _ref.read(actionRunnerProvider).runAndRefresh<ActionResult>(
+        key: key,
+        repo: repo,
+        scopes: scopes,
+        action: () => op(
+          DialogAuthPrompt(context, _ref),
+          OperationsProgressSink(_ref),
+        ),
+        failed: (result) => result.outcome == ActionOutcome.failed,
+        operationId: (result) => result.operationId,
       ),
     );
   }
+
+  /// Local (non-streamed) action: no progress toast while it runs — the
+  /// blocking indicator is the feedback, and it stays up until the declared
+  /// views have reloaded.
+  Future<ActionResult> _runLocal(
+    RepoLocation repo,
+    Future<ActionResult> Function() op, {
+    required String key,
+    required Set<RefreshScope> scopes,
+    String? busyLabel,
+  }) async {
+    return _finish(
+      await _ref.read(actionRunnerProvider).runAndRefresh<ActionResult>(
+        key: key,
+        repo: repo,
+        scopes: scopes,
+        label: busyLabel,
+        action: op,
+        failed: (result) => result.outcome == ActionOutcome.failed,
+      ),
+    );
+  }
+
+  /// Surfaces the action's own message (git's words) on the shared feedback
+  /// surface. A refresh failure is reported by the runner instead, so it can
+  /// never read as a failed command.
+  ActionResult _finish(ActionRun<ActionResult> run) {
+    final result = run.value;
+    if (result == null) return const ActionResult(ActionOutcome.failed);
+    final message = result.message;
+    if (message != null && run.status != ActionRunStatus.stale) {
+      final feedback = _ref.read(actionFeedbackProvider);
+      if (result.severity == MessageSeverity.error) {
+        feedback.showActionFailure(message);
+      } else {
+        feedback.showActionSuccess(message);
+      }
+    }
+    return result;
+  }
 }
+
+/// Everything a worktree-changing action touches.
+const Set<RefreshScope> _fullScopes = {
+  RefreshScope.status,
+  RefreshScope.branches,
+  RefreshScope.sidebar,
+  RefreshScope.graph,
+  RefreshScope.repoState,
+  RefreshScope.workingCopy,
+};
+
+/// Ref bookkeeping: branches move, the worktree does not.
+const Set<RefreshScope> _refScopes = {
+  RefreshScope.status,
+  RefreshScope.branches,
+  RefreshScope.sidebar,
+  RefreshScope.graph,
+  RefreshScope.repoState,
+};
+
+/// Tags decorate the graph and list in the sidebar; no branch list changes.
+const Set<RefreshScope> _tagScopes = {
+  RefreshScope.status,
+  RefreshScope.sidebar,
+  RefreshScope.graph,
+  RefreshScope.repoState,
+};
+
+/// Stashes change the worktree and the sidebar's stash list, not the graph.
+const Set<RefreshScope> _stashScopes = {
+  RefreshScope.status,
+  RefreshScope.sidebar,
+  RefreshScope.repoState,
+  RefreshScope.workingCopy,
+};
+
+/// Worktree-only edits (conflict sides, hunk discards).
+const Set<RefreshScope> _worktreeScopes = {
+  RefreshScope.status,
+  RefreshScope.repoState,
+  RefreshScope.workingCopy,
+};

@@ -43,6 +43,7 @@ class OperationsNotifier extends StateNotifier<List<RunningOperation>> {
     String label, {
     RepoLocation? repo,
     void Function()? onCancel,
+    void Function()? onRetry,
   }) {
     final id = _id();
     final op = RunningOperation(
@@ -53,6 +54,7 @@ class OperationsNotifier extends StateNotifier<List<RunningOperation>> {
       status: OperationStatus.running,
       startedAt: DateTime.now(),
       onCancel: onCancel,
+      onRetry: onRetry,
     );
     state = [op, ...state];
     unawaited(_log.upsert(op));
@@ -81,13 +83,14 @@ class OperationsNotifier extends StateNotifier<List<RunningOperation>> {
     );
   }
 
-  void finishFailure(String id, String message) {
+  void finishFailure(String id, String message, {void Function()? onRetry}) {
     _update(
       id,
       (op) => op.copyWith(
         status: OperationStatus.failed,
         finishedAt: DateTime.now(),
         errorMessage: message,
+        onRetry: onRetry,
       ),
     );
   }

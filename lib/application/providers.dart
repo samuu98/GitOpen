@@ -68,6 +68,7 @@ import 'package:gitopen/infrastructure/persistence/workspace_persistence_impl.da
 import 'package:gitopen/infrastructure/updates/github_release_updater.dart';
 import 'package:gitopen/infrastructure/watch/io_repo_watcher.dart';
 import 'package:gitopen/ui/services/folder_picker.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -239,10 +240,15 @@ final operationsProvider =
       return OperationsNotifier(ref.watch(activityLogRepositoryProvider));
     });
 
-/// Counts in-flight git actions so the UI can block interaction while one runs.
-final busyProvider = StateNotifierProvider<BusyNotifier, BusyState>(
-  (ref) => BusyNotifier(),
-);
+/// Tracks in-flight actions so the UI can block interaction and show scoped
+/// pending indicators. The anti-flicker timings come from the motion tokens.
+final busyProvider = StateNotifierProvider<BusyNotifier, BusyState>((ref) {
+  const motion = AppMotion.standard();
+  return BusyNotifier(
+    showDelay: motion.indicatorDelay,
+    minVisible: motion.indicatorMinimum,
+  );
+});
 
 final authProfileStoreProvider = Provider<AuthProfileStore>(
   (ref) => SecureAuthProfileStore(),

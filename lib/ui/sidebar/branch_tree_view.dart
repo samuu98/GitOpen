@@ -285,7 +285,8 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
             );
           }
         }
-        _refresh();
+        // No _refresh() here: the action runner already invalidated AND
+        // awaited the sidebar, so the pending indicator covered the reload.
 
       case 'upstream':
         final upstream = await _promptText(

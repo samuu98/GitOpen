@@ -14,19 +14,21 @@ class BlockingOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final busy = ref.watch(busyProvider);
-    if (!busy.isBusy) return const SizedBox.shrink();
+    // Visible, not busy: an action that beats the show delay never flashes an
+    // overlay, and one that got shown keeps it for the minimum window.
+    if (!busy.isVisible) return const SizedBox.shrink();
     final palette = AppPalette.of(context);
 
     // Cancel comes from a running network op that registered an onCancel.
     final cancelable = ref.watch(operationsProvider).firstWhereOrNull(
           (o) => o.status == OperationStatus.running && o.onCancel != null,
         );
-    final label = busy.label ?? cancelable?.label ?? 'Working…';
+    final label = busy.visibleLabel ?? cancelable?.label ?? 'Working…';
 
     return Positioned.fill(
       child: Stack(
         children: [
-          const ModalBarrier(dismissible: false, color: Color(0x66000000)),
+          ModalBarrier(dismissible: false, color: palette.scrim),
           Center(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
