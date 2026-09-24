@@ -6,13 +6,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/git/commit_request.dart';
 import 'package:gitopen/application/git/git_result.dart';
-import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/common/author_avatar.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -42,6 +46,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
   bool _signOff = false;
   bool _sign = false;
   bool _busy = false;
+  String? _refreshError;
   String? _template;
   int _lastTrigger = 0;
   int _lastPushTrigger = 0;
@@ -123,6 +128,8 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _IdentityStrip(identity: identityAsync.value, amend: _amend),
+          if (_refreshError != null)
+            Text(_refreshError!, style: TextStyle(color: palette.accentErr)),
           const SizedBox(height: 8),
           _MessageField(
             controller: _ctl,
@@ -195,53 +202,73 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
     if (_template != null &&
         _template!.isNotEmpty &&
         _ctl.text.trim() == _template!.trim()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Edit the commit template before committing.'),
-        ),
-      );
+      ref
+          .read(actionFeedbackProvider)
+          .showActionFailure(
+            'Edit the commit template before committing.',
+            label: 'Commit',
+          );
       return;
     }
     // Mirror canCommit: amend may proceed freely; a normal commit needs both a
     // message and staged content (guards the keyboard path too, not just the
     // disabled button).
     if (!_amend && (_ctl.text.trim().isEmpty || !widget.hasStaged)) return;
-    setState(() => _busy = true);
-    final ops = ref.read(operationsProvider.notifier);
-    final opId = ops.start(
-      OpKind.commit,
-      _amend ? 'Amend commit' : 'Commit',
-      repo: widget.repo,
-    );
-    final res = await ref
-        .read(gitWriteOperationsProvider)
-        .commit(
-          widget.repo,
-          CommitRequest(
-            message: _ctl.text.trim(),
-            amend: _amend,
-            signOff: _signOff,
-            sign: _sign,
-          ),
+    setState(() {
+      _busy = true;
+      _refreshError = null;
+    });
+    final run = await ref
+        .read(actionRunnerProvider)
+        .runAndRefresh<GitResult<CommitSha>>(
+          key: 'working-copy:commit',
+          repo: widget.repo,
+          scopes: const {
+            RefreshScope.status,
+            RefreshScope.graph,
+            RefreshScope.sidebar,
+            RefreshScope.workingCopy,
+          },
+          label: _amend ? 'Amend commit' : 'Commit',
+          failed: (value) => value is GitFailure<CommitSha>,
+          successMessage: _amend ? 'Commit amended' : 'Commit created',
+          action: () => ref
+              .read(gitWriteOperationsProvider)
+              .commit(
+                widget.repo,
+                CommitRequest(
+                  message: _ctl.text.trim(),
+                  amend: _amend,
+                  signOff: _signOff,
+                  sign: _sign,
+                ),
+              ),
         );
-    // Report through the shared operations/toast system, like fetch/pull/push
-    // — the notifier outlives this widget, so finish the op even if unmounted.
-    if (res is GitSuccess) {
-      ops.finishSuccess(opId);
-    } else if (res is GitFailure<CommitSha>) {
-      ops.finishFailure(opId, res.message);
+    if (run.value case final GitFailure<CommitSha> failure) {
+      ref
+          .read(actionFeedbackProvider)
+          .showActionFailure(
+            failure.message,
+            label: _amend ? 'Amend commit' : 'Commit',
+          );
     }
     if (!mounted) return;
-    setState(() => _busy = false);
-    if (res is GitSuccess) {
+    setState(() {
+      _busy = false;
+      if (run.status == ActionRunStatus.refreshFailed) {
+        _refreshError = _amend
+            ? 'Commit amended, but the view could not refresh.'
+            : 'Commit created, but the view could not refresh.';
+      }
+    });
+    if (run.value is GitSuccess<CommitSha>) {
       _ctl.text = _template ?? '';
       setState(() {
         _amend = false;
         _signOff = false;
         _sign = false;
       });
-      ref.invalidate(gitReadOperationsProvider);
-      if (thenPush) {
+      if (thenPush && run.status == ActionRunStatus.succeeded) {
         if (!mounted) return;
         await ref.read(gitActionsControllerProvider).push(context, widget.repo);
       }
@@ -460,7 +487,7 @@ class _SubjectMeter extends StatelessWidget {
   }
 }
 
-class _OptionPill extends StatefulWidget {
+class _OptionPill extends StatelessWidget {
   const _OptionPill({
     required this.icon,
     required this.label,
@@ -478,62 +505,39 @@ class _OptionPill extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_OptionPill> createState() => _OptionPillState();
-}
-
-class _OptionPillState extends State<_OptionPill> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final active = widget.active;
+    final active = this.active;
     final fg = active ? palette.fg0 : palette.fg1;
-    final tip = widget.tooltipLabel ?? widget.label;
-    return Tooltip(
-      message: active ? '$tip — on' : '$tip — off',
-      child: Semantics(
-        button: true,
-        toggled: active,
-        label: tip,
-        child: InkWell(
-          onTap: widget.onTap,
-          excludeFromSemantics: true,
-          onHover: (hovered) => setState(() => _hover = hovered),
-          borderRadius: AppRadii.of(context).controlRadius,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 80),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            decoration: BoxDecoration(
-              color: active
-                  ? palette.bgAccent.withValues(alpha: 0.32)
-                  : (_hover ? palette.bg3 : palette.bg2),
-              border: Border.all(
-                color: active ? palette.bgAccent : palette.border,
-              ),
-              borderRadius: AppRadii.of(context).controlRadius,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  widget.icon,
-                  size: 12,
-                  color: active ? palette.accentCurrent : palette.fg2,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    color: fg,
-                    fontSize: 11.5,
-                    fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ],
+    final tip = tooltipLabel ?? label;
+    return AppInteractiveSurface(
+      onTap: onTap,
+      selected: active,
+      semanticLabel: tip,
+      tooltip: active ? '$tip — on' : '$tip — off',
+      baseColor: palette.bg2,
+      foregroundColor: fg,
+      borderColor: palette.border,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      alignment: null,
+      child: (context, visual) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 12,
+            color: active ? palette.accentCurrent : visual.foreground,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: visual.foreground,
+              fontSize: 11.5,
+              fontWeight: active ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -559,14 +563,13 @@ class _CommitSplitButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final radii = AppRadii.of(context);
     if (busy) {
       return Container(
         height: 30,
         width: 104,
         decoration: BoxDecoration(
           color: palette.bg3,
-          borderRadius: radii.controlRadius,
+          borderRadius: AppRadii.of(context).controlRadius,
           border: Border.all(color: palette.border),
         ),
         alignment: Alignment.center,
@@ -578,68 +581,26 @@ class _CommitSplitButton extends StatelessWidget {
       );
     }
     final label = amend ? 'Amend' : 'Commit';
-    final fg = enabled ? palette.onAccentCurrent : palette.fg3;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: enabled ? palette.accentCurrent : palette.bg3,
-        borderRadius: radii.controlRadius,
-        border: Border.all(
-          color: enabled ? palette.accentCurrent : palette.border,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppButton.primary(
+          label: label,
+          icon: amend ? Icons.history_edu : Icons.check,
+          onPressed: enabled ? onCommit : null,
+          compact: true,
         ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: enabled ? onCommit : null,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    amend ? Icons.history_edu : Icons.check,
-                    size: 14,
-                    color: fg,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: fg,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        const SizedBox(width: 2),
+        Builder(
+          builder: (caretContext) => AppIconButton(
+            icon: Icons.expand_more,
+            tooltip: 'Commit and Push',
+            onPressed: enabled ? () => _openCaretMenu(caretContext) : null,
+            size: 28,
+            iconSize: 16,
           ),
-          Container(
-            width: 1,
-            height: 16,
-            color: enabled
-                ? palette.onAccentCurrent.withValues(alpha: 0.28)
-                : palette.border,
-          ),
-          Tooltip(
-            message: 'Commit and Push',
-            child: Builder(
-              builder: (caretContext) => InkWell(
-                onTap: enabled ? () => _openCaretMenu(caretContext) : null,
-                borderRadius: radii.controlRadius,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 6,
-                  ),
-                  child: Icon(Icons.expand_more, size: 16, color: fg),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

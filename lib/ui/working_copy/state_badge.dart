@@ -10,7 +10,7 @@ class DiscardIconButton extends StatelessWidget {
     super.key,
   });
   final bool isSelected;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {

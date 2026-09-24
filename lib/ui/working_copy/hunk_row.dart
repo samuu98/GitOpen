@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
 import 'package:gitopen/domain/diff/diff_line.dart';
+import 'package:gitopen/ui/common/app_animated_row.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/common/diff_horizontal_scroll.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -15,6 +17,7 @@ class HunkRow extends StatelessWidget {
     required this.onToggleLine,
     required this.onAction,
     this.onStash,
+    this.pending = false,
     super.key,
   });
   final DiffHunk hunk;
@@ -31,6 +34,7 @@ class HunkRow extends StatelessWidget {
   /// Inline per-hunk action: discard (unstaged) or unstage (staged).
   final VoidCallback? onAction;
   final VoidCallback? onStash;
+  final bool pending;
 
   @override
   Widget build(BuildContext context) {
@@ -46,8 +50,11 @@ class HunkRow extends StatelessWidget {
             label:
                 '${isChecked ? 'Selected' : 'Unselected'} '
                 'hunk ${index + 1}, ${hunk.header}',
-            child: InkWell(
-              onTap: onToggle,
+            child: AppAnimatedRow(
+              selected: isChecked,
+              onTap: pending ? null : onToggle,
+              tooltip: 'Select hunk ${index + 1}',
+              padding: EdgeInsets.zero,
               child: Padding(
                 padding: const EdgeInsets.only(
                   left: 32,
@@ -77,33 +84,22 @@ class HunkRow extends StatelessWidget {
                       ),
                     ),
                     if (!staged)
-                      IconButton(
-                        onPressed: onStash,
-                        icon: const Icon(Icons.inventory_outlined, size: 13),
+                      AppIconButton(
+                        onPressed: pending ? null : onStash,
+                        icon: Icons.inventory_outlined,
                         tooltip: 'Stash hunk ${index + 1}',
-                        visualDensity: VisualDensity.compact,
+                        size: 24,
+                        iconSize: 13,
                       ),
-                    Tooltip(
-                      message: staged ? 'Unstage hunk' : 'Discard hunk',
-                      waitDuration: const Duration(milliseconds: 400),
-                      child: Semantics(
-                        button: true,
-                        label: staged
-                            ? 'Unstage hunk ${index + 1}'
-                            : 'Discard hunk ${index + 1}',
-                        child: InkWell(
-                          onTap: onAction,
-                          borderRadius: BorderRadius.circular(3),
-                          child: Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: Icon(
-                              staged ? Icons.remove_circle_outline : Icons.undo,
-                              size: 13,
-                              color: staged ? palette.fg2 : palette.accentErr,
-                            ),
-                          ),
-                        ),
-                      ),
+                    AppIconButton(
+                      icon: staged ? Icons.remove_circle_outline : Icons.undo,
+                      tooltip: staged
+                          ? 'Unstage hunk ${index + 1}'
+                          : 'Discard hunk ${index + 1}',
+                      onPressed: pending ? null : onAction,
+                      danger: !staged,
+                      size: 24,
+                      iconSize: 13,
                     ),
                   ],
                 ),
@@ -119,7 +115,7 @@ class HunkRow extends StatelessWidget {
                     _HunkLineRow(
                       line: line,
                       isChecked: selectedLines.contains(lineIndex),
-                      onToggle: () => onToggleLine(lineIndex),
+                      onToggle: pending ? null : () => onToggleLine(lineIndex),
                     ),
                 ],
               ),
@@ -139,7 +135,7 @@ class _HunkLineRow extends StatelessWidget {
   });
   final DiffLine line;
   final bool isChecked;
-  final VoidCallback onToggle;
+  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -156,8 +152,11 @@ class _HunkLineRow extends StatelessWidget {
     final changeLabel = line.kind == DiffLineKind.addition
         ? 'addition'
         : 'deletion';
-    return InkWell(
+    return AppAnimatedRow(
+      selected: selectable && isChecked,
       onTap: selectable ? onToggle : null,
+      tooltip: selectable ? 'Select $changeLabel line' : null,
+      padding: EdgeInsets.zero,
       child: Semantics(
         button: selectable,
         selected: selectable ? isChecked : null,

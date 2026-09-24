@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/domain/diff/diff_hunk.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
+import 'package:gitopen/ui/common/app_animated_row.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/file_row_actions.dart';
 import 'package:gitopen/ui/working_copy/hunk_row.dart';
@@ -63,7 +66,7 @@ class _FileRowState extends ConsumerState<FileRow> {
   bool _acting = false;
   final Set<int> _checkedHunks = {};
   final Map<int, Set<int>> _checkedLines = {};
-  late final FileRowActions _actions = FileRowActions(ref, context);
+  late final FileRowActions _actions = FileRowActions(ref);
 
   Future<void> _runAction(Future<void> Function() action) async {
     if (_acting) return;
@@ -85,6 +88,12 @@ class _FileRowState extends ConsumerState<FileRow> {
   ];
 
   void _toggleExpanded() {
+    if (!_expanded) {
+      ref.read(selectedFileProvider.notifier).state = (
+        path: widget.entry.path,
+        staged: widget.isStaged,
+      );
+    }
     setState(() {
       _expanded = !_expanded;
       if (!_expanded) {
@@ -360,18 +369,22 @@ class _FileRowState extends ConsumerState<FileRow> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
-        child: Material(
-          color: isSelected ? palette.bgAccent : Colors.transparent,
-          child: GestureDetector(
-            onSecondaryTapDown: (d) => _showContextMenu(d.globalPosition),
-            child: InkWell(
-              onTap: () {
-                ref.read(selectedFileProvider.notifier).state = (
-                  path: widget.entry.path,
-                  staged: widget.isStaged,
-                );
-              },
-              child: Padding(
+        child: AppAnimatedRow(
+          selected: isSelected,
+          onSecondaryTapDown: _acting
+              ? null
+              : (details) => _showContextMenu(details.globalPosition),
+          onTap: () {
+            ref.read(selectedFileProvider.notifier).state = (
+              path: widget.entry.path,
+              staged: widget.isStaged,
+            );
+          },
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              if (_acting) const LinearProgressIndicator(minHeight: 2),
+              Padding(
                 padding: EdgeInsets.only(
                   left: 12 + widget.indent,
                   right: 12,
@@ -381,50 +394,25 @@ class _FileRowState extends ConsumerState<FileRow> {
                 child: Row(
                   children: [
                     if (_canExpand)
-                      GestureDetector(
-                        onTap: _toggleExpanded,
-                        behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Semantics(
-                            button: true,
-                            label: _expanded
-                                ? 'Collapse hunks'
-                                : 'Expand hunks',
-                            child: Icon(
-                              _expanded
-                                  ? Icons.expand_more
-                                  : Icons.chevron_right,
-                              size: 14,
-                              color: palette.fg2,
-                            ),
-                          ),
-                        ),
+                      AppIconButton(
+                        icon: _expanded
+                            ? Icons.expand_more
+                            : Icons.chevron_right,
+                        tooltip: _expanded ? 'Collapse hunks' : 'Expand hunks',
+                        onPressed: _acting ? null : _toggleExpanded,
+                        size: 20,
+                        iconSize: 14,
                       )
                     else
                       const SizedBox(width: 18),
-                    GestureDetector(
-                      onTap: _acting ? null : _toggleStage,
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 2,
-                          vertical: 2,
-                        ),
-                        child: Semantics(
-                          button: true,
-                          label: widget.isStaged
-                              ? 'Unstage file'
-                              : 'Stage file',
-                          child: Icon(
-                            widget.isStaged
-                                ? Icons.check_box
-                                : Icons.check_box_outline_blank,
-                            size: 14,
-                            color: palette.fg1,
-                          ),
-                        ),
-                      ),
+                    AppIconButton(
+                      icon: widget.isStaged
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank,
+                      tooltip: widget.isStaged ? 'Unstage file' : 'Stage file',
+                      onPressed: _acting ? null : _toggleStage,
+                      size: 20,
+                      iconSize: 14,
                     ),
                     const SizedBox(width: 6),
                     StateBadge(
@@ -457,12 +445,12 @@ class _FileRowState extends ConsumerState<FileRow> {
                         !_hasCheckedLines)
                       DiscardIconButton(
                         isSelected: isSelected,
-                        onPressed: _discard,
+                        onPressed: _acting ? null : _discard,
                       ),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -546,16 +534,11 @@ class _FileRowState extends ConsumerState<FileRow> {
   }) {
     return Padding(
       padding: const EdgeInsets.only(left: 4),
-      child: TextButton(
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          textStyle: const TextStyle(fontSize: 11),
-          foregroundColor: danger ? AppPalette.of(context).accentErr : null,
-        ),
+      child: AppButton(
+        label: label,
         onPressed: onPressed,
-        child: Text(label),
+        compact: true,
+        kind: danger ? AppButtonKind.danger : AppButtonKind.secondary,
       ),
     );
   }
@@ -595,6 +578,7 @@ class _FileRowState extends ConsumerState<FileRow> {
             for (var i = 0; i < fileDiff.hunks.length; i++)
               HunkRow(
                 hunk: fileDiff.hunks[i],
+                pending: _acting,
                 index: i,
                 staged: widget.isStaged,
                 isChecked: _checkedHunks.contains(i),

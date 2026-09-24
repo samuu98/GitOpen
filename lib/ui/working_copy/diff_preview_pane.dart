@@ -8,6 +8,8 @@ import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/files/file_revision.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/common/diff_line_row.dart';
 import 'package:gitopen/ui/common/diff_prefs.dart';
 import 'package:gitopen/ui/common/image_diff_view.dart';
@@ -51,17 +53,9 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
     final repo = widget.repo;
     final sel = ref.watch(selectedFileProvider);
     if (sel == null) {
-      return Container(
-        color: palette.bg1,
-        alignment: Alignment.center,
-        child: Text(
-          'Select a file to preview changes',
-          style: TextStyle(
-            color: palette.fg3,
-            fontSize: 12.5,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
+      return const AppEmptyState(
+        icon: Icons.description_outlined,
+        title: 'Select a file to preview changes',
       );
     }
     final provider = sel.staged
@@ -73,20 +67,18 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
       child: async.when(
         // Keep the current diff visible during background reloads.
         skipLoadingOnReload: true,
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text(
-            'Diff error: $e',
-            style: TextStyle(color: palette.accentErr),
-          ),
+        loading: () => const AppLoadingState.detail(),
+        error: (e, _) => AppErrorState(
+          message: 'Could not load diff',
+          detail: '$e',
+          onRetry: () => ref.invalidate(provider),
         ),
         data: (fileDiff) {
           if (fileDiff == null) {
-            return Center(
-              child: Text(
-                'No diff available (untracked or unchanged)',
-                style: TextStyle(color: palette.fg3, fontSize: 12),
-              ),
+            return const AppEmptyState(
+              icon: Icons.description_outlined,
+              title: 'No diff available',
+              message: 'This file is untracked or unchanged.',
             );
           }
           if (fileDiff.isBinary) {
@@ -152,30 +144,30 @@ class _DiffPreviewPaneState extends ConsumerState<DiffPreviewPane> {
             // Selectable like normal text; chrome (header, hunk headers,
             // gutters, +/- prefix) is excluded via SelectionContainer.disabled.
             child: ListView(
-            padding: const EdgeInsets.all(8),
-            children: [
-              DiffHeader(path: sel.path, fileDiff: shown),
-              for (final h in shown.hunks)
-                HunkBlock(hunk: h, language: language),
-              if (full != null && full.isLoading)
-                const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Center(
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+              padding: const EdgeInsets.all(8),
+              children: [
+                DiffHeader(path: sel.path, fileDiff: shown),
+                for (final h in shown.hunks)
+                  HunkBlock(hunk: h, language: language),
+                if (full != null && full.isLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Center(
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                     ),
                   ),
-                ),
-              if (shown.truncated && !wantFull)
-                TruncatedDiffBanner(
-                  onLoadFull: () => setState(
-                    () => _fullFor = (path: sel.path, staged: sel.staged),
+                if (shown.truncated && !wantFull)
+                  TruncatedDiffBanner(
+                    onLoadFull: () => setState(
+                      () => _fullFor = (path: sel.path, staged: sel.staged),
+                    ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
           );
         },
       ),
@@ -203,38 +195,38 @@ class DiffHeader extends StatelessWidget {
     // Header is chrome — excluded from text selection.
     return SelectionContainer.disabled(
       child: Container(
-      decoration: BoxDecoration(
-        color: palette.bg3,
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Tooltip(
-              message: path,
-              waitDuration: const Duration(milliseconds: 500),
-              child: Text(
-                path,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: palette.fg0, fontSize: 12),
+        decoration: BoxDecoration(
+          color: palette.bg3,
+          border: Border.all(color: palette.border),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        margin: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Tooltip(
+                message: path,
+                waitDuration: const Duration(milliseconds: 500),
+                child: Text(
+                  path,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.fg0, fontSize: 12),
+                ),
               ),
             ),
-          ),
-          if (showOptions) ...[
-            Text(
-              '+${fileDiff.linesAdded} -${fileDiff.linesDeleted}',
-              style: TextStyle(color: palette.fg2, fontSize: 11),
-            ),
-            const SizedBox(width: 8),
-            const WordDiffToggle(),
-            const SizedBox(width: 4),
-            const SplitDiffToggle(),
+            if (showOptions) ...[
+              Text(
+                '+${fileDiff.linesAdded} -${fileDiff.linesDeleted}',
+                style: TextStyle(color: palette.fg2, fontSize: 11),
+              ),
+              const SizedBox(width: 8),
+              const WordDiffToggle(),
+              const SizedBox(width: 4),
+              const SplitDiffToggle(),
+            ],
           ],
-        ],
-      ),
+        ),
       ),
     );
   }

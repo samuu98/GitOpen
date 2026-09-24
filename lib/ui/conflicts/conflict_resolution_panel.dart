@@ -5,20 +5,20 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/conflicts/inline_merge_resolver.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-final _conflictsProvider =
-    FutureProvider.family.autoDispose<List<String>, RepoLocation>(
-        (ref, repo) async {
-  final git = ref.watch(gitReadOperationsProvider);
-  final status = await git.getStatus(repo);
-  return status.entries
-      .where((e) => e.workingTreeState == WorkingFileState.conflicted)
-      .map((e) => e.path)
-      .toList();
-});
+final _conflictsProvider = FutureProvider.family
+    .autoDispose<List<String>, RepoLocation>((ref, repo) async {
+      final git = ref.watch(gitReadOperationsProvider);
+      final status = await git.getStatus(repo);
+      return status.entries
+          .where((e) => e.workingTreeState == WorkingFileState.conflicted)
+          .map((e) => e.path)
+          .toList();
+    });
 
 class ConflictResolutionPanel extends ConsumerWidget {
   const ConflictResolutionPanel({required this.repo, super.key});
@@ -81,19 +81,21 @@ class ConflictResolutionPanel extends ConsumerWidget {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(8),
-                  child: Row(children: [
-                    OutlinedButton(
-                      onPressed: () => _abort(context, ref, op),
-                      child: const Text('Abort'),
-                    ),
-                    const Spacer(),
-                    ElevatedButton(
-                      onPressed: allResolved
-                          ? () => _continue(context, ref, op)
-                          : null,
-                      child: const Text('Continue'),
-                    ),
-                  ]),
+                  child: Row(
+                    children: [
+                      AppButton.secondary(
+                        label: 'Abort',
+                        onPressed: () => _abort(context, ref, op),
+                      ),
+                      const Spacer(),
+                      AppButton.primary(
+                        label: 'Continue',
+                        onPressed: allResolved
+                            ? () => _continue(context, ref, op)
+                            : null,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             );
@@ -161,24 +163,27 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final resolved = conflictCount == 0;
     return Container(
-      color: (resolved ? palette.accentCurrent : palette.accentWarn)
-          .withValues(alpha: 0.15),
+      color: (resolved ? palette.accentCurrent : palette.accentWarn).withValues(
+        alpha: 0.15,
+      ),
       padding: const EdgeInsets.all(12),
-      child: Row(children: [
-        Icon(
-          resolved ? Icons.check_circle_outline : Icons.warning_amber,
-          color: resolved ? palette.accentCurrent : palette.accentTag,
-          size: 16,
-        ),
-        const SizedBox(width: 8),
-        Text(
-          resolved
-              ? '$opLabel ready — all conflicts resolved'
-              : '$opLabel in progress — '
-                  '$conflictCount conflict${conflictCount == 1 ? "" : "s"}',
-          style: TextStyle(color: palette.fg0, fontWeight: FontWeight.w600),
-        ),
-      ]),
+      child: Row(
+        children: [
+          Icon(
+            resolved ? Icons.check_circle_outline : Icons.warning_amber,
+            color: resolved ? palette.accentCurrent : palette.accentTag,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            resolved
+                ? '$opLabel ready — all conflicts resolved'
+                : '$opLabel in progress — '
+                      '$conflictCount conflict${conflictCount == 1 ? "" : "s"}',
+            style: TextStyle(color: palette.fg0, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -253,7 +258,9 @@ class _ConflictCardState extends ConsumerState<_ConflictCard> {
 
   Future<void> _takeSide({required bool ours}) async {
     setState(() => _busy = true);
-    await ref.read(gitActionsControllerProvider).takeConflictSide(
+    await ref
+        .read(gitActionsControllerProvider)
+        .takeConflictSide(
           context,
           widget.repo,
           widget.path,
@@ -312,8 +319,7 @@ class _ConflictCardState extends ConsumerState<_ConflictCard> {
                     color: palette.fg2,
                   ),
                   const SizedBox(width: 4),
-                  Icon(Icons.error_outline,
-                      color: palette.accentErr, size: 16),
+                  Icon(Icons.error_outline, color: palette.accentErr, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -378,14 +384,10 @@ class _QuickAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        minimumSize: const Size(0, 32),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
+    return AppButton.secondary(
+      label: label,
       onPressed: onPressed,
-      child: Text(label, style: const TextStyle(fontSize: 12)),
+      compact: true,
     );
   }
 }

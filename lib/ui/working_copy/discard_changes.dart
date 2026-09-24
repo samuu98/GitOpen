@@ -5,7 +5,8 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
-import 'package:gitopen/ui/theme/app_palette.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 
 /// Discards working-tree changes for the supplied entries.
 ///
@@ -28,27 +29,35 @@ Future<bool> discardEntries(
     }
   }
   final write = ref.read(gitWriteOperationsProvider);
-  for (final (paths, run) in [
-    (tracked, () => write.discardChanges(repo, tracked)),
-    (untracked, () => write.cleanUntracked(repo, untracked)),
-  ]) {
-    if (paths.isEmpty) continue;
-    final result = await run();
-    if (result is GitFailure<void>) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Discard failed: ${result.message}'),
-            backgroundColor: AppPalette.of(context).accentErr,
-          ),
+  final run = await ref
+      .read(actionRunnerProvider)
+      .runAndRefresh<GitResult<void>>(
+        key: 'working-copy:discard:${entries.map((e) => e.path).join(',')}',
+        repo: repo,
+        scopes: const {RefreshScope.status, RefreshScope.workingCopy},
+        label: 'Discard',
+        failed: (result) => result is GitFailure<void>,
+        action: () async {
+          if (tracked.isNotEmpty) {
+            final result = await write.discardChanges(repo, tracked);
+            if (result is GitFailure<void>) return result;
+          }
+          if (untracked.isNotEmpty) {
+            final result = await write.cleanUntracked(repo, untracked);
+            if (result is GitFailure<void>) return result;
+          }
+          return const GitSuccess<void>(null);
+        },
+      );
+  if (run.value case final GitFailure<void> failure) {
+    ref
+        .read(actionFeedbackProvider)
+        .showActionFailure(
+          'Discard failed: ${failure.message}',
+          label: 'Discard',
         );
-      }
-      ref.invalidate(repoStatusProvider(repo));
-      return false;
-    }
   }
-  ref.invalidate(repoStatusProvider(repo));
-  return true;
+  return run.status == ActionRunStatus.succeeded;
 }
 
 Future<void> confirmAndDiscardAll(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +11,7 @@ import 'package:gitopen/domain/diff/diff_line.dart';
 import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/domain/status/repo_status.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/file_row.dart';
@@ -103,6 +106,64 @@ Widget _host(_FakeWrite write, {required bool isStaged}) => ProviderScope(
 );
 
 void main() {
+  testWidgets(
+    'stage stays disabled through status refresh and ignores repeats',
+    (
+      tester,
+    ) async {
+      final write = _FakeWrite();
+      final repo = RepoLocation(RepoId.newId(), 'unused', 't');
+      final refreshed = Completer<RepoStatus>();
+      var loads = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            gitWriteOperationsProvider.overrideWithValue(write),
+            repoStatusProvider(repo).overrideWith((ref) {
+              loads++;
+              if (loads > 1) return refreshed.future;
+              return Future.value(
+                const RepoStatus(
+                  isDetached: false,
+                  isBare: false,
+                  entries: [_modified],
+                ),
+              );
+            }),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(extensions: [AppPalette.dark()]),
+            home: Scaffold(
+              body: Consumer(
+                builder: (context, ref, _) {
+                  ref.watch(repoStatusProvider(repo));
+                  return FileRow(repo: repo, entry: _modified, isStaged: false);
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.check_box_outline_blank));
+      await tester.pump();
+      expect(write.staged, ['lib/app.dart']);
+      await tester.tap(find.byIcon(Icons.check_box_outline_blank));
+      await tester.pump();
+      expect(write.staged, ['lib/app.dart']);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      refreshed.complete(
+        const RepoStatus(
+          isDetached: false,
+          isBare: false,
+          entries: [],
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+    },
+  );
+
   testWidgets('failed line patch stops the batch and reports the error', (
     tester,
   ) async {
@@ -117,7 +178,7 @@ void main() {
           home: Scaffold(
             body: Consumer(
               builder: (context, ref, _) => TextButton(
-                onPressed: () => FileRowActions(ref, context).stageLines(
+                onPressed: () => FileRowActions(ref).stageLines(
                   repo,
                   'lib/app.dart',
                   [
@@ -136,7 +197,13 @@ void main() {
     await tester.pump();
 
     expect(write.stagedPatches, hasLength(1));
-    expect(find.text('Stage failed: patch rejected'), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.text('Stage selected lines')),
+    );
+    expect(
+      container.read(operationsProvider).last.errorMessage,
+      'Stage failed: patch rejected',
+    );
   });
 
   testWidgets('renders the path and the expand chevron for unstaged rows', (
@@ -220,7 +287,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.chevron_right));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Unstage hunk'));
+    await tester.tap(find.byTooltip('Unstage hunk 1'));
     await tester.pumpAndSettle();
 
     expect(write.unstagedPatches, hasLength(1));

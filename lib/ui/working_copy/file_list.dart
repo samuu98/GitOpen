@@ -5,7 +5,11 @@ import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
+import 'package:gitopen/ui/common/app_animated_row.dart';
 import 'package:gitopen/ui/common/file_list_mode_toggle.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/discard_changes.dart';
@@ -39,26 +43,31 @@ class _FileListState extends ConsumerState<FileList> {
     try {
       final repo = widget.repo;
       final write = ref.read(gitWriteOperationsProvider);
-      final result = stage
-          ? await write.stageFiles(
-              repo,
-              widget.unstaged.map((e) => e.path).toList(),
-            )
-          : await write.unstageFiles(
-              repo,
-              widget.staged.map((e) => e.path).toList(),
+      final run = await ref
+          .read(actionRunnerProvider)
+          .runAndRefresh<GitResult<void>>(
+            key: 'working-copy:all',
+            repo: repo,
+            scopes: const {RefreshScope.status, RefreshScope.workingCopy},
+            failed: (value) => value is GitFailure<void>,
+            label: stage ? 'Stage all' : 'Unstage all',
+            action: () => stage
+                ? write.stageFiles(
+                    repo,
+                    widget.unstaged.map((e) => e.path).toList(),
+                  )
+                : write.unstageFiles(
+                    repo,
+                    widget.staged.map((e) => e.path).toList(),
+                  ),
+          );
+      if (run.value case final GitFailure<void> failure) {
+        ref
+            .read(actionFeedbackProvider)
+            .showActionFailure(
+              '${stage ? 'Stage' : 'Unstage'} failed: ${failure.message}',
             );
-      if (mounted && result is GitFailure<void>) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${stage ? 'Stage' : 'Unstage'} failed: ${result.message}',
-            ),
-            backgroundColor: AppPalette.of(context).accentErr,
-          ),
-        );
       }
-      if (mounted) ref.invalidate(repoStatusProvider(repo));
     } finally {
       if (mounted) setState(() => _writing = false);
     }
@@ -231,8 +240,11 @@ class _DirRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final spacing = AppSpacing.of(context);
-    return InkWell(
+    return AppAnimatedRow(
+      selected: false,
       onTap: onTap,
+      tooltip: collapsed ? 'Expand folder $name' : 'Collapse folder $name',
+      padding: EdgeInsets.zero,
       child: Padding(
         padding: EdgeInsets.only(
           left: 12 + depth * 14.0,
@@ -303,12 +315,11 @@ class Header extends StatelessWidget {
           ),
           const Spacer(),
           for (final a in actions)
-            TextButton(
+            AppButton(
+              label: a.label,
               onPressed: a.onPressed,
-              style: a.danger
-                  ? TextButton.styleFrom(foregroundColor: palette.accentErr)
-                  : null,
-              child: Text(a.label),
+              compact: true,
+              kind: a.danger ? AppButtonKind.danger : AppButtonKind.secondary,
             ),
         ],
       ),
