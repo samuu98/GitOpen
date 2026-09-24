@@ -7,8 +7,6 @@ import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/git_lfs/git_cli_lfs_operations.dart';
 
-import '../../_helpers/repo_fixture.dart';
-
 void main() {
   test('cancelling LFS progress kills the process', () async {
     final process = _FakeProcess();
@@ -39,12 +37,18 @@ void main() {
       return;
     }
 
-    final fixture = await RepoFixture.empty();
-    addTearDown(fixture.dispose);
+    // A bare `git init` keeps the spawn count low: under a loaded suite each
+    // extra fixture step (config, initial commit) pushed this past its timeout.
+    final fixture = await Directory.systemTemp.createTemp('gitopen-lfs-test-');
+    addTearDown(() => fixture.delete(recursive: true));
+    final init = await Process.run('git', [
+      'init',
+      '-q',
+    ], workingDirectory: fixture.path);
+    expect(init.exitCode, 0, reason: init.stderr.toString());
     final repo = RepoLocation(RepoId.newId(), fixture.path, 'repo');
     final sut = GitCliLfsOperations();
 
-    await sut.installLocal(repo);
     await sut.track(repo, '*.bin');
     expect((await sut.trackedPatterns(repo)).single.pattern, '*.bin');
     await sut.untrack(repo, '*.bin');

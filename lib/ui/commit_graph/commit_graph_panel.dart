@@ -167,10 +167,23 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                           final node = data.nodes[i];
                           final refs =
                               data.refsBySha[node.commit.sha.value] ?? const [];
+                          final bisect = bisectAsync.value;
+                          final sha = node.commit.sha;
                           return CommitRow(
                             node: node,
                             maxLane: data.maxLane,
                             refs: refs,
+                            bisectMarkers: bisect == null
+                                ? const []
+                                : [
+                                    if (bisect.candidate == sha)
+                                      BisectMarker.candidate,
+                                    if (bisect.good.contains(sha))
+                                      BisectMarker.good,
+                                    if (bisect.bad == sha) BisectMarker.bad,
+                                    if (bisect.firstBad == sha)
+                                      BisectMarker.firstBad,
+                                  ],
                             isSelected: selected == node.commit.sha,
                             onTap: () {
                               ref

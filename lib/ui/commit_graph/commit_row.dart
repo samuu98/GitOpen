@@ -21,10 +21,12 @@ class CommitRow extends StatelessWidget {
     this.onSecondaryTap,
     this.onRefTap,
     this.onRefDoubleTap,
+    this.bisectMarkers = const [],
   });
   final CommitNode node;
   final int maxLane;
   final List<RefDecoration> refs;
+  final List<BisectMarker> bisectMarkers;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -109,6 +111,12 @@ class CommitRow extends StatelessWidget {
                       ),
                     ),
                   if (refs.isNotEmpty) const SizedBox(width: 4),
+                  for (final marker in bisectMarkers)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: _BisectPill(marker: marker),
+                    ),
+                  if (bisectMarkers.isNotEmpty) const SizedBox(width: 4),
                   Flexible(
                     child: Text(
                       node.commit.summary,
@@ -167,6 +175,40 @@ class CommitRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+enum BisectMarker { candidate, good, bad, firstBad }
+
+class _BisectPill extends StatelessWidget {
+  const _BisectPill({required this.marker});
+
+  final BisectMarker marker;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+    final (label, color) = switch (marker) {
+      BisectMarker.candidate => ('Candidate', palette.accentRemote),
+      BisectMarker.good => ('Good', palette.accentCurrent),
+      BisectMarker.bad => ('Bad', palette.accentWarn),
+      BisectMarker.firstBad => ('First bad', palette.accentErr),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: palette.bg2,
+        border: Border.all(color: color),
+        borderRadius: AppRadii.of(context).controlRadius,
+      ),
+      child: Text(
+        label,
+        style: AppTypography.of(context).captionStrong.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

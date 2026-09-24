@@ -8,6 +8,7 @@ import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/git/merge_outcome.dart';
+import 'package:gitopen/application/git/stash_safety_operations.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
@@ -15,6 +16,26 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
+
+class _StashSafetyFake implements StashSafetyOperations {
+  int preserveCalls = 0;
+  bool? pop;
+
+  @override
+  Future<GitResult<List<String>>> overlap(RepoLocation repo, int index) async =>
+      const GitSuccess(['same file.txt', 'other.txt']);
+
+  @override
+  Future<GitResult<StashRestoreResult>> applyPreservingLocal(
+    RepoLocation repo,
+    int index, {
+    required bool pop,
+  }) async {
+    preserveCalls++;
+    this.pop = pop;
+    return const GitSuccess(StashRestoreResult());
+  }
+}
 
 /// Fake write whose `merge` returns a canned result, so the controller's
 /// snackbar/feedback behaviour can be driven without git.
@@ -196,5 +217,45 @@ void main() {
     await tester.pump();
 
     expect(container.read(busyProvider).isBusy, isFalse);
+  });
+
+  testWidgets('stash overlap dialog lists files and wires cancel and apply', (
+    tester,
+  ) async {
+    final safety = _StashSafetyFake();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          stashSafetyOperationsProvider.overrideWithValue(safety),
+        ],
+        child: MaterialApp(
+          theme: ThemeData(extensions: [AppPalette.dark()]),
+          home: Scaffold(
+            body: Consumer(
+              builder: (context, ref, _) => ElevatedButton(
+                onPressed: () => ref
+                    .read(gitActionsControllerProvider)
+                    .stashPop(context, repo, 0),
+                child: const Text('Pop stash'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Pop stash'));
+    await tester.pumpAndSettle();
+    expect(find.text('same file.txt'), findsOneWidget);
+    expect(find.text('other.txt'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(safety.preserveCalls, 0);
+
+    await tester.tap(find.text('Pop stash'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Stash my changes and pop'));
+    await tester.pumpAndSettle();
+    expect(safety.preserveCalls, 1);
+    expect(safety.pop, isTrue);
   });
 }

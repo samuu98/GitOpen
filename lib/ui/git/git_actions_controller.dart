@@ -3,13 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/git/branch_deletion.dart';
 import 'package:gitopen/application/git/git_action_ports.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
+import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/git/merge_outcome.dart';
 import 'package:gitopen/application/git/repo_state_provider.dart';
+import 'package:gitopen/application/git/stash_safety_operations.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/settings/app_settings.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/git/git_action_bridges.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -413,22 +416,99 @@ class GitActionsController {
     BuildContext context,
     RepoLocation repo,
     int index,
-  ) => _runLocal(
-    context,
-    repo,
-    () => _ref.read(gitActionsServiceProvider).stashApply(repo, index),
-  );
+  ) => _applyStash(context, repo, index, pop: false);
 
   /// `git stash pop stash@{index}`.
   Future<ActionResult> stashPop(
     BuildContext context,
     RepoLocation repo,
     int index,
-  ) => _runLocal(
-    context,
-    repo,
-    () => _ref.read(gitActionsServiceProvider).stashPop(repo, index),
-  );
+  ) => _applyStash(context, repo, index, pop: true);
+
+  Future<ActionResult> _applyStash(
+    BuildContext context,
+    RepoLocation repo,
+    int index, {
+    required bool pop,
+  }) async {
+    final safety = _ref.read(stashSafetyOperationsProvider);
+    final checked = await safety.overlap(repo, index);
+    if (!context.mounted) return const ActionResult(ActionOutcome.failed);
+    if (checked case GitFailure<List<String>>(:final message)) {
+      final result = ActionResult(
+        ActionOutcome.failed,
+        message: 'Stash check failed: $message',
+        severity: MessageSeverity.error,
+      );
+      _showSnack(context, result.message!, result.severity);
+      return result;
+    }
+    final paths = (checked as GitSuccess<List<String>>).value;
+    if (paths.isEmpty) {
+      return _runLocal(
+        context,
+        repo,
+        () => pop
+            ? _ref.read(gitActionsServiceProvider).stashPop(repo, index)
+            : _ref.read(gitActionsServiceProvider).stashApply(repo, index),
+      );
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AppDialog(
+        title: 'Stash overlaps local changes',
+        width: 560,
+        subtitle:
+            'These files have changes in both the stash and your worktree.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [for (final path in paths) Text(path)],
+        ),
+        actions: [
+          AppButton.secondary(
+            label: 'Cancel',
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          AppButton.primary(
+            label: pop
+                ? 'Stash my changes and pop'
+                : 'Stash my changes and apply',
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) {
+      return const ActionResult(ActionOutcome.failed);
+    }
+    return _runLocal(context, repo, () async {
+      final result = await safety.applyPreservingLocal(repo, index, pop: pop);
+      return switch (result) {
+        GitSuccess<StashRestoreResult>(:final value) when value.hasConflict =>
+          ActionResult(
+            ActionOutcome.conflict,
+            invalidate: const {RepoDataScope.reads, RepoDataScope.repoState},
+            message:
+                'Local edits conflicted while restoring. Resolve in the '
+                'conflicts panel. Your local edits remain in '
+                '${value.localStash}. '
+                'The target stash was kept.',
+            severity: MessageSeverity.error,
+          ),
+        GitSuccess<StashRestoreResult>() => const ActionResult(
+          ActionOutcome.success,
+          invalidate: {RepoDataScope.reads, RepoDataScope.repoState},
+        ),
+        GitFailure<StashRestoreResult>(:final message) => ActionResult(
+          ActionOutcome.failed,
+          invalidate: const {RepoDataScope.reads, RepoDataScope.repoState},
+          message: 'Stash apply failed: $message',
+          severity: MessageSeverity.error,
+        ),
+      };
+    });
+  }
 
   /// `git stash drop stash@{index}`.
   Future<ActionResult> stashDrop(

@@ -11,6 +11,7 @@ import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_dir_probe.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
+import 'package:gitopen/application/git/stash_safety_operations.dart';
 import 'package:gitopen/application/git_lfs/git_lfs_models.dart';
 import 'package:gitopen/application/git_lfs/git_lfs_operations.dart';
 import 'package:gitopen/application/git_lfs/git_lfs_service.dart';
@@ -44,6 +45,7 @@ import 'package:gitopen/infrastructure/auth/github_user_service.dart';
 import 'package:gitopen/infrastructure/auth/secure_auth_profile_store.dart';
 import 'package:gitopen/infrastructure/git/git_cli_commit_template_reader.dart';
 import 'package:gitopen/infrastructure/git/git_cli_read_operations.dart';
+import 'package:gitopen/infrastructure/git/git_cli_stash_safety_operations.dart';
 import 'package:gitopen/infrastructure/git/git_cli_write_operations.dart';
 import 'package:gitopen/infrastructure/git/git_identity_service.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
@@ -76,6 +78,12 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
 
 final gitProcessRunnerProvider = Provider<GitProcessRunner>((ref) {
   return GitProcessRunner();
+});
+
+final stashSafetyOperationsProvider = Provider<StashSafetyOperations>((ref) {
+  return GitCliStashSafetyOperations(
+    runner: ref.watch(gitProcessRunnerProvider),
+  );
 });
 
 /// Reads a repo's remote URL via the git CLI (shared by the auth resolver
