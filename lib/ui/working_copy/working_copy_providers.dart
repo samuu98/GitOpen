@@ -10,8 +10,7 @@ import 'package:gitopen/domain/status/working_file_entry.dart';
 final workingCopyStatusProvider = FutureProvider.family
     .autoDispose<List<WorkingFileEntry>, RepoLocation>(
       (ref, repo) async {
-        final git = ref.watch(gitReadOperationsProvider);
-        final status = await git.getStatus(repo);
+        final status = await ref.watch(repoStatusProvider(repo).future);
         return status.entries;
       },
     );

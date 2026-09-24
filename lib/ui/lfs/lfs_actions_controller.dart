@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:gitopen/application/git/git_action_ports.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/providers.dart';
@@ -10,6 +11,10 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 /// Exposes [LfsActionsController] — the single UI entry point for LFS actions.
 final lfsActionsControllerProvider = Provider<LfsActionsController>(
   LfsActionsController.new,
+);
+
+final lfsSyncBusyProvider = StateProvider.family<bool, RepoLocation>(
+  (ref, repo) => false,
 );
 
 /// Thin UI adapter over the pure `GitLfsService`, mirroring
@@ -82,16 +87,26 @@ class LfsActionsController {
     RepoLocation repo,
     Future<ActionResult> Function(AuthPrompt prompt, ProgressSink progress) op,
   ) async {
-    final result = await op(
-      DialogAuthPrompt(context, _ref),
-      OperationsProgressSink(_ref),
-    );
-    _invalidate(repo);
-    final message = result.message;
-    if (message != null && context.mounted) {
-      _showSnack(context, message, result.severity);
+    if (_ref.read(lfsSyncBusyProvider(repo))) {
+      return const ActionResult(ActionOutcome.failed);
     }
-    return result;
+    _ref.read(lfsSyncBusyProvider(repo).notifier).state = true;
+    try {
+      final result = await op(
+        DialogAuthPrompt(context, _ref),
+        OperationsProgressSink(_ref),
+      );
+      if (_ref.mounted) _invalidate(repo);
+      final message = result.message;
+      if (message != null && context.mounted) {
+        _showSnack(context, message, result.severity);
+      }
+      return result;
+    } finally {
+      if (_ref.mounted) {
+        _ref.read(lfsSyncBusyProvider(repo).notifier).state = false;
+      }
+    }
   }
 
   Future<ActionResult> _runLocal(

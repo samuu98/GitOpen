@@ -198,6 +198,18 @@ void main() {
     expect(startedDuringResolve, isTrue);
   });
 
+  test('auth resolver failure closes the activity', () async {
+    final progress = _FakeProgress();
+    final result = await GitActionsService(
+      write: _FakeWrite([_ok]),
+      resolveProfile: (_) async => throw StateError('store unavailable'),
+      errorText: (e) => e.toString(),
+    ).fetch(repo, prompt: _FakePrompt(null), progress: progress);
+
+    expect(result.outcome, ActionOutcome.failed);
+    expect(progress.events, ['start:op0', 'failure:op0']);
+  });
+
   test('auth failure → prompt → retry succeeds', () async {
     final write = _FakeWrite([() => _err('fatal: Authentication failed'), _ok]);
     final prompt = _FakePrompt(_chosen);

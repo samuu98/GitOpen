@@ -241,6 +241,7 @@ class RepoFixture {
   /// test can drive `update --init` cloning from this local path. Empty for
   /// fixtures that don't add a submodule.
   String submoduleSourcePath = '';
+  bool _ownsSubmoduleSource = false;
 
   /// A superproject repo with one submodule registered at path `sub`,
   /// pointing at a freshly-built inner repo (a single commit).
@@ -285,8 +286,40 @@ class RepoFixture {
 
     superRepo
       ..submoduleSourcePath = inner.path
+      .._ownsSubmoduleSource = true
       ..headSha = (await _git(superRepo.path, ['rev-parse', 'HEAD'])).trim();
     return superRepo;
+  }
+
+  /// Copies the Git metadata and working tree while keeping mutations isolated.
+  Future<RepoFixture> copy() async {
+    final dir = await Directory.systemTemp.createTemp('gitopen-test-');
+    try {
+      await for (final entity in
+          Directory(path).list(recursive: true, followLinks: false)) {
+        final destination = p.join(
+          dir.path,
+          p.relative(entity.path, from: path),
+        );
+        if (entity is Directory) {
+          await Directory(destination).create(recursive: true);
+        } else {
+          await Directory(p.dirname(destination)).create(recursive: true);
+          if (entity is File) {
+            await entity.copy(destination);
+          } else if (entity is Link) {
+            await Link(destination).create(await entity.target());
+          }
+        }
+      }
+      return RepoFixture._(dir.path, headSha)
+        ..firstSha = firstSha
+        ..rebaseShas = rebaseShas
+        ..submoduleSourcePath = submoduleSourcePath;
+    } on Object {
+      await dir.delete(recursive: true);
+      rethrow;
+    }
   }
 
   Future<void> dispose() async {
@@ -294,6 +327,13 @@ class RepoFixture {
       await Directory(path).delete(recursive: true);
     } on Object {
       // Best-effort cleanup; ignore failures (e.g. locked files on Windows).
+    }
+    if (_ownsSubmoduleSource) {
+      try {
+        await Directory(submoduleSourcePath).delete(recursive: true);
+      } on Object {
+        // Best-effort cleanup; ignore failures (e.g. locked files on Windows).
+      }
     }
   }
 

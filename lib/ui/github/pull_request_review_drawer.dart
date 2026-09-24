@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/github/github_providers.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -259,8 +260,8 @@ class _LineCommentDialogState extends State<_LineCommentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Comment on line ${widget.line}'),
+    return AppDialog(
+      title: 'Comment on line ${widget.line}',
       content: TextField(
         key: const Key('review-line-comment-body'),
         controller: _controller,

@@ -42,6 +42,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
   bool _signOff = false;
   bool _sign = false;
   bool _busy = false;
+  String? _template;
   int _lastTrigger = 0;
   int _lastPushTrigger = 0;
 
@@ -49,6 +50,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
   void initState() {
     super.initState();
     _ctl.addListener(() => setState(() {}));
+    unawaited(_loadTemplate(widget.repo));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final s = ref.read(appSettingsProvider);
@@ -57,6 +59,24 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
         if (s.gpgSignByDefault) _sign = true;
       });
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant CommitCompose oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repo != widget.repo) {
+      _template = null;
+      unawaited(_loadTemplate(widget.repo));
+    }
+  }
+
+  Future<void> _loadTemplate(RepoLocation repo) async {
+    final template = await ref.read(gitCommitTemplateReaderProvider).read(repo);
+    if (!mounted || widget.repo != repo) return;
+    _template = template;
+    if (_ctl.text.isEmpty && template != null && template.isNotEmpty) {
+      _ctl.text = template;
+    }
   }
 
   @override
@@ -172,6 +192,16 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
 
   Future<void> _commit({bool thenPush = false}) async {
     if (!mounted || _busy) return;
+    if (_template != null &&
+        _template!.isNotEmpty &&
+        _ctl.text.trim() == _template!.trim()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Edit the commit template before committing.'),
+        ),
+      );
+      return;
+    }
     // Mirror canCommit: amend may proceed freely; a normal commit needs both a
     // message and staged content (guards the keyboard path too, not just the
     // disabled button).
@@ -204,7 +234,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (res is GitSuccess) {
-      _ctl.clear();
+      _ctl.text = _template ?? '';
       setState(() {
         _amend = false;
         _signOff = false;

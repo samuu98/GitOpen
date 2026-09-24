@@ -119,6 +119,7 @@ class ConflictResolutionPanel extends ConsumerWidget {
       case InProgressOp.rebase:
         await actions.rebaseAbort(context, repo);
       case InProgressOp.none:
+      case InProgressOp.bisect:
         break;
     }
   }
@@ -139,6 +140,7 @@ class ConflictResolutionPanel extends ConsumerWidget {
       case InProgressOp.rebase:
         await actions.rebaseContinue(context, repo);
       case InProgressOp.none:
+      case InProgressOp.bisect:
         break;
     }
   }

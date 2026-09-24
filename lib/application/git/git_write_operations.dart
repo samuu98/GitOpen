@@ -31,6 +31,16 @@ final class RebaseTodoEntry {
 }
 
 abstract interface class GitWriteOperations {
+  Future<GitResult<void>> bisectStart(
+    RepoLocation r,
+    String bad,
+    String good,
+  );
+  Future<GitResult<void>> bisectGood(RepoLocation r);
+  Future<GitResult<void>> bisectBad(RepoLocation r);
+  Future<GitResult<void>> bisectSkip(RepoLocation r);
+  Future<GitResult<void>> bisectReset(RepoLocation r);
+
   /// Initialises a new repository at [directory] (`git init <dir>`), creating
   /// the directory (and parents) when missing.
   Future<GitResult<void>> initRepo(String directory);
@@ -181,7 +191,14 @@ abstract interface class GitWriteOperations {
     RepoLocation r,
     String message, {
     bool includeUntracked = false,
+    bool stagedOnly = false,
     List<String> paths = const [],
+  });
+  Future<GitResult<void>> stashPatch(
+    RepoLocation r,
+    List<String> patches,
+    String message, {
+    List<String>? worktreePatches,
   });
   Future<GitResult<void>> stashPop(RepoLocation r, int index);
   Future<GitResult<void>> stashApply(RepoLocation r, int index);

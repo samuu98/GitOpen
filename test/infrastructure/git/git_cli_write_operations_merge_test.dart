@@ -9,6 +9,83 @@ import 'package:path/path.dart' as p;
 import '../../_helpers/repo_fixture.dart';
 
 void main() {
+  test('preview and conflict merge return an unquoted path', () async {
+    final f = await RepoFixture.empty();
+    try {
+      final file = File(p.join(f.path, 'café.txt'));
+      await file.writeAsString('base\n');
+      await Process.run('git', ['add', '-A'], workingDirectory: f.path);
+      await Process.run('git', ['commit', '-qm', 'base'],
+          workingDirectory: f.path);
+      await Process.run('git', ['checkout', '-qb', 'feature'],
+          workingDirectory: f.path);
+      await file.writeAsString('feature\n');
+      await Process.run('git', ['commit', '-qam', 'feature'],
+          workingDirectory: f.path);
+      await Process.run('git', ['checkout', '-q', 'master'],
+          workingDirectory: f.path);
+      await file.writeAsString('master\n');
+      await Process.run('git', ['commit', '-qam', 'master'],
+          workingDirectory: f.path);
+      final repo = RepoLocation(RepoId.newId(), f.path, 't');
+      final sut = GitCliWriteOperations();
+      final preview = await sut.previewMerge(repo, 'feature');
+      expect(preview, isA<GitSuccess<MergePreview>>());
+      expect((preview as GitSuccess<MergePreview>).value,
+          isA<MergePreviewConflicts>());
+      expect((preview.value as MergePreviewConflicts).conflictedPaths,
+          ['café.txt']);
+      final merged = await sut.merge(repo, 'feature');
+      expect(merged, isA<GitSuccess<MergeOutcome>>());
+      expect((merged as GitSuccess<MergeOutcome>).value, isA<MergeConflict>());
+      expect((merged.value as MergeConflict).conflictedPaths, ['café.txt']);
+    } finally {
+      await f.dispose();
+    }
+  });
+
+  test('clean divergent merge completes without opening an editor', () async {
+    final f = await RepoFixture.withLinearHistory(1);
+    try {
+      await Process.run('git', [
+        'config',
+        'core.editor',
+        'false',
+      ], workingDirectory: f.path);
+      await Process.run('git', [
+        'checkout',
+        '-qb',
+        'feature',
+      ], workingDirectory: f.path);
+      await File(p.join(f.path, 'feature.txt')).writeAsString('feature\n');
+      await Process.run('git', ['add', '-A'], workingDirectory: f.path);
+      await Process.run('git', [
+        'commit',
+        '-qm',
+        'feature',
+      ], workingDirectory: f.path);
+      await Process.run('git', [
+        'checkout',
+        '-q',
+        'master',
+      ], workingDirectory: f.path);
+      await File(p.join(f.path, 'master.txt')).writeAsString('master\n');
+      await Process.run('git', ['add', '-A'], workingDirectory: f.path);
+      await Process.run('git', [
+        'commit',
+        '-qm',
+        'master',
+      ], workingDirectory: f.path);
+      final result = await GitCliWriteOperations()
+          .merge(RepoLocation(RepoId.newId(), f.path, 't'), 'feature')
+          .timeout(const Duration(seconds: 10));
+      expect(result, isA<GitSuccess<MergeOutcome>>());
+      expect((result as GitSuccess<MergeOutcome>).value, isA<MergeMerged>());
+    } finally {
+      await f.dispose();
+    }
+  });
+
   test('ff merge', () async {
     final f = await RepoFixture.withLinearHistory(1);
     try {
@@ -39,7 +116,9 @@ void main() {
         (res as GitSuccess<MergeOutcome>).value,
         isA<MergeFastForward>(),
       );
-    } finally { await f.dispose(); }
+    } finally {
+      await f.dispose();
+    }
   });
 
   test('3-way merge with conflict reports conflicted paths', () async {
@@ -81,6 +160,8 @@ void main() {
         (outcome as MergeConflict).conflictedPaths,
         contains('file_0.txt'),
       );
-    } finally { await f.dispose(); }
+    } finally {
+      await f.dispose();
+    }
   });
 }

@@ -266,6 +266,31 @@ final class GitActionsService {
     RepoDataScope.repoState,
   };
 
+  Future<ActionResult> bisectStart(
+    RepoLocation repo,
+    String bad,
+    String good,
+  ) => _simple(
+    'Start bisect',
+    _write.bisectStart(repo, bad, good),
+    invalidate: _localScope,
+  );
+
+  Future<ActionResult> bisectGood(RepoLocation repo) =>
+      _simple('Bisect good', _write.bisectGood(repo), invalidate: _localScope);
+
+  Future<ActionResult> bisectBad(RepoLocation repo) =>
+      _simple('Bisect bad', _write.bisectBad(repo), invalidate: _localScope);
+
+  Future<ActionResult> bisectSkip(RepoLocation repo) =>
+      _simple('Bisect skip', _write.bisectSkip(repo), invalidate: _localScope);
+
+  Future<ActionResult> bisectReset(RepoLocation repo) => _simple(
+    'Reset bisect',
+    _write.bisectReset(repo),
+    invalidate: _localScope,
+  );
+
   /// `git merge <ref>` with the given [strategy].
   Future<ActionResult> merge(
     RepoLocation repo,
@@ -431,6 +456,7 @@ final class GitActionsService {
     RepoLocation repo,
     String message, {
     bool includeUntracked = false,
+    bool stagedOnly = false,
     List<String> paths = const [],
   }) => _simple(
     'Stash',
@@ -438,8 +464,19 @@ final class GitActionsService {
       repo,
       message,
       includeUntracked: includeUntracked,
+      stagedOnly: stagedOnly,
       paths: paths,
     ),
+  );
+
+  Future<ActionResult> stashPatch(
+    RepoLocation repo,
+    List<String> patches,
+    String message, {
+    List<String>? worktreePatches,
+  }) => _simple(
+    'Stash',
+    _write.stashPatch(repo, patches, message, worktreePatches: worktreePatches),
   );
 
   /// `git stash apply stash@{index}`.
@@ -612,35 +649,42 @@ final class GitActionsService {
       repo: repo,
       onCancel: () {
         cancelled = true;
-        unawaited(sub?.cancel());
-        if (!done.isCompleted) done.complete();
+        final active = sub;
+        if (active == null) {
+          if (!done.isCompleted) done.complete();
+        } else {
+          unawaited(
+            active.cancel().then((_) {
+              if (!done.isCompleted) done.complete();
+            }),
+          );
+        }
       },
-    );
-    final resolved = profileResolved ? profile : await _resolveProfile(repo);
-    // Cancelled while resolving auth — don't start the git stream.
-    if (cancelled) {
-      progress.failure(id, 'Cancelled');
-      return const ActionResult(ActionOutcome.failed);
-    }
-    sub = streamFactory(resolved?.spec).listen(
-      (ev) => progress.progress(id, ev.fraction, ev.phase),
-      onError: (Object e, StackTrace s) {
-        if (!done.isCompleted) done.completeError(e, s);
-      },
-      onDone: () {
-        if (!done.isCompleted) done.complete();
-      },
-      cancelOnError: true,
     );
     try {
+      final resolved = profileResolved ? profile : await _resolveProfile(repo);
+      // Cancelled while resolving auth — don't start the git stream.
+      if (cancelled) {
+        return const ActionResult(ActionOutcome.failed);
+      }
+      sub = streamFactory(resolved?.spec).listen(
+        (ev) => progress.progress(id, ev.fraction, ev.phase),
+        onError: (Object e, StackTrace s) {
+          if (!done.isCompleted) done.completeError(e, s);
+        },
+        onDone: () {
+          if (!done.isCompleted) done.complete();
+        },
+        cancelOnError: true,
+      );
       await done.future;
       if (cancelled) {
-        progress.failure(id, 'Cancelled');
         return const ActionResult(ActionOutcome.failed);
       }
       progress.success(id);
       return const ActionResult.reads(ActionOutcome.success);
     } on Object catch (e) {
+      if (cancelled) return const ActionResult(ActionOutcome.failed);
       // Classify ONLY git's stderr (via the injected extractor) — never the
       // full exception string, which embeds the argv and would false-positive.
       final reason = _classifier.classify(_errorText(e));
@@ -667,6 +711,8 @@ final class GitActionsService {
       _log?.w('git $label failed: $e');
       progress.failure(id, e.toString());
       return const ActionResult(ActionOutcome.failed);
+    } finally {
+      await sub?.cancel();
     }
   }
 }

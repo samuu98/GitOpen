@@ -13,6 +13,10 @@ import '../../_helpers/repo_fixture.dart';
 
 void main() {
   RepoLocation loc(RepoFixture f) => RepoLocation(RepoId.newId(), f.path, 't');
+  late RepoFixture template;
+
+  setUpAll(() async => template = await RepoFixture.withRebaseHistory());
+  tearDownAll(() async => template.dispose());
 
   /// Subject messages of every commit reachable from HEAD, newest-first.
   Future<List<String>> logSubjects(String path) async {
@@ -53,7 +57,7 @@ void main() {
   }
 
   test('DROP a middle commit removes only that commit', () async {
-    final f = await RepoFixture.withRebaseHistory();
+    final f = await template.copy();
     try {
       final sut = GitCliWriteOperations();
       // base = c0; plan over c1..c3, dropping c2.
@@ -80,7 +84,7 @@ void main() {
   });
 
   test('REORDER two commits is reflected in git log', () async {
-    final f = await RepoFixture.withRebaseHistory();
+    final f = await template.copy();
     try {
       final sut = GitCliWriteOperations();
       // base = c0; reorder c1..c3 so c3 comes before c2 (final order
@@ -107,7 +111,7 @@ void main() {
   });
 
   test('FIXUP squashes a commit into its parent dropping the count', () async {
-    final f = await RepoFixture.withRebaseHistory();
+    final f = await template.copy();
     try {
       final before = await commitCount(f.path);
       final sut = GitCliWriteOperations();
@@ -136,7 +140,7 @@ void main() {
   });
 
   test('SQUASH merges a commit into its parent keeping contents', () async {
-    final f = await RepoFixture.withRebaseHistory();
+    final f = await template.copy();
     try {
       final before = await commitCount(f.path);
       final sut = GitCliWriteOperations();
@@ -177,7 +181,7 @@ void main() {
   }
 
   test('REWORD via the plan rewrites the message', () async {
-    final f = await RepoFixture.withRebaseHistory();
+    final f = await template.copy();
     try {
       final sut = GitCliWriteOperations();
       final res = await sut.interactiveRebase(
@@ -207,7 +211,7 @@ void main() {
   });
 
   test('SQUASH with a custom message uses it for the folded commit', () async {
-    final f = await RepoFixture.withRebaseHistory();
+    final f = await template.copy();
     try {
       final sut = GitCliWriteOperations();
       final res = await sut.interactiveRebase(
@@ -236,7 +240,7 @@ void main() {
   });
 
   test('REWORD and SQUASH messages land on the right stops', () async {
-    final f = await RepoFixture.withRebaseHistory();
+    final f = await template.copy();
     try {
       final sut = GitCliWriteOperations();
       final res = await sut.interactiveRebase(
@@ -267,7 +271,7 @@ void main() {
   });
 
   test('a no-op plan (all pick, same order) leaves history alone', () async {
-    final f = await RepoFixture.withRebaseHistory();
+    final f = await template.copy();
     try {
       final beforeSubjects = await logSubjects(f.path);
       final beforeHead = await headSha(f.path);

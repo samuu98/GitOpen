@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gitopen/application/github/github_models.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 
 final class PullRequestCreateFormResult {
   const PullRequestCreateFormResult(this.request);
@@ -74,51 +75,48 @@ class _CreatePullRequestDialogState extends State<_CreatePullRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Create PR'),
-      content: SizedBox(
-        width: 460,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              key: const Key('create-pr-title'),
-              controller: _title,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            TextField(
-              key: const Key('create-pr-body'),
-              controller: _body,
-              minLines: 2,
-              maxLines: 5,
-              decoration: const InputDecoration(labelText: 'Body'),
-            ),
-            TextField(
-              key: const Key('create-pr-base'),
-              controller: _base,
-              decoration: const InputDecoration(labelText: 'Base branch'),
-            ),
-            TextField(
-              key: const Key('create-pr-head'),
-              controller: _head,
-              decoration: const InputDecoration(labelText: 'Head branch'),
-            ),
-            CheckboxListTile(
-              value: _draft,
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Draft'),
-              onChanged: (value) => setState(() => _draft = value ?? false),
-            ),
-            if (_error != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
+    return AppDialog(
+      title: 'Create PR',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            key: const Key('create-pr-title'),
+            controller: _title,
+            decoration: const InputDecoration(labelText: 'Title'),
+          ),
+          TextField(
+            key: const Key('create-pr-body'),
+            controller: _body,
+            minLines: 2,
+            maxLines: 5,
+            decoration: const InputDecoration(labelText: 'Body'),
+          ),
+          TextField(
+            key: const Key('create-pr-base'),
+            controller: _base,
+            decoration: const InputDecoration(labelText: 'Base branch'),
+          ),
+          TextField(
+            key: const Key('create-pr-head'),
+            controller: _head,
+            decoration: const InputDecoration(labelText: 'Head branch'),
+          ),
+          CheckboxListTile(
+            value: _draft,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Draft'),
+            onChanged: (value) => setState(() => _draft = value ?? false),
+          ),
+          if (_error != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
       actions: [
         TextButton(
@@ -180,37 +178,34 @@ class _EditPullRequestDialogState extends State<_EditPullRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Edit PR'),
-      content: SizedBox(
-        width: 460,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _title,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            TextField(
-              controller: _body,
-              minLines: 2,
-              maxLines: 5,
-              decoration: const InputDecoration(labelText: 'Body'),
-            ),
-            TextField(
-              controller: _base,
-              decoration: const InputDecoration(labelText: 'Base branch'),
-            ),
-            if (_error != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
+    return AppDialog(
+      title: 'Edit PR',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _title,
+            decoration: const InputDecoration(labelText: 'Title'),
+          ),
+          TextField(
+            controller: _body,
+            minLines: 2,
+            maxLines: 5,
+            decoration: const InputDecoration(labelText: 'Body'),
+          ),
+          TextField(
+            controller: _base,
+            decoration: const InputDecoration(labelText: 'Base branch'),
+          ),
+          if (_error != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
       actions: [
         TextButton(
@@ -266,49 +261,47 @@ class _MergePullRequestDialogState extends State<_MergePullRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Merge PR'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Wrap(
-              spacing: 8,
-              children: [
-                ChoiceChip(
-                  label: const Text('Merge'),
-                  selected: _method == PullRequestMergeMethod.merge,
-                  onSelected: (_) =>
-                      setState(() => _method = PullRequestMergeMethod.merge),
-                ),
-                ChoiceChip(
-                  label: const Text('Squash'),
-                  selected: _method == PullRequestMergeMethod.squash,
-                  onSelected: (_) =>
-                      setState(() => _method = PullRequestMergeMethod.squash),
-                ),
-                ChoiceChip(
-                  label: const Text('Rebase'),
-                  selected: _method == PullRequestMergeMethod.rebase,
-                  onSelected: (_) =>
-                      setState(() => _method = PullRequestMergeMethod.rebase),
-                ),
-              ],
-            ),
-            TextField(
-              controller: _title,
-              decoration: const InputDecoration(labelText: 'Commit title'),
-            ),
-            TextField(
-              controller: _message,
-              minLines: 2,
-              maxLines: 5,
-              decoration: const InputDecoration(labelText: 'Commit message'),
-            ),
-          ],
-        ),
+    return AppDialog(
+      title: 'Merge PR',
+      width: 420,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('Merge'),
+                selected: _method == PullRequestMergeMethod.merge,
+                onSelected: (_) =>
+                    setState(() => _method = PullRequestMergeMethod.merge),
+              ),
+              ChoiceChip(
+                label: const Text('Squash'),
+                selected: _method == PullRequestMergeMethod.squash,
+                onSelected: (_) =>
+                    setState(() => _method = PullRequestMergeMethod.squash),
+              ),
+              ChoiceChip(
+                label: const Text('Rebase'),
+                selected: _method == PullRequestMergeMethod.rebase,
+                onSelected: (_) =>
+                    setState(() => _method = PullRequestMergeMethod.rebase),
+              ),
+            ],
+          ),
+          TextField(
+            controller: _title,
+            decoration: const InputDecoration(labelText: 'Commit title'),
+          ),
+          TextField(
+            controller: _message,
+            minLines: 2,
+            maxLines: 5,
+            decoration: const InputDecoration(labelText: 'Commit message'),
+          ),
+        ],
       ),
       actions: [
         TextButton(

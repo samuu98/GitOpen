@@ -1,3 +1,4 @@
+import 'package:gitopen/application/git/bisect_state.dart';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/domain/blame/blame_line.dart';
 import 'package:gitopen/domain/commits/commit_info.dart';
@@ -75,6 +76,8 @@ class CommitQuery {
 }
 
 abstract interface class GitReadOperations {
+  Future<BisectState?> getBisectState(RepoLocation repo);
+
   Future<RepoStatus> getStatus(RepoLocation repo);
   Stream<CommitInfo> getCommits(RepoLocation repo, CommitQuery query);
 

@@ -64,13 +64,13 @@ final class GitResultRunner {
   }
 
   /// Lists the unique paths git reports as unmerged via `ls-files --unmerged`,
-  /// which always exits 0. Each raw line is
+  /// which always exits 0. Each NUL-delimited record is
   /// `<mode> <sha> <stage>` then a tab then the path; we take the path after
   /// the tab and de-duplicate across the (up to three) stage entries per file.
   Future<List<String>> listUnmergedPaths(RepoLocation r) async {
-    final raw = await runner.run(r.path, ['ls-files', '--unmerged']);
+    final raw = await runner.run(r.path, ['ls-files', '--unmerged', '-z']);
     return raw
-        .split('\n')
+        .split('\x00')
         .where((l) => l.isNotEmpty)
         .map((l) => l.split('\t').last)
         .toSet()

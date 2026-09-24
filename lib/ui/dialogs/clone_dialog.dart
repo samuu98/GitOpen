@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
+import 'package:gitopen/application/git/git_progress.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
@@ -21,10 +24,15 @@ class _State extends ConsumerState<CloneDialog> {
   final _destCtl = TextEditingController();
   bool _openAfter = true;
   bool _busy = false;
+  bool _cancelled = false;
+  String? _operationId;
+  StreamSubscription<GitProgress>? _subscription;
   String? _error;
 
   @override
   void dispose() {
+    final sub = _subscription;
+    if (sub != null) unawaited(sub.cancel());
     _urlCtl.dispose();
     _destCtl.dispose();
     super.dispose();
@@ -33,84 +41,114 @@ class _State extends ConsumerState<CloneDialog> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    return AppDialog(
-      title: 'Clone repository',
-      busy: _busy,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _urlCtl,
-            autofocus: true,
-            style: TextStyle(color: palette.fg0, fontSize: 13),
-            decoration: appInputDecoration(
-              context,
-              label: 'Repository URL',
-              hint: 'https://github.com/user/repo.git',
+    return PopScope(
+      canPop: !_busy,
+      child: AppDialog(
+        title: 'Clone repository',
+        busy: _busy,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _urlCtl,
+              autofocus: true,
+              style: TextStyle(color: palette.fg0, fontSize: 13),
+              decoration: appInputDecoration(
+                context,
+                label: 'Repository URL',
+                hint: 'https://github.com/user/repo.git',
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _destCtl,
-                  style: TextStyle(color: palette.fg0, fontSize: 13),
-                  decoration: appInputDecoration(context, label: 'Destination'),
-                ),
-              ),
-              const SizedBox(width: 6),
-              IconButton(
-                icon: Icon(Icons.folder_open, color: palette.fg1, size: 18),
-                tooltip: 'Browse…',
-                onPressed: _pickDest,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Checkbox(
-                value: _openAfter,
-                onChanged: (v) => setState(() => _openAfter = v ?? true),
-                visualDensity: VisualDensity.compact,
-              ),
-              Text(
-                'Open after clone',
-                style: TextStyle(color: palette.fg1, fontSize: 12.5),
-              ),
-            ],
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.error_outline, size: 14, color: palette.accentErr),
-                const SizedBox(width: 6),
                 Expanded(
-                  child: Text(
-                    _error!,
-                    style: TextStyle(color: palette.accentErr, fontSize: 11.5),
+                  child: TextField(
+                    controller: _destCtl,
+                    style: TextStyle(color: palette.fg0, fontSize: 13),
+                    decoration: appInputDecoration(
+                      context,
+                      label: 'Destination',
+                    ),
                   ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: Icon(Icons.folder_open, color: palette.fg1, size: 18),
+                  tooltip: 'Browse…',
+                  onPressed: _pickDest,
                 ),
               ],
             ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Checkbox(
+                  value: _openAfter,
+                  onChanged: (v) => setState(() => _openAfter = v ?? true),
+                  visualDensity: VisualDensity.compact,
+                ),
+                Text(
+                  'Open after clone',
+                  style: TextStyle(color: palette.fg1, fontSize: 12.5),
+                ),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.error_outline, size: 14, color: palette.accentErr),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: palette.accentErr,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
+        ),
+        actions: [
+          AppButton.secondary(
+            label: 'Cancel',
+            onPressed: _cancel,
+          ),
+          AppButton.primary(
+            label: _error == null ? 'Clone' : 'Retry',
+            onPressed: _busy ? null : _clone,
+          ),
         ],
       ),
-      actions: [
-        AppButton.secondary(
-          label: 'Cancel',
-          onPressed: _busy ? null : () => Navigator.pop(context),
-        ),
-        AppButton.primary(
-          label: _error == null ? 'Clone' : 'Retry',
-          onPressed: _busy ? null : _clone,
-        ),
-      ],
     );
+  }
+
+  Future<void> _cancel() async {
+    if (!_busy) {
+      Navigator.pop(context);
+      return;
+    }
+    if (_cancelled) return;
+    _cancelled = true;
+    final id = _operationId;
+    if (id != null) {
+      ref.read(operationsProvider.notifier).cancel(id);
+    }
+  }
+
+  void _close() {
+    if (!mounted) return;
+    setState(() => _busy = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.pop(context);
+    });
   }
 
   Future<void> _pickDest() async {
@@ -119,22 +157,67 @@ class _State extends ConsumerState<CloneDialog> {
   }
 
   Future<void> _clone() async {
+    if (_busy) return;
     if (_urlCtl.text.isEmpty || _destCtl.text.isEmpty) return;
     final url = _urlCtl.text.trim();
     final dest = _destCtl.text.trim();
     setState(() {
       _busy = true;
+      _cancelled = false;
       _error = null;
     });
     final ops = ref.read(operationsProvider.notifier);
-    final id = ops.start(OpKind.clone, 'Cloning $url');
+    final done = Completer<void>();
+    final id = ops.start(
+      OpKind.clone,
+      'Cloning $url',
+      onCancel: () {
+        _cancelled = true;
+        final sub = _subscription;
+        if (sub == null) {
+          if (!done.isCompleted) done.complete();
+        } else {
+          unawaited(sub.cancel());
+          if (!done.isCompleted) done.complete();
+        }
+      },
+    );
+    _operationId = id;
     final write = ref.read(gitWriteOperationsProvider);
     final errorText = ref.read(gitErrorTextProvider);
+    var cloneFinished = false;
     try {
-      await for (final ev in write.clone(url, dest)) {
-        ops.updateProgress(id, ev.fraction, ev.phase);
+      final host = Uri.tryParse(url)?.host ?? '';
+      final profiles = host.isEmpty
+          ? null
+          : await ref.read(authProfileStoreProvider).forHost(host);
+      if (!_cancelled) {
+        _subscription = write
+            .clone(
+              url,
+              dest,
+              auth: profiles?.length == 1 ? profiles!.single.spec : null,
+            )
+            .listen(
+              (ev) => ops.updateProgress(id, ev.fraction, ev.phase),
+              onError: (Object e, StackTrace s) {
+                if (!done.isCompleted) done.completeError(e, s);
+              },
+              onDone: () {
+                if (!done.isCompleted) done.complete();
+              },
+              cancelOnError: true,
+            );
+      }
+      await done.future;
+      if (_cancelled) {
+        _close();
+        return;
       }
       ops.finishSuccess(id);
+      cloneFinished = true;
+      _operationId = null;
+      if (mounted) setState(() => _busy = false);
       if (_openAfter && mounted) {
         final manager = ref.read(workspaceManagerProvider.notifier);
         final active = ref.read(activeWorkspaceIdProvider.notifier);
@@ -142,10 +225,10 @@ class _State extends ConsumerState<CloneDialog> {
         if (!mounted) return;
         active.state = ws.location.id;
       }
-      if (mounted) Navigator.pop(context);
+      _close();
     } on Object catch (e) {
       final message = errorText(e);
-      ops.finishFailure(id, message);
+      if (!_cancelled && !cloneFinished) ops.finishFailure(id, message);
       // Inline error + retry: the dialog stays open with the inputs intact
       // so the user can fix the URL/destination and try again.
       if (mounted) {
@@ -154,6 +237,10 @@ class _State extends ConsumerState<CloneDialog> {
           _error = message;
         });
       }
+    } finally {
+      await _subscription?.cancel();
+      _subscription = null;
+      _operationId = null;
     }
   }
 }

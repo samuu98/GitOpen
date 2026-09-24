@@ -42,5 +42,37 @@ void main() {
         await f.dispose();
       }
     });
+
+    test('copy preserves history and isolates working-tree changes', () async {
+      final original = await RepoFixture.withRebaseHistory();
+      try {
+        final copied = await original.copy();
+        try {
+          expect(copied.rebaseShas, original.rebaseShas);
+          expect(copied.headSha, original.headSha);
+          await File(p.join(copied.path, 'c3.txt')).writeAsString('changed\n');
+          expect(
+            await File(p.join(original.path, 'c3.txt')).readAsString(),
+            'c3\n',
+          );
+          final status = await Process.run('git', ['status', '--short'],
+              workingDirectory: copied.path);
+          expect(status.exitCode, 0);
+          expect(status.stdout.toString(), contains('c3.txt'));
+        } finally {
+          await copied.dispose();
+        }
+      } finally {
+        await original.dispose();
+      }
+    });
+
+    test('submodule source is removed with its owning fixture', () async {
+      final fixture = await RepoFixture.withSubmodule();
+      final sourcePath = fixture.submoduleSourcePath;
+      expect(Directory(sourcePath).existsSync(), isTrue);
+      await fixture.dispose();
+      expect(Directory(sourcePath).existsSync(), isFalse);
+    });
   });
 }

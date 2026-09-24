@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:gitopen/application/diff/diff_cap.dart';
+import 'package:gitopen/application/git/bisect_state.dart';
 import 'package:gitopen/application/git/git_read_operations.dart';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/domain/blame/blame_line.dart';
@@ -20,6 +21,7 @@ import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
+import 'package:gitopen/infrastructure/git/git_cli_bisect.dart';
 import 'package:gitopen/infrastructure/git/git_cli_file_reader.dart';
 import 'package:gitopen/infrastructure/git/git_cli_log_reader.dart';
 import 'package:gitopen/infrastructure/git/git_cli_ref_reader.dart';
@@ -44,6 +46,7 @@ final class GitCliReadOperations implements GitReadOperations {
     _log = GitCliLogReader(r);
     _refs = GitCliRefReader(r);
     _files = GitCliFileReader(r);
+    _bisect = GitCliBisect(r);
   }
 
   late final GitResultRunner _classifier;
@@ -51,6 +54,11 @@ final class GitCliReadOperations implements GitReadOperations {
   late final GitCliLogReader _log;
   late final GitCliRefReader _refs;
   late final GitCliFileReader _files;
+  late final GitCliBisect _bisect;
+
+  @override
+  Future<BisectState?> getBisectState(RepoLocation repo) =>
+      _guard(() => _bisect.state(repo));
 
   /// Maps transport failures to the typed application error. Reads have no
   /// result-wrapper like writes' `GitResult`, so the boundary is exceptions:
@@ -109,8 +117,7 @@ final class GitCliReadOperations implements GitReadOperations {
   @override
   Future<Map<String, ({int ahead, int behind})>> localBranchDivergence(
     RepoLocation repo,
-  ) =>
-      _guard(() => _refs.localBranchDivergence(repo));
+  ) => _guard(() => _refs.localBranchDivergence(repo));
 
   @override
   Future<List<Branch>> getRemoteBranches(RepoLocation repo) =>

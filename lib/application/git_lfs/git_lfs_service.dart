@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_spec.dart';
 import 'package:gitopen/application/git/auth_failure_classifier.dart';
@@ -117,15 +119,48 @@ final class GitLfsService {
     AuthProfile? profile,
     bool profileResolved = false,
   }) async {
-    final id = progress.start(kind, label, repo: repo);
-    final resolved = profileResolved ? profile : await _resolveProfile(repo);
+    StreamSubscription<GitProgress>? sub;
+    final done = Completer<void>();
+    var cancelled = false;
+    final id = progress.start(
+      kind,
+      label,
+      repo: repo,
+      onCancel: () {
+        cancelled = true;
+        final active = sub;
+        if (active == null) {
+          if (!done.isCompleted) done.complete();
+        } else {
+          unawaited(
+            active.cancel().then((_) {
+              if (!done.isCompleted) done.complete();
+            }),
+          );
+        }
+      },
+    );
     try {
-      await for (final ev in streamFactory(resolved?.spec)) {
-        progress.progress(id, ev.fraction, ev.phase);
+      final resolved = profileResolved ? profile : await _resolveProfile(repo);
+      if (cancelled) return const ActionResult(ActionOutcome.failed);
+      sub = streamFactory(resolved?.spec).listen(
+        (ev) => progress.progress(id, ev.fraction, ev.phase),
+        onError: (Object e, StackTrace s) {
+          if (!done.isCompleted) done.completeError(e, s);
+        },
+        onDone: () {
+          if (!done.isCompleted) done.complete();
+        },
+        cancelOnError: true,
+      );
+      await done.future;
+      if (cancelled) {
+        return const ActionResult(ActionOutcome.failed);
       }
       progress.success(id);
       return const ActionResult.reads(ActionOutcome.success);
     } on Object catch (e) {
+      if (cancelled) return const ActionResult(ActionOutcome.failed);
       // Classify ONLY the extracted error text — the full exception string
       // embeds the argv (with `Authorization`) and would false-positive.
       final reason = _classifier.classify(_errorText(e));
@@ -151,6 +186,8 @@ final class GitLfsService {
       }
       progress.failure(id, e.toString());
       return const ActionResult(ActionOutcome.failed);
+    } finally {
+      await sub?.cancel();
     }
   }
 }

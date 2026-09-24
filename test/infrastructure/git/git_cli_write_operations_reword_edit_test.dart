@@ -22,10 +22,15 @@ Future<String> _git(String cwd, List<String> args) async {
 }
 
 void main() {
+  late RepoFixture template;
+
+  setUpAll(() async => template = await RepoFixture.withRebaseHistory());
+  tearDownAll(() async => template.dispose());
+
   group('GitCliWriteOperations.rewordCommit', () {
     test('rewrites a non-HEAD commit message and keeps the history shape',
         () async {
-      final f = await RepoFixture.withRebaseHistory(); // c0..c3
+      final f = await template.copy(); // c0..c3
       try {
         final sut = GitCliWriteOperations();
         final target = CommitSha(f.rebaseShas[1]); // "c1"
@@ -50,7 +55,7 @@ void main() {
     });
 
     test('reword of HEAD works too', () async {
-      final f = await RepoFixture.withRebaseHistory();
+      final f = await template.copy();
       try {
         final sut = GitCliWriteOperations();
         final result = await sut.rewordCommit(
@@ -67,7 +72,7 @@ void main() {
     });
 
     test('rewording the root commit fails cleanly', () async {
-      final f = await RepoFixture.withRebaseHistory();
+      final f = await template.copy();
       try {
         final sut = GitCliWriteOperations();
         final result = await sut.rewordCommit(
@@ -85,7 +90,7 @@ void main() {
   group('GitCliWriteOperations.editAtCommit', () {
     test('pauses the rebase at the chosen commit; continue finishes it',
         () async {
-      final f = await RepoFixture.withRebaseHistory();
+      final f = await template.copy();
       try {
         final sut = GitCliWriteOperations();
         final result =

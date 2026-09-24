@@ -6,6 +6,8 @@ import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/git/merge_outcome.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/infrastructure/git/git_cli_bisect.dart';
+import 'package:gitopen/infrastructure/git/git_cli_partial_stash_writer.dart';
 import 'package:gitopen/infrastructure/git/git_cli_ref_writer.dart';
 import 'package:gitopen/infrastructure/git/git_cli_sequencer_writer.dart';
 import 'package:gitopen/infrastructure/git/git_cli_sync_writer.dart';
@@ -28,14 +30,37 @@ final class GitCliWriteOperations implements GitWriteOperations {
     final git = GitResultRunner(r);
     _worktree = GitCliWorktreeWriter(git);
     _refs = GitCliRefWriter(git);
+    _partialStash = GitCliPartialStashWriter(git);
     _sequencer = GitCliSequencerWriter(git);
     _sync = GitCliSyncWriter(r);
+    _bisect = GitCliBisect(r);
   }
 
   late final GitCliWorktreeWriter _worktree;
   late final GitCliRefWriter _refs;
+  late final GitCliPartialStashWriter _partialStash;
   late final GitCliSequencerWriter _sequencer;
   late final GitCliSyncWriter _sync;
+  late final GitCliBisect _bisect;
+
+  @override
+  Future<GitResult<void>> bisectStart(
+    RepoLocation r,
+    String bad,
+    String good,
+  ) => _bisect.start(r, bad, good);
+
+  @override
+  Future<GitResult<void>> bisectGood(RepoLocation r) => _bisect.good(r);
+
+  @override
+  Future<GitResult<void>> bisectBad(RepoLocation r) => _bisect.bad(r);
+
+  @override
+  Future<GitResult<void>> bisectSkip(RepoLocation r) => _bisect.skip(r);
+
+  @override
+  Future<GitResult<void>> bisectReset(RepoLocation r) => _bisect.reset(r);
 
   // ---- Working tree / index ----------------------------------------------
 
@@ -188,12 +213,27 @@ final class GitCliWriteOperations implements GitWriteOperations {
     RepoLocation r,
     String message, {
     bool includeUntracked = false,
+    bool stagedOnly = false,
     List<String> paths = const [],
   }) => _refs.stashSave(
     r,
     message,
     includeUntracked: includeUntracked,
+    stagedOnly: stagedOnly,
     paths: paths,
+  );
+
+  @override
+  Future<GitResult<void>> stashPatch(
+    RepoLocation r,
+    List<String> patches,
+    String message, {
+    List<String>? worktreePatches,
+  }) => _partialStash.stashPatch(
+    r,
+    patches,
+    message,
+    worktreePatches: worktreePatches,
   );
 
   @override
@@ -359,6 +399,5 @@ final class GitCliWriteOperations implements GitWriteOperations {
     RepoLocation r,
     String remoteRef, {
     AuthSpec? auth,
-  }) =>
-      _sync.deleteRemoteBranch(r, remoteRef, auth: auth);
+  }) => _sync.deleteRemoteBranch(r, remoteRef, auth: auth);
 }

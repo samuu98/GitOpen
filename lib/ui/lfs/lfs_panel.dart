@@ -5,6 +5,7 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_empty_state.dart';
 import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/lfs/lfs_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -93,6 +94,7 @@ class _LfsReady extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
     final controller = ref.read(lfsActionsControllerProvider);
+    final busy = ref.watch(lfsSyncBusyProvider(repo));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -115,19 +117,19 @@ class _LfsReady extends ConsumerWidget {
               _ActionButton(
                 label: 'Fetch',
                 icon: Icons.cloud_download_outlined,
-                onPressed: () => controller.fetch(context, repo),
+                onPressed: busy ? null : () => controller.fetch(context, repo),
               ),
               const SizedBox(width: 4),
               _ActionButton(
                 label: 'Pull',
                 icon: Icons.south,
-                onPressed: () => controller.pull(context, repo),
+                onPressed: busy ? null : () => controller.pull(context, repo),
               ),
               const SizedBox(width: 4),
               _ActionButton(
                 label: 'Push',
                 icon: Icons.north,
-                onPressed: () => controller.push(context, repo),
+                onPressed: busy ? null : () => controller.push(context, repo),
               ),
             ],
           ),
@@ -155,7 +157,7 @@ class _ActionButton extends StatelessWidget {
   });
   final String label;
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -255,8 +257,8 @@ class _AddPatternDialogState extends State<_AddPatternDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Track pattern with Git LFS'),
+    return AppDialog(
+      title: 'Track pattern with Git LFS',
       content: TextField(
         key: const Key('lfs-pattern-input'),
         controller: _controller,

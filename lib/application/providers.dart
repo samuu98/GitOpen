@@ -42,6 +42,7 @@ import 'package:gitopen/infrastructure/auth/github_credential_tester.dart';
 import 'package:gitopen/infrastructure/auth/github_device_flow.dart';
 import 'package:gitopen/infrastructure/auth/github_user_service.dart';
 import 'package:gitopen/infrastructure/auth/secure_auth_profile_store.dart';
+import 'package:gitopen/infrastructure/git/git_cli_commit_template_reader.dart';
 import 'package:gitopen/infrastructure/git/git_cli_read_operations.dart';
 import 'package:gitopen/infrastructure/git/git_cli_write_operations.dart';
 import 'package:gitopen/infrastructure/git/git_identity_service.dart';
@@ -103,6 +104,11 @@ final loggerProvider = Provider<LoggerPort>((ref) => const AppLoggerPort());
 final gitReadOperationsProvider = Provider<GitReadOperations>((ref) {
   return GitCliReadOperations(runner: ref.watch(gitProcessRunnerProvider));
 });
+
+final gitCommitTemplateReaderProvider = Provider<GitCliCommitTemplateReader>(
+  (ref) =>
+      GitCliCommitTemplateReader(runner: ref.watch(gitProcessRunnerProvider)),
+);
 
 final repositoryRegistryProvider = Provider<RepositoryRegistry>((ref) {
   return DriftRepositoryRegistry(ref.watch(appDatabaseProvider));
@@ -171,7 +177,8 @@ final gitLfsServiceProvider = Provider<GitLfsService>((ref) {
   );
 });
 
-final gitLfsStatusProvider = FutureProvider.family<GitLfsStatus, RepoLocation>((
+final gitLfsStatusProvider = FutureProvider.autoDispose
+    .family<GitLfsStatus, RepoLocation>((
   ref,
   repo,
 ) {
@@ -179,7 +186,8 @@ final gitLfsStatusProvider = FutureProvider.family<GitLfsStatus, RepoLocation>((
 });
 
 final gitLfsTrackedPatternsProvider =
-    FutureProvider.family<List<GitLfsTrackedPattern>, RepoLocation>((
+    FutureProvider.autoDispose
+        .family<List<GitLfsTrackedPattern>, RepoLocation>((
       ref,
       repo,
     ) {
@@ -187,7 +195,7 @@ final gitLfsTrackedPatternsProvider =
     });
 
 final gitLfsFilesProvider =
-    FutureProvider.family<List<GitLfsFile>, RepoLocation>((
+    FutureProvider.autoDispose.family<List<GitLfsFile>, RepoLocation>((
       ref,
       repo,
     ) {
@@ -263,7 +271,8 @@ final authResolverProvider = Provider<AuthResolver>((ref) {
 /// status bar reads this) as well as the working-tree entries used by the
 /// changes panel.  Centralised so multiple consumers don't each spawn a
 /// `git status` of their own.
-final repoStatusProvider = FutureProvider.family<RepoStatus, RepoLocation>((
+final repoStatusProvider = FutureProvider.autoDispose
+    .family<RepoStatus, RepoLocation>((
   ref,
   repo,
 ) {
@@ -272,7 +281,8 @@ final repoStatusProvider = FutureProvider.family<RepoStatus, RepoLocation>((
 
 /// Local branches only — always fast.  This is what the UI awaits on
 /// initial repo load so the graph and sidebar render immediately.
-final localBranchesProvider = FutureProvider.family<List<Branch>, RepoLocation>(
+final localBranchesProvider = FutureProvider.autoDispose
+    .family<List<Branch>, RepoLocation>(
   (ref, repo) {
     appLog.i('branches: loading locals for ${repo.displayName}');
     return ref.watch(gitReadOperationsProvider).getLocalBranches(repo);
@@ -282,7 +292,8 @@ final localBranchesProvider = FutureProvider.family<List<Branch>, RepoLocation>(
 /// Ahead/behind per local branch — loaded in parallel so it never blocks the
 /// initial branch render; the sidebar badges fill in when it resolves.
 final branchDivergenceProvider =
-    FutureProvider.family<Map<String, ({int ahead, int behind})>, RepoLocation>(
+    FutureProvider.autoDispose
+        .family<Map<String, ({int ahead, int behind})>, RepoLocation>(
       (ref, repo) {
         return ref.watch(gitReadOperationsProvider).localBranchDivergence(repo);
       },
@@ -292,7 +303,7 @@ final branchDivergenceProvider =
 /// huge monorepos).  Loaded in parallel and consumed without `await` by
 /// UI that wants to render incrementally.
 final remoteBranchesProvider =
-    FutureProvider.family<List<Branch>, RepoLocation>((ref, repo) {
+    FutureProvider.autoDispose.family<List<Branch>, RepoLocation>((ref, repo) {
       appLog.i('branches: loading remotes for ${repo.displayName}');
       return ref.watch(gitReadOperationsProvider).getRemoteBranches(repo);
     });
@@ -306,18 +317,22 @@ final remoteBranchesProvider =
 /// re-emitted when remotes arrived; that caused every downstream provider
 /// (graph, sidebar) to RE-RUN from scratch, doubling the `git log` cost
 /// and blocking the UI on big repos.  Always await both `.future`s here.
-final branchesProvider = FutureProvider.family<List<Branch>, RepoLocation>((
+final branchesProvider = FutureProvider.autoDispose
+    .family<List<Branch>, RepoLocation>((
   ref,
   repo,
 ) async {
-  final locals = await ref.watch(localBranchesProvider(repo).future);
-  final remotes = await ref.watch(remoteBranchesProvider(repo).future);
+  final localsFuture = ref.watch(localBranchesProvider(repo).future);
+  final remotesFuture = ref.watch(remoteBranchesProvider(repo).future);
+  final locals = await localsFuture;
+  final remotes = await remotesFuture;
   return [...locals, ...remotes];
 });
 
 /// Submodules registered in the superproject (`git submodule status`).
 /// Family-keyed by [RepoLocation] like the other ref providers.
-final submodulesProvider = FutureProvider.family<List<Submodule>, RepoLocation>(
+final submodulesProvider = FutureProvider.autoDispose
+    .family<List<Submodule>, RepoLocation>(
   (ref, repo) {
     return ref.watch(gitReadOperationsProvider).getSubmodules(repo);
   },
@@ -382,14 +397,15 @@ typedef RepoInfo = ({
   String? userEmail,
 });
 
-final repoInfoProvider = FutureProvider.family<RepoInfo, RepoLocation>((
+final repoInfoProvider = FutureProvider.autoDispose
+    .family<RepoInfo, RepoLocation>((
   ref,
   repo,
 ) async {
-  final originUrl = await ref
-      .watch(remoteUrlReaderProvider)
-      .remoteUrl(repo, 'origin');
-  final id = await ref.watch(gitIdentityServiceProvider).readEffective(repo);
+  final remoteReader = ref.watch(remoteUrlReaderProvider);
+  final identityService = ref.watch(gitIdentityServiceProvider);
+  final originUrl = await remoteReader.remoteUrl(repo, 'origin');
+  final id = await identityService.readEffective(repo);
   return (
     path: repo.path,
     originUrl: originUrl,

@@ -54,9 +54,11 @@ final class GitCliRefReader {
   ) async {
     const fmt = '%(refname:short)%00%(upstream:track)';
     try {
-      final out = await _runner
-          .run(repo.path, ['for-each-ref', '--format=$fmt', 'refs/heads'])
-          .timeout(const Duration(seconds: 3));
+      final out = await _runner.run(
+        repo.path,
+        ['for-each-ref', '--format=$fmt', 'refs/heads'],
+        timeout: const Duration(seconds: 3),
+      );
       final map = <String, ({int ahead, int behind})>{};
       for (final line in const LineSplitter().convert(out)) {
         if (line.isEmpty) continue;
@@ -483,7 +485,9 @@ final class GitCliRefReader {
     //   "<flag><40-hex> <path>[ (<describe>)]"
     // where <flag> is one of ' ', '-', '+', 'U'. The describe suffix is
     // present only for initialized submodules and is optional.
-    final stdout = await _runner.run(repo.path, ['submodule', 'status']);
+    final stdout = await _runner.run(repo.path, [
+      '-c', 'core.quotePath=false', 'submodule', 'status',
+    ]);
     if (stdout.trim().isEmpty) return [];
 
     // flag, sha, path, optional "(describe)".  The path can contain spaces, so

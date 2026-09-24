@@ -5,6 +5,43 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.13.0] — 2026-09-23
+
+### Added
+- **Guided `git bisect`.** Start from a commit in the graph ("Start bisect
+  here…"), pick a known good commit, then mark each candidate Good, Bad
+  or Skip from the banner, which shows the steps left and the first bad
+  commit when git finds it. The other views stay usable while bisecting.
+- **Stash selected hunks or lines** from the Changes panel, leaving the
+  rest of the file, the index and untracked files untouched.
+- **Stash staged changes only** (`git stash push --staged`).
+- **`commit.template` support.** The commit box is pre-filled with the
+  configured template (comment lines removed), refilled after each commit,
+  and an unedited template cannot be committed.
+
+### Fixed
+- **Operation state in linked worktrees and submodules.** Merge, rebase,
+  cherry-pick, and revert markers now resolve through Git's own paths; an
+  interactive rebase edit stop is recognized in a linked worktree.
+- **Special-character Git paths.** File trees, merge and revert conflicts,
+  and submodule lists retain decoded non-ASCII paths.
+- **Clone dialog.** It can no longer be dismissed mid-clone; Cancel stops
+  git and closes the dialog as soon as the clone is cancelled.
+- **Git LFS transfers.** A second pull/push on the same repository is
+  disabled while one runs, and cancelling a transfer stops `git lfs`.
+- **Working-copy actions.** Stage, unstage, discard and hunk actions show
+  the Git error instead of failing silently, and ignore repeated clicks.
+
+### Performance
+- **One `git status` per refresh.** The Changes panel and the status bar
+  share a single status read.
+- **Large change lists build lazily**, so thousands of changed files no
+  longer stall the UI.
+- **Timed-out git processes are killed.** A graph load past 60 s and a
+  branch-divergence read past 3 s now stop their `git` process.
+- **Switching repositories releases the previous one's data** (status,
+  branches, graph, LFS), keeping only the graph length you scrolled to.
+
 ## [1.12.2] — 2026-07-27
 
 ### Fixed

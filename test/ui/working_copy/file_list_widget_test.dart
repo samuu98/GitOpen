@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gitopen/application/git/git_result.dart';
+import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/settings/app_settings_notifier.dart';
 import 'package:gitopen/application/settings/settings_store.dart';
@@ -11,6 +14,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/file_list.dart';
+import 'package:gitopen/ui/working_copy/file_row.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
 /// FileList watches [appSettingsProvider]; the default chain would build
@@ -26,23 +30,61 @@ final class _FakeSettingsStore implements SettingsStore {
   Future<void> put(String key, dynamic value) async {}
 }
 
-Widget _host(Widget child, {Map<String, dynamic> settings = const {}}) {
+Widget _host(
+  Widget child, {
+  Map<String, dynamic> settings = const {},
+  GitWriteOperations? write,
+  double width = 520,
+}) {
   return ProviderScope(
     overrides: [
       appSettingsProvider.overrideWith(
         (ref) => AppSettingsNotifier(_FakeSettingsStore(seed: settings)),
       ),
+      if (write != null) gitWriteOperationsProvider.overrideWithValue(write),
     ],
     child: MaterialApp(
       theme: ThemeData(extensions: [AppPalette.dark()]),
       home: Scaffold(
-        body: SizedBox(width: 520, height: 360, child: child),
+        body: SizedBox(width: width, height: 360, child: child),
       ),
     ),
   );
 }
 
 void main() {
+  testWidgets('stage all reports failure and disables repeat submission', (
+    tester,
+  ) async {
+    final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
+    final write = _FailingWrite();
+    const entry = WorkingFileEntry(
+      path: 'a.txt',
+      indexState: WorkingFileState.unmodified,
+      workingTreeState: WorkingFileState.modified,
+    );
+    await tester.pumpWidget(
+      _host(
+        FileList(repo: repo, unstaged: const [entry], staged: const []),
+        write: write,
+      ),
+    );
+
+    await tester.tap(find.text('Stage all'));
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Stage all'))
+          .onPressed,
+      isNull,
+    );
+    expect(write.calls, 1);
+    write.finish();
+    await tester.pump();
+    expect(find.text('Stage failed: locked index'), findsOneWidget);
+    expect(write.calls, 1);
+  });
+
   testWidgets('FileList renders staged and unstaged rows with semantics', (
     tester,
   ) async {
@@ -137,4 +179,57 @@ void main() {
     expect(find.text('a.dart'), findsNothing);
     expect(find.text('b.dart'), findsNothing);
   });
+
+  testWidgets('2000 changed files build only visible rows', (tester) async {
+    final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
+    final unstaged = List.generate(
+      1000,
+      (i) => WorkingFileEntry(
+        path: 'unstaged/$i.txt',
+        indexState: WorkingFileState.unmodified,
+        workingTreeState: WorkingFileState.modified,
+      ),
+    );
+    final staged = List.generate(
+      1000,
+      (i) => WorkingFileEntry(
+        path: 'staged/$i.txt',
+        indexState: WorkingFileState.added,
+        workingTreeState: WorkingFileState.unmodified,
+      ),
+    );
+    await tester.pumpWidget(
+      _host(
+        FileList(repo: repo, unstaged: unstaged, staged: staged),
+        width: 700,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unstaged (1000)'), findsOneWidget);
+    expect(
+      tester.widget<ListView>(find.byType(ListView)).childrenDelegate,
+      isA<SliverChildBuilderDelegate>(),
+    );
+    expect(find.byType(FileRow).evaluate().length, lessThan(50));
+  });
+}
+
+final class _FailingWrite implements GitWriteOperations {
+  final _done = Completer<GitResult<void>>();
+  int calls = 0;
+
+  void finish() => _done.complete(
+    const GitFailure(GitErrorKind.other, 'locked index'),
+  );
+
+  @override
+  Future<GitResult<void>> stageFiles(RepoLocation repo, List<String> paths) {
+    calls++;
+    return _done.future;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName} not faked');
 }

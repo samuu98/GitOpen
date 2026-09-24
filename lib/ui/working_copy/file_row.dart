@@ -60,9 +60,20 @@ class FileRow extends ConsumerStatefulWidget {
 class _FileRowState extends ConsumerState<FileRow> {
   bool _expanded = false;
   bool _hover = false;
+  bool _acting = false;
   final Set<int> _checkedHunks = {};
   final Map<int, Set<int>> _checkedLines = {};
-  late final FileRowActions _actions = FileRowActions(ref);
+  late final FileRowActions _actions = FileRowActions(ref, context);
+
+  Future<void> _runAction(Future<void> Function() action) async {
+    if (_acting) return;
+    setState(() => _acting = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _acting = false);
+    }
+  }
 
   bool get _hasCheckedLines =>
       _checkedLines.values.any((selected) => selected.isNotEmpty);
@@ -83,8 +94,9 @@ class _FileRowState extends ConsumerState<FileRow> {
     });
   }
 
-  Future<void> _discard() =>
-      _actions.discardFile(context, widget.repo, widget.entry);
+  Future<void> _discard() => _runAction(
+    () => _actions.discardFile(context, widget.repo, widget.entry),
+  );
 
   Future<void> _showContextMenu(Offset globalPos) async {
     final entry = widget.entry;
@@ -151,44 +163,94 @@ class _FileRowState extends ConsumerState<FileRow> {
     });
   }
 
-  Future<void> _toggleStage() => _actions.toggleStage(
-    widget.repo,
-    widget.entry.path,
-    isStaged: widget.isStaged,
+  Future<void> _toggleStage() => _runAction(() async {
+    await _actions.toggleStage(
+      widget.repo,
+      widget.entry.path,
+      isStaged: widget.isStaged,
+    );
+  });
+
+  Future<void> _stashFile() => _runAction(
+    () => _actions.stash(context, widget.repo, widget.entry),
   );
 
-  Future<void> _stashFile() =>
-      _actions.stash(context, widget.repo, widget.entry);
-
   Future<void> _stageSelectedHunks(List<DiffHunk> allHunks) async {
-    final selected = _checkedHunks.toList()..sort();
-    final hunksToStage = selected.map((i) => allHunks[i]).toList();
-    await _actions.stageHunks(widget.repo, widget.entry.path, hunksToStage);
-    if (!mounted) return;
-    setState(_checkedHunks.clear);
+    await _runAction(() async {
+      final selected = _checkedHunks.toList()..sort();
+      final hunksToStage = selected.map((i) => allHunks[i]).toList();
+      final ok = await _actions.stageHunks(
+        widget.repo,
+        widget.entry.path,
+        hunksToStage,
+      );
+      if (ok && mounted) setState(_checkedHunks.clear);
+    });
   }
 
   Future<void> _stageSelectedLines(List<DiffHunk> allHunks) async {
-    await _actions.stageLines(
-      widget.repo,
-      widget.entry.path,
-      _lineSelections(allHunks),
-    );
-    if (!mounted) return;
-    setState(_checkedLines.clear);
+    await _runAction(() async {
+      final ok = await _actions.stageLines(
+        widget.repo,
+        widget.entry.path,
+        _lineSelections(allHunks),
+      );
+      if (ok && mounted) setState(_checkedLines.clear);
+    });
+  }
+
+  Future<void> _stashSelectedHunks(List<DiffHunk> allHunks) async {
+    await _runAction(() async {
+      final selected = _checkedHunks.toList()..sort();
+      final ok = await _actions.stashHunks(
+        widget.repo,
+        widget.entry.path,
+        selected.map((i) => allHunks[i]).toList(),
+      );
+      if (ok && mounted) setState(_checkedHunks.clear);
+    });
+  }
+
+  Future<void> _stashSelectedLines(List<DiffHunk> allHunks) async {
+    await _runAction(() async {
+      final ok = await _actions.stashLines(
+        widget.repo,
+        widget.entry.path,
+        _lineSelections(allHunks),
+      );
+      if (ok && mounted) setState(_checkedLines.clear);
+    });
+  }
+
+  Future<void> _stashHunk(DiffHunk hunk, int index) async {
+    await _runAction(() async {
+      final ok = await _actions.stashHunks(
+        widget.repo,
+        widget.entry.path,
+        [hunk],
+      );
+      if (ok && mounted) {
+        setState(() {
+          _checkedHunks.remove(index);
+          _checkedLines.remove(index);
+        });
+      }
+    });
   }
 
   Future<void> _discardHunk(DiffHunk hunk, int index) async {
-    final ok = await _actions.discardHunk(
-      context,
-      widget.repo,
-      widget.entry.path,
-      hunk,
-    );
-    if (!ok || !mounted) return;
-    setState(() {
-      _checkedHunks.remove(index);
-      _checkedLines.remove(index);
+    await _runAction(() async {
+      final ok = await _actions.discardHunk(
+        context,
+        widget.repo,
+        widget.entry.path,
+        hunk,
+      );
+      if (!ok || !mounted) return;
+      setState(() {
+        _checkedHunks.remove(index);
+        _checkedLines.remove(index);
+      });
     });
   }
 
@@ -197,52 +259,68 @@ class _FileRowState extends ConsumerState<FileRow> {
   Future<void> _unstageSelectedHunks(List<DiffHunk> allHunks) async {
     final selected = _checkedHunks.toList()..sort();
     final hunks = selected.map((i) => allHunks[i]).toList();
-    await _actions.unstageHunks(widget.repo, widget.entry.path, hunks);
-    if (!mounted) return;
-    setState(_checkedHunks.clear);
+    await _runAction(() async {
+      final ok = await _actions.unstageHunks(
+        widget.repo,
+        widget.entry.path,
+        hunks,
+      );
+      if (ok && mounted) setState(_checkedHunks.clear);
+    });
   }
 
   Future<void> _unstageSelectedLines(List<DiffHunk> allHunks) async {
-    await _actions.unstageLines(
-      widget.repo,
-      widget.entry.path,
-      _lineSelections(allHunks),
-    );
-    if (!mounted) return;
-    setState(_checkedLines.clear);
+    await _runAction(() async {
+      final ok = await _actions.unstageLines(
+        widget.repo,
+        widget.entry.path,
+        _lineSelections(allHunks),
+      );
+      if (ok && mounted) setState(_checkedLines.clear);
+    });
   }
 
   Future<void> _unstageHunk(DiffHunk hunk, int index) async {
-    await _actions.unstageHunk(widget.repo, widget.entry.path, hunk);
-    if (!mounted) return;
-    setState(() {
-      _checkedHunks.remove(index);
-      _checkedLines.remove(index);
+    await _runAction(() async {
+      final ok = await _actions.unstageHunk(
+        widget.repo,
+        widget.entry.path,
+        hunk,
+      );
+      if (!ok || !mounted) return;
+      setState(() {
+        _checkedHunks.remove(index);
+        _checkedLines.remove(index);
+      });
     });
   }
 
   // --- Discard selected lines/hunks (unstaged rows): confirm + progress. ---
 
   Future<void> _discardSelectedHunks(List<DiffHunk> allHunks) async {
-    final selected = _checkedHunks.toList()..sort();
-    final hunks = selected.map((i) => allHunks[i]).toList();
-    final ok = await _actions.discardSelectedHunks(
-      context,
-      widget.repo,
-      widget.entry.path,
-      hunks,
-    );
-    if (ok && mounted) setState(_checkedHunks.clear);
+    await _runAction(() async {
+      final selected = _checkedHunks.toList()..sort();
+      final hunks = selected.map((i) => allHunks[i]).toList();
+      final ok = await _actions.discardSelectedHunks(
+        context,
+        widget.repo,
+        widget.entry.path,
+        hunks,
+      );
+      if (ok && mounted) setState(_checkedHunks.clear);
+    });
   }
 
   Future<void> _discardSelectedLines(List<DiffHunk> allHunks) async {
-    final ok = await _actions.discardSelectedLines(
-      context,
-      widget.repo,
-      widget.entry.path,
-      _lineSelections(allHunks),
-    );
-    if (ok && mounted) setState(_checkedLines.clear);
+    await _runAction(() async {
+      final ok = await _actions.discardSelectedLines(
+        context,
+        widget.repo,
+        widget.entry.path,
+        _lineSelections(allHunks),
+      );
+      if (ok && mounted) setState(_checkedLines.clear);
+    });
   }
 
   /// Staged rows expand against the index-vs-HEAD diff (for unstaging);
@@ -326,7 +404,7 @@ class _FileRowState extends ConsumerState<FileRow> {
                     else
                       const SizedBox(width: 18),
                     GestureDetector(
-                      onTap: _toggleStage,
+                      onTap: _acting ? null : _toggleStage,
                       behavior: HitTestBehavior.opaque,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -407,30 +485,54 @@ class _FileRowState extends ConsumerState<FileRow> {
             label: byLines
                 ? 'Unstage selected lines'
                 : 'Unstage selected hunks',
-            onPressed: byLines
+            onPressed: _acting
+                ? null
+                : byLines
                 ? () => _unstageSelectedLines(hunks)
                 : () => _unstageSelectedHunks(hunks),
           );
         }
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _selectionButton(
-              label: byLines ? 'Stage selected lines' : 'Stage selected hunks',
-              onPressed: byLines
-                  ? () => _stageSelectedLines(hunks)
-                  : () => _stageSelectedHunks(hunks),
+        return Flexible(
+          flex: 3,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _selectionButton(
+                  label: byLines
+                      ? 'Stage selected lines'
+                      : 'Stage selected hunks',
+                  onPressed: _acting
+                      ? null
+                      : byLines
+                      ? () => _stageSelectedLines(hunks)
+                      : () => _stageSelectedHunks(hunks),
+                ),
+                _selectionButton(
+                  label: byLines
+                      ? 'Stash selected lines'
+                      : 'Stash selected hunks',
+                  onPressed: _acting
+                      ? null
+                      : byLines
+                      ? () => _stashSelectedLines(hunks)
+                      : () => _stashSelectedHunks(hunks),
+                ),
+                _selectionButton(
+                  label: byLines
+                      ? 'Discard selected lines'
+                      : 'Discard selected hunks',
+                  danger: true,
+                  onPressed: _acting
+                      ? null
+                      : byLines
+                      ? () => _discardSelectedLines(hunks)
+                      : () => _discardSelectedHunks(hunks),
+                ),
+              ],
             ),
-            _selectionButton(
-              label: byLines
-                  ? 'Discard selected lines'
-                  : 'Discard selected hunks',
-              danger: true,
-              onPressed: byLines
-                  ? () => _discardSelectedLines(hunks)
-                  : () => _discardSelectedHunks(hunks),
-            ),
-          ],
+          ),
         );
       },
       orElse: () => const SizedBox.shrink(),
@@ -439,7 +541,7 @@ class _FileRowState extends ConsumerState<FileRow> {
 
   Widget _selectionButton({
     required String label,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
     bool danger = false,
   }) {
     return Padding(
@@ -499,9 +601,14 @@ class _FileRowState extends ConsumerState<FileRow> {
                 onToggle: () => _toggleHunk(i),
                 selectedLines: _checkedLines[i] ?? const <int>{},
                 onToggleLine: (lineIndex) => _toggleLine(i, lineIndex),
-                onAction: () => widget.isStaged
-                    ? _unstageHunk(fileDiff.hunks[i], i)
-                    : _discardHunk(fileDiff.hunks[i], i),
+                onAction: _acting
+                    ? null
+                    : () => widget.isStaged
+                          ? _unstageHunk(fileDiff.hunks[i], i)
+                          : _discardHunk(fileDiff.hunks[i], i),
+                onStash: _acting || widget.isStaged
+                    ? null
+                    : () => _stashHunk(fileDiff.hunks[i], i),
               ),
           ],
         );

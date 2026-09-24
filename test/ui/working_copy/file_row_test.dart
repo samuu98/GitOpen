@@ -12,6 +12,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/file_row.dart';
+import 'package:gitopen/ui/working_copy/file_row_actions.dart';
 import 'package:gitopen/ui/working_copy/state_badge.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
 
@@ -20,6 +21,7 @@ class _FakeWrite implements GitWriteOperations {
   final unstaged = <String>[];
   final stagedPatches = <String>[];
   final unstagedPatches = <String>[];
+  bool failPatch = false;
 
   @override
   Future<GitResult<void>> stageFiles(RepoLocation r, List<String> paths) async {
@@ -39,6 +41,9 @@ class _FakeWrite implements GitWriteOperations {
   @override
   Future<GitResult<void>> stagePatch(RepoLocation r, String unifiedDiff) async {
     stagedPatches.add(unifiedDiff);
+    if (failPatch) {
+      return const GitFailure(GitErrorKind.other, 'patch rejected');
+    }
     return const GitSuccess(null);
   }
 
@@ -98,6 +103,42 @@ Widget _host(_FakeWrite write, {required bool isStaged}) => ProviderScope(
 );
 
 void main() {
+  testWidgets('failed line patch stops the batch and reports the error', (
+    tester,
+  ) async {
+    final write = _FakeWrite()..failPatch = true;
+    final repo = RepoLocation(RepoId.newId(), 'unused', 't');
+    final hunk = _stagedDiff.hunks.single;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [gitWriteOperationsProvider.overrideWithValue(write)],
+        child: MaterialApp(
+          theme: ThemeData(extensions: [AppPalette.dark()]),
+          home: Scaffold(
+            body: Consumer(
+              builder: (context, ref, _) => TextButton(
+                onPressed: () => FileRowActions(ref, context).stageLines(
+                  repo,
+                  'lib/app.dart',
+                  [
+                    (hunk: hunk, lines: {0}),
+                    (hunk: hunk, lines: {1}),
+                  ],
+                ),
+                child: const Text('Stage selected lines'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Stage selected lines'));
+    await tester.pump();
+
+    expect(write.stagedPatches, hasLength(1));
+    expect(find.text('Stage failed: patch rejected'), findsOneWidget);
+  });
+
   testWidgets('renders the path and the expand chevron for unstaged rows', (
     tester,
   ) async {
