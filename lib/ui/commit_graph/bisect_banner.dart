@@ -28,6 +28,7 @@ class _BisectBannerState extends State<BisectBanner> {
   String? _error;
 
   Future<void> _run(BisectAction action) async {
+    if (_busy) return;
     setState(() {
       _busy = true;
       _error = null;

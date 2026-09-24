@@ -55,7 +55,7 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
     return [
       AppMenuButton(
         icon: Icons.add,
-        label: 'New branch from HEAD',
+        label: 'New branch from HEAD…',
         onPressed: () async {
           _menuController.close();
           if (!mounted) return;
@@ -83,7 +83,7 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
       const AppMenuAnchorDivider(),
       AppMenuButton(
         icon: Icons.history,
-        label: 'View reflog…',
+        label: 'View reflog',
         onPressed: () async {
           _menuController.close();
           if (!mounted) return;
@@ -95,7 +95,10 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
         icon: Icons.delete_outline,
         label: 'Delete branch…',
         danger: true,
-        onPressed: ref.watch(busyProvider).isBusy
+        onPressed:
+            ref
+                .watch(busyProvider)
+                .isRunning('${repo.id.value}/branch-delete-batch')
             ? null
             : () async {
                 _menuController.close();

@@ -9,6 +9,7 @@ import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/common/divergence_badge.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
@@ -20,6 +21,7 @@ import 'package:gitopen/ui/dialogs/merge_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/toolbar/branch_picker_dialog.dart';
 
@@ -74,8 +76,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           return KeyEventResult.handled;
         }
         if (event.logicalKey == LogicalKeyboardKey.delete &&
-            _selected.isNotEmpty &&
-            !ref.read(busyProvider).isBusy) {
+            _selected.isNotEmpty) {
           final branches = _visibleBranches()
               .where(
                 (b) => _selected.contains(b.fullName),
@@ -174,7 +175,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
   }
 
   Future<void> _deleteBranches(List<Branch> branches) async {
-    if (branches.isEmpty || ref.read(busyProvider).isBusy) return;
+    if (branches.isEmpty) return;
     final all = await ref.read(branchesProvider(widget.repo).future);
     if (!mounted) return;
     await DeleteBranchesDialog.show(
@@ -396,6 +397,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           context,
           'Rename branch',
           label: 'New name',
+          confirmLabel: 'Rename',
           initial: branchName,
         );
         if (newName == null || newName.trim().isEmpty) return;
@@ -424,6 +426,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           context,
           'Set upstream',
           label: 'Upstream ref (e.g. origin/main)',
+          confirmLabel: 'Set upstream',
         );
         if (upstream == null || upstream.trim().isEmpty) return;
         if (!context.mounted) return;
@@ -443,6 +446,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     BuildContext context,
     String title, {
     required String label,
+    required String confirmLabel,
     String? initial,
   }) async {
     final ctl = TextEditingController(text: initial);
@@ -466,7 +470,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
               onPressed: () => Navigator.pop(ctx),
             ),
             AppButton.primary(
-              label: 'OK',
+              label: confirmLabel,
               onPressed: () => Navigator.pop(ctx, ctl.text),
             ),
           ],
@@ -490,6 +494,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
       return Opacity(
         opacity: isHidden ? 0.5 : 1.0,
         child: AppInteractiveSurface(
+          height: AppSpacing.of(context).listRowHeight,
           selected: fullName != null && _selected.contains(fullName),
           onSecondaryTapDown: (details) => _handleContextMenu(
             context,
@@ -555,54 +560,36 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                 // Pin (favourite) star for local branches — always shown,
                 // faint when off; click toggles the PINNED sidebar section.
                 if (branch != null && !branch.isRemote && fullName != null)
-                  Semantics(
-                    button: true,
-                    label: _pinned.contains(fullName)
+                  AppIconButton(
+                    tooltip: _pinned.contains(fullName)
                         ? 'Unpin ${n.name}'
                         : 'Pin ${n.name}',
-                    child: GestureDetector(
-                      onTap: () => ref
-                          .read(appSettingsProvider.notifier)
-                          .togglePinnedBranch(
-                            widget.repo.id.value,
-                            fullName,
-                          ),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: Icon(
-                          _pinned.contains(fullName)
-                              ? Icons.star
-                              : Icons.star_border,
-                          size: 13,
-                          color: _pinned.contains(fullName)
-                              ? AppPalette.of(context).accentTag
-                              : AppPalette.of(context).fg3,
+                    icon: _pinned.contains(fullName)
+                        ? Icons.star
+                        : Icons.star_border,
+                    color: _pinned.contains(fullName)
+                        ? AppPalette.of(context).accentTag
+                        : null,
+                    size: AppSpacing.of(context).compactControlHeight,
+                    iconSize: AppSpacing.of(context).compactIconSize,
+                    onPressed: () => ref
+                        .read(appSettingsProvider.notifier)
+                        .togglePinnedBranch(
+                          widget.repo.id.value,
+                          fullName,
                         ),
-                      ),
-                    ),
                   ),
                 // Visibility eye icon — always visible, click toggles.
                 if (fullName != null)
-                  Semantics(
-                    button: true,
-                    label: isHidden
+                  AppIconButton(
+                    tooltip: isHidden
                         ? 'Show ${n.name} in the graph'
                         : 'Hide ${n.name} from the graph',
-                    child: GestureDetector(
-                      onTap: () => ref
-                          .read(hiddenRefsProvider.notifier)
-                          .toggle(fullName),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: Icon(
-                          isHidden ? Icons.visibility_off : Icons.visibility,
-                          size: 13,
-                          color: isHidden
-                              ? AppPalette.of(context).fg3
-                              : AppPalette.of(context).fg2,
-                        ),
-                      ),
-                    ),
+                    icon: isHidden ? Icons.visibility_off : Icons.visibility,
+                    size: AppSpacing.of(context).compactControlHeight,
+                    iconSize: AppSpacing.of(context).compactIconSize,
+                    onPressed: () =>
+                        ref.read(hiddenRefsProvider.notifier).toggle(fullName),
                   ),
               ],
             ),
@@ -615,6 +602,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppInteractiveSurface(
+          height: AppSpacing.of(context).listRowHeight,
           onSecondaryTapDown: (details) => _handleContextMenu(
             context,
             n,

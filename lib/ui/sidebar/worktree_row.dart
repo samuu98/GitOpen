@@ -33,71 +33,64 @@ class WorktreeRow extends ConsumerWidget {
         (worktree.isDetached
             ? (worktree.headSha?.short() ?? 'detached')
             : 'bare');
-    return Semantics(
-      button: true,
-      label: 'Worktree ${p.basename(worktree.path)} on $label',
-      child: GestureDetector(
-        onSecondaryTapDown: (details) =>
-            _showContextMenu(context, ref, details.globalPosition),
-        child: InkWell(
-          onTap: _isThisCheckout ? null : () => _open(ref),
-          child: Padding(
-            // Glyph-led row (like a branch leaf): pad to the glyph column and
-            // let the marker box carry the label out to the label column.
-            padding: const EdgeInsets.only(
-              left: kSidebarRowGlyphIndent,
-              right: 26,
-              top: 3,
-              bottom: 3,
+    return SidebarRowSurface(
+      semanticLabel: 'Worktree ${p.basename(worktree.path)} on $label',
+      onSecondaryTapDown: (details) =>
+          _showContextMenu(context, ref, details.globalPosition),
+      onTap: _isThisCheckout ? null : () => _open(ref),
+      child: Padding(
+        // Glyph-led row (like a branch leaf): pad to the glyph column and
+        // let the marker box carry the label out to the label column.
+        padding: const EdgeInsets.only(
+          left: kSidebarRowGlyphIndent - 1,
+          right: 26,
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: kSidebarGlyphColumnWidth,
+              child: _isThisCheckout
+                  ? Text(
+                      '✓',
+                      style: TextStyle(
+                        color: palette.accentCurrent,
+                        fontSize: 11,
+                      ),
+                    )
+                  : null,
             ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: kSidebarGlyphColumnWidth,
-                  child: _isThisCheckout
-                      ? Text(
-                          '✓',
-                          style: TextStyle(
-                            color: palette.accentCurrent,
-                            fontSize: 11,
-                          ),
-                        )
-                      : null,
+            const SizedBox(width: kSidebarGlyphGap),
+            Expanded(
+              child: Tooltip(
+                message: worktree.path,
+                waitDuration: const Duration(milliseconds: 500),
+                child: Text(
+                  p.basename(worktree.path),
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.fg1, fontSize: 12.5),
                 ),
-                const SizedBox(width: kSidebarGlyphGap),
-                Expanded(
-                  child: Tooltip(
-                    message: worktree.path,
-                    waitDuration: const Duration(milliseconds: 500),
-                    child: Text(
-                      p.basename(worktree.path),
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: palette.fg1, fontSize: 12.5),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                // Flexible, not a bare Text: a long branch name (they are
-                // routinely longer than the whole panel) demanded its full
-                // intrinsic width, which starved the Expanded above it down
-                // to ZERO — the worktree's folder name vanished and the row
-                // rendered as a lone tick followed by an overflowing branch
-                // name, which read as a tick stranded far from its label.
-                Flexible(
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      color: palette.fg3,
-                      fontSize: 11,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(width: 6),
+            // Flexible, not a bare Text: a long branch name (they are
+            // routinely longer than the whole panel) demanded its full
+            // intrinsic width, which starved the Expanded above it down
+            // to ZERO — the worktree's folder name vanished and the row
+            // rendered as a lone tick followed by an overflowing branch
+            // name, which read as a tick stranded far from its label.
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: palette.fg3,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

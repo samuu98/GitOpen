@@ -28,6 +28,7 @@ import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/dialogs/interactive_rebase_dialog.dart';
 import 'package:gitopen/ui/dialogs/merge_dialog.dart';
 import 'package:gitopen/ui/dialogs/tag_create_dialog.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -470,24 +471,46 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
   Future<String?> _runBisectAction(BisectAction action) async {
     final service = ref.read(gitActionsServiceProvider);
     final repo = widget.repo;
-    final result = await switch (action) {
-      BisectAction.good => service.bisectGood(repo),
-      BisectAction.bad => service.bisectBad(repo),
-      BisectAction.skip => service.bisectSkip(repo),
-      BisectAction.reset => service.bisectReset(repo),
-    };
-    _refreshBisect();
-    return result.outcome == ActionOutcome.failed ? result.message : null;
+    final run = await _refreshBisect(
+      action.name,
+      () => switch (action) {
+        BisectAction.good => service.bisectGood(repo),
+        BisectAction.bad => service.bisectBad(repo),
+        BisectAction.skip => service.bisectSkip(repo),
+        BisectAction.reset => service.bisectReset(repo),
+      },
+    );
+    return run.status == ActionRunStatus.failed ? run.value?.message : null;
   }
 
-  void _refreshBisect() {
+  Future<ActionRun<ActionResult>> _refreshBisect(
+    String key,
+    Future<ActionResult> Function() action,
+  ) async {
     final repo = widget.repo;
-    ref
-      ..invalidate(bisectStateProvider(repo))
-      ..invalidate(repoStateProvider(repo))
-      ..invalidate(gitReadOperationsProvider)
-      ..invalidate(repoStatusProvider(repo))
-      ..invalidate(commitGraphDataProvider(repo));
+    final run = await ref
+        .read(actionRunnerProvider)
+        .runAndRefresh(
+          key: 'bisect:$key',
+          repo: repo,
+          scopes: const {
+            RefreshScope.repoState,
+            RefreshScope.graph,
+            RefreshScope.status,
+          },
+          action: () async {
+            final result = await action();
+            if (result.outcome == ActionOutcome.success) {
+              ref.invalidate(bisectStateProvider(repo));
+              await ref.read(bisectStateProvider(repo).future);
+            }
+            return result;
+          },
+          failed: (result) => result.outcome == ActionOutcome.failed,
+        );
+    // Both callers show a git failure inline (banner / start dialog), so no
+    // toast here; a refresh failure is toasted by the runner.
+    return run;
   }
 
   Future<void> _startBisect(BuildContext context, CommitSha bad) async {
@@ -544,18 +567,21 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                             busy = true;
                             error = null;
                           });
-                          final result = await ref
-                              .read(gitActionsServiceProvider)
-                              .bisectStart(widget.repo, bad.value, good);
-                          _refreshBisect();
+                          final run = await _refreshBisect(
+                            'start',
+                            () => ref
+                                .read(gitActionsServiceProvider)
+                                .bisectStart(widget.repo, bad.value, good),
+                          );
                           if (!ctx.mounted) return;
-                          if (result.outcome == ActionOutcome.success) {
+                          if (run.status == ActionRunStatus.succeeded) {
                             Navigator.pop(ctx);
                           } else {
                             setDialogState(() {
                               busy = false;
                               error =
-                                  result.message ?? 'Could not start bisect.';
+                                  run.value?.message ??
+                                  'Could not start bisect.';
                             });
                           }
                         },

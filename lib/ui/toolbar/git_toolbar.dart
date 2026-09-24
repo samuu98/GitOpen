@@ -2,17 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/workspaces/workspace.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/dialogs/push_branch_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
-import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/toolbar/branch_dropdown.dart';
 import 'package:gitopen/ui/toolbar/open_dropdown.dart';
 import 'package:gitopen/ui/toolbar/stash_dropdown.dart';
@@ -73,13 +72,14 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
           icon: Icons.south,
           label: 'Pull',
           enabled: enabled,
-          tooltip: 'Pull from origin',
+          tooltip: _tooltip('Pull from origin', 'pull'),
           compact: widget.compact,
           onTap: () => unawaited(_pull(repo!)),
         ),
         _PushSplitButton(
           enabled: enabled,
           compact: widget.compact,
+          tooltip: _tooltip('Push to origin', 'push'),
           onPush: () => unawaited(_push(repo!)),
           onMenu: (pos) => unawaited(_pushMenu(repo!, pos)),
         ),
@@ -209,75 +209,70 @@ class _PushSplitButton extends StatelessWidget {
   const _PushSplitButton({
     required this.enabled,
     required this.compact,
+    required this.tooltip,
     required this.onPush,
     required this.onMenu,
   });
   final bool enabled;
   final bool compact;
+  final String tooltip;
   final VoidCallback onPush;
   final void Function(Offset globalPosition) onMenu;
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
     final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
     final typography = AppTypography.of(context);
-    return Opacity(
-      opacity: enabled ? 1.0 : 0.4,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Tooltip(
-            message: 'Push to origin',
-            waitDuration: const Duration(milliseconds: 500),
-            child: InkWell(
-              onTap: enabled ? onPush : null,
-              borderRadius: radii.controlRadius,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  compact ? spacing.sm : spacing.md - 2,
-                  spacing.xs,
-                  0,
-                  spacing.xs,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.north, size: 14, color: palette.fg1),
-                    if (!compact) ...[
-                      const SizedBox(width: 5),
-                      Text(
-                        'Push',
-                        style: typography.body.copyWith(color: palette.fg0),
-                      ),
-                    ],
-                  ],
-                ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppInteractiveSurface(
+          onTap: enabled ? onPush : null,
+          tooltip: tooltip,
+          semanticLabel: 'Push',
+          height: spacing.regularControlHeight,
+          alignment: null,
+          padding: EdgeInsets.only(left: compact ? spacing.sm : spacing.md),
+          child: (context, visual) => Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.north,
+                size: spacing.regularIconSize,
+                color: visual.foreground,
               ),
-            ),
-          ),
-          // 3px gap before the caret — identical to ToolbarDropdownButton.
-          Tooltip(
-            message: 'More push options',
-            waitDuration: const Duration(milliseconds: 500),
-            child: InkWell(
-              onTapDown: enabled ? (d) => onMenu(d.globalPosition) : null,
-              onTap: enabled ? () {} : null,
-              borderRadius: radii.controlRadius,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  3,
-                  spacing.xs,
-                  compact ? spacing.sm : spacing.md - 2,
-                  spacing.xs,
+              if (!compact) ...[
+                SizedBox(width: spacing.xs),
+                Text(
+                  'Push',
+                  style: typography.body.copyWith(color: visual.foreground),
                 ),
-                child: Icon(Icons.expand_more, size: 12, color: palette.fg2),
-              ),
-            ),
+              ],
+            ],
           ),
-        ],
-      ),
+        ),
+        AppInteractiveSurface(
+          onTap: enabled ? () => onMenu(_menuPosition(context)) : null,
+          tooltip: 'More push options',
+          semanticLabel: 'More push options',
+          height: spacing.regularControlHeight,
+          alignment: null,
+          padding: EdgeInsets.only(
+            left: spacing.xxs,
+            right: compact ? spacing.sm : spacing.md,
+          ),
+          child: (context, visual) => Icon(
+            Icons.expand_more,
+            size: spacing.compactIconSize,
+            color: visual.foreground,
+          ),
+        ),
+      ],
     );
+  }
+
+  Offset _menuPosition(BuildContext context) {
+    final box = context.findRenderObject()! as RenderBox;
+    return box.localToGlobal(Offset(box.size.width, box.size.height));
   }
 }

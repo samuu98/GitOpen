@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -61,6 +62,8 @@ void main() {
     );
     final boundary = GlobalKey();
     final write = _BisectWrite();
+    final graphReload = Completer<GraphData>();
+    var graphCalls = 0;
     final container = ProviderContainer(
       overrides: [
         gitActionsServiceProvider.overrideWithValue(
@@ -71,7 +74,12 @@ void main() {
           ),
         ),
         commitGraphDataProvider(repo).overrideWith(
-          (ref) async => GraphData(nodes, {}, 0, hasMore: false),
+          (ref) {
+            graphCalls++;
+            return graphCalls == 1
+                ? Future.value(GraphData(nodes, {}, 0, hasMore: false))
+                : graphReload.future;
+          },
         ),
         bisectStateProvider(repo).overrideWith((ref) async => state),
       ],
@@ -144,6 +152,15 @@ void main() {
 
     state = null;
     await tester.tap(find.text('Reset'));
+    await tester.pump();
+    expect(write.resetCalls, 1);
+    await tester.pump();
+    expect(graphCalls, 2);
+    expect(
+      container.read(busyProvider).isRunning('${repo.id.value}/bisect:reset'),
+      isTrue,
+    );
+    graphReload.complete(GraphData(nodes, {}, 0, hasMore: false));
     await tester.pumpAndSettle();
     expect(write.resetCalls, 1);
     expect(marker('First bad'), findsNothing);

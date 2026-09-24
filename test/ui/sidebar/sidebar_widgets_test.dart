@@ -9,6 +9,7 @@ import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/branch_tree_view.dart';
 import 'package:gitopen/ui/sidebar/stash_row.dart';
@@ -66,6 +67,9 @@ void main() {
     expect(find.text('main'), findsOneWidget);
     expect(find.text('feature'), findsOneWidget);
     expect(find.text('login'), findsOneWidget);
+    expect(find.byTooltip('Pin main'), findsOneWidget);
+    expect(find.byTooltip('Hide main from the graph'), findsOneWidget);
+    expect(find.byType(AppIconButton), findsNWidgets(4));
 
     await tester.tap(find.bySemanticsLabel('Hide main from the graph'));
     await tester.pump();

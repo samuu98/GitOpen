@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/refs/remote.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/dialogs/remote_dialog.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/branch_tree_view.dart';
 import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// The "+" affordance in the REMOTES section header.
@@ -24,13 +30,14 @@ class AddRemoteIconButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return InkWell(
-      onTap: () => _addRemote(context, ref, repo, onChanged),
-      borderRadius: BorderRadius.circular(2),
-      child: Padding(
-        padding: const EdgeInsets.all(2),
-        child: Icon(Icons.add, size: 14, color: AppPalette.of(context).fg2),
-      ),
+    final pending = ref
+        .watch(busyProvider)
+        .isRunning('${repo.id.value}/remote-add');
+    return AppIconButton(
+      icon: Icons.add,
+      tooltip: 'Add remote…',
+      size: AppSpacing.of(context).compactControlHeight,
+      onPressed: pending ? null : () => _addRemote(context, ref, repo),
     );
   }
 }
@@ -47,20 +54,18 @@ class AddRemoteEmptyState extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref
+        .watch(busyProvider)
+        .isRunning('${repo.id.value}/remote-add');
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: () => _addRemote(context, ref, repo, onChanged),
-          icon: const Icon(Icons.add, size: 14),
-          label: const Text('Add remote…'),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: AppPalette.of(context).fg2,
-          ),
+        child: AppButton.secondary(
+          onPressed: pending ? null : () => _addRemote(context, ref, repo),
+          icon: Icons.add,
+          label: 'Add remote…',
+          compact: true,
         ),
       ),
     );
@@ -86,72 +91,78 @@ class RemoteGroup extends ConsumerStatefulWidget {
 
 class _RemoteGroupState extends ConsumerState<RemoteGroup> {
   bool _open = true;
-  bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final branchCount = widget.remote.branches.length;
+    final busy = ref.watch(busyProvider);
+    final pending = ['remote-remove:', 'remote-rename:', 'remote-url:'].any(
+      (key) =>
+          busy.isRunning('${widget.repo.id.value}/$key${widget.remote.name}'),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Tooltip(
-          message: widget.remote.url,
-          waitDuration: const Duration(milliseconds: 500),
-          child: MouseRegion(
-            onEnter: (_) => setState(() => _hover = true),
-            onExit: (_) => setState(() => _hover = false),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => setState(() => _open = !_open),
-              onSecondaryTapDown: (details) =>
-                  _showMenu(context, ref, details.globalPosition),
-              child: Container(
-                color: _hover ? palette.bg3 : Colors.transparent,
-                padding: const EdgeInsets.only(
-                  left: kSidebarRowGlyphIndent,
-                  right: 6,
-                  top: 3,
-                  bottom: 3,
+        SidebarRowSurface(
+          tooltip: widget.remote.url,
+          semanticLabel: 'Remote ${widget.remote.name}',
+          onTap: pending ? null : () => setState(() => _open = !_open),
+          onSecondaryTapDown: pending
+              ? null
+              : (details) => _showMenu(context, ref, details.globalPosition),
+          child: Padding(
+            padding: const EdgeInsets.only(
+              left: kSidebarRowGlyphIndent - 1,
+              right: 6,
+            ),
+            child: Row(
+              children: [
+                // Same glyph column + gap as a branch-tree folder, so the
+                // remote name lands in the shared label column and its
+                // branches nest exactly one step past it. (The cloud icon
+                // that used to sit between chevron and name pushed the
+                // label 17px right of every other level-1 row.)
+                Icon(
+                  _open ? Icons.expand_more : Icons.chevron_right,
+                  size: kSidebarGlyphColumnWidth,
+                  color: palette.fg3,
                 ),
-                child: Row(
-                  children: [
-                    // Same glyph column + gap as a branch-tree folder, so the
-                    // remote name lands in the shared label column and its
-                    // branches nest exactly one step past it. (The cloud icon
-                    // that used to sit between chevron and name pushed the
-                    // label 17px right of every other level-1 row.)
-                    Icon(
-                      _open ? Icons.expand_more : Icons.chevron_right,
-                      size: kSidebarGlyphColumnWidth,
+                const SizedBox(width: kSidebarGlyphGap),
+                Expanded(
+                  child: Text(
+                    widget.remote.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.fg1,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (pending)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  Icon(
+                    Icons.cloud_outlined,
+                    size: AppSpacing.of(context).compactIconSize,
+                    color: palette.fg3,
+                  ),
+                if (branchCount > 0) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    '$branchCount',
+                    style: TextStyle(
                       color: palette.fg3,
+                      fontSize: 11,
                     ),
-                    const SizedBox(width: kSidebarGlyphGap),
-                    Expanded(
-                      child: Text(
-                        widget.remote.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: palette.fg1,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    Icon(Icons.cloud_outlined, size: 13, color: palette.fg3),
-                    if (branchCount > 0) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        '$branchCount',
-                        style: TextStyle(
-                          color: palette.fg3,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -204,14 +215,12 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
     final write = ref.read(gitWriteOperationsProvider);
     final remote = widget.remote;
     final repo = widget.repo;
-    final onChanged = widget.onChanged;
 
     switch (selected) {
       case 'fetch':
         await ref
             .read(gitActionsControllerProvider)
             .fetchRemote(context, repo, remote.name);
-        onChanged();
 
       case 'edit_url':
         final result = await RemoteDialog.showEditUrl(
@@ -220,16 +229,22 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
           remote.url,
         );
         if (result == null) return;
-        await write.setRemoteUrl(repo, remote.name, result.url);
-        ref.read(authResolverProvider).clearCache(repo.id.value);
-        onChanged();
+        await _runRemoteWrite(
+          ref,
+          repo,
+          'remote-url:${remote.name}',
+          () => write.setRemoteUrl(repo, remote.name, result.url),
+        );
 
       case 'rename':
         final result = await RemoteDialog.showRename(context, remote.name);
         if (result == null) return;
-        await write.renameRemote(repo, remote.name, result.name);
-        ref.read(authResolverProvider).clearCache(repo.id.value);
-        onChanged();
+        await _runRemoteWrite(
+          ref,
+          repo,
+          'remote-rename:${remote.name}',
+          () => write.renameRemote(repo, remote.name, result.name),
+        );
 
       case 'remove':
         if (!context.mounted) return;
@@ -243,9 +258,12 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
           dangerous: true,
         );
         if (!confirmed) return;
-        await write.removeRemote(repo, remote.name);
-        ref.read(authResolverProvider).clearCache(repo.id.value);
-        onChanged();
+        await _runRemoteWrite(
+          ref,
+          repo,
+          'remote-remove:${remote.name}',
+          () => write.removeRemote(repo, remote.name),
+        );
     }
   }
 }
@@ -254,12 +272,37 @@ Future<void> _addRemote(
   BuildContext context,
   WidgetRef ref,
   RepoLocation repo,
-  VoidCallback onChanged,
 ) async {
   final result = await RemoteDialog.showAdd(context);
   if (result == null) return;
   final write = ref.read(gitWriteOperationsProvider);
-  await write.addRemote(repo, result.name, result.url);
-  ref.read(authResolverProvider).clearCache(repo.id.value);
-  onChanged();
+  await _runRemoteWrite(
+    ref,
+    repo,
+    'remote-add',
+    () => write.addRemote(repo, result.name, result.url),
+  );
+}
+
+Future<void> _runRemoteWrite(
+  WidgetRef ref,
+  RepoLocation repo,
+  String key,
+  Future<GitResult<void>> Function() action,
+) async {
+  final run = await ref
+      .read(actionRunnerProvider)
+      .runAndRefresh(
+        key: key,
+        repo: repo,
+        scopes: const {RefreshScope.sidebar, RefreshScope.status},
+        action: action,
+        failed: (result) => result is GitFailure<void>,
+      );
+  if (run.status
+      case ActionRunStatus.succeeded || ActionRunStatus.refreshFailed) {
+    ref.read(authResolverProvider).clearCache(repo.id.value);
+  } else if (run.value case GitFailure<void>(:final message)) {
+    ref.read(actionFeedbackProvider).showActionFailure(message);
+  }
 }

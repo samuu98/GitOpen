@@ -15,6 +15,7 @@ class AppIconButton extends StatelessWidget {
     this.iconSize,
     this.autofocus = false,
     this.visualStates = const {},
+    this.color,
   });
 
   final IconData icon;
@@ -26,6 +27,9 @@ class AppIconButton extends StatelessWidget {
   final double? iconSize;
   final bool autofocus;
   final Set<WidgetState> visualStates;
+
+  /// Overrides the idle icon colour, e.g. an accent for an "on" toggle.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -41,11 +45,13 @@ class AppIconButton extends StatelessWidget {
       height: size ?? spacing.compactControlHeight,
       width: size ?? spacing.compactControlHeight,
       hoverColor: palette.bg4,
-      foregroundColor: danger
-          ? palette.accentErr
-          : selected
-          ? palette.fg0
-          : palette.fg2,
+      foregroundColor:
+          color ??
+          (danger
+              ? palette.accentErr
+              : selected
+              ? palette.fg0
+              : palette.fg2),
       child: (context, visual) => Icon(
         icon,
         size: iconSize ?? spacing.regularIconSize,

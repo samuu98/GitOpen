@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
@@ -23,34 +24,51 @@ class TagRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Semantics(
-      button: true,
-      label: 'Tag ${tag.name}',
-      child: GestureDetector(
-        onSecondaryTapDown: (details) =>
-            _showContextMenu(context, ref, details.globalPosition),
-        child: InkWell(
-          onTap: () => revealCommit(ref, tag.targetSha),
-          onDoubleTap: () async {
-            final ok = await safeCheckout(
-              context: context,
-              ref: ref,
-              repo: repo,
-              targetRef: tag.name,
-            );
-            if (ok) onRefresh();
-          },
-          child: Padding(
-            padding: const EdgeInsets.only(
-                left: kSidebarRowIndent, right: 26, top: 3, bottom: 3),
-            child: Text(
-              tag.name,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: AppPalette.of(context).fg1,
-                fontSize: 12.5,
+    final busy = ref.watch(busyProvider);
+    final pending =
+        busy.isRunning('${repo.id.value}/tag-delete:${tag.name}') ||
+        busy.isRunning('${repo.id.value}/push-tag:${tag.name}');
+    return GestureDetector(
+      onDoubleTap: () async {
+        final ok = await safeCheckout(
+          context: context,
+          ref: ref,
+          repo: repo,
+          targetRef: tag.name,
+        );
+        if (ok) onRefresh();
+      },
+      child: SidebarRowSurface(
+        semanticLabel: 'Tag ${tag.name}',
+        onTap: pending ? null : () => revealCommit(ref, tag.targetSha),
+        onSecondaryTapDown: pending
+            ? null
+            : (details) =>
+                  _showContextMenu(context, ref, details.globalPosition),
+        child: Padding(
+          padding: const EdgeInsets.only(
+            left: kSidebarRowIndent - 1,
+            right: 26,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  tag.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppPalette.of(context).fg1,
+                    fontSize: 12.5,
+                  ),
+                ),
               ),
-            ),
+              if (pending)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
           ),
         ),
       ),
@@ -98,7 +116,6 @@ class TagRow extends ConsumerWidget {
         await ref
             .read(gitActionsControllerProvider)
             .pushTag(context, repo, tag.name);
-        onRefresh();
 
       case 'delete_tag':
         if (!context.mounted) return;
@@ -114,7 +131,6 @@ class TagRow extends ConsumerWidget {
         await ref
             .read(gitActionsControllerProvider)
             .deleteTag(context, repo, tag.name);
-        onRefresh();
     }
   }
 }
