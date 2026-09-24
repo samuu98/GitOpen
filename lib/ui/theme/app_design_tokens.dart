@@ -10,6 +10,14 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
     required this.lg,
     required this.xl,
     required this.xxl,
+    this.compactControlHeight = 28,
+    this.regularControlHeight = 38,
+    this.graphRowHeight = 26,
+    this.listRowHeight = 30,
+    this.menuRowHeight = 30,
+    this.statusIconSize = 11,
+    this.compactIconSize = 13,
+    this.regularIconSize = 14,
   });
 
   const factory AppSpacing.desktop() = AppSpacing._desktop;
@@ -21,7 +29,15 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
       md = 12,
       lg = 16,
       xl = 24,
-      xxl = 32;
+      xxl = 32,
+      compactControlHeight = 28,
+      regularControlHeight = 38,
+      graphRowHeight = 26,
+      listRowHeight = 30,
+      menuRowHeight = 30,
+      statusIconSize = 11,
+      compactIconSize = 13,
+      regularIconSize = 14;
 
   final double xxs;
   final double xs;
@@ -30,6 +46,14 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
   final double lg;
   final double xl;
   final double xxl;
+  final double compactControlHeight;
+  final double regularControlHeight;
+  final double graphRowHeight;
+  final double listRowHeight;
+  final double menuRowHeight;
+  final double statusIconSize;
+  final double compactIconSize;
+  final double regularIconSize;
 
   EdgeInsets get panel => EdgeInsets.all(md);
   EdgeInsets get row => EdgeInsets.symmetric(horizontal: md, vertical: sm);
@@ -47,6 +71,14 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
     double? lg,
     double? xl,
     double? xxl,
+    double? compactControlHeight,
+    double? regularControlHeight,
+    double? graphRowHeight,
+    double? listRowHeight,
+    double? menuRowHeight,
+    double? statusIconSize,
+    double? compactIconSize,
+    double? regularIconSize,
   }) {
     return AppSpacing(
       xxs: xxs ?? this.xxs,
@@ -56,6 +88,14 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
       lg: lg ?? this.lg,
       xl: xl ?? this.xl,
       xxl: xxl ?? this.xxl,
+      compactControlHeight: compactControlHeight ?? this.compactControlHeight,
+      regularControlHeight: regularControlHeight ?? this.regularControlHeight,
+      graphRowHeight: graphRowHeight ?? this.graphRowHeight,
+      listRowHeight: listRowHeight ?? this.listRowHeight,
+      menuRowHeight: menuRowHeight ?? this.menuRowHeight,
+      statusIconSize: statusIconSize ?? this.statusIconSize,
+      compactIconSize: compactIconSize ?? this.compactIconSize,
+      regularIconSize: regularIconSize ?? this.regularIconSize,
     );
   }
 
@@ -70,6 +110,22 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
       lg: _lerpDouble(lg, other.lg, t),
       xl: _lerpDouble(xl, other.xl, t),
       xxl: _lerpDouble(xxl, other.xxl, t),
+      compactControlHeight: _lerpDouble(
+        compactControlHeight,
+        other.compactControlHeight,
+        t,
+      ),
+      regularControlHeight: _lerpDouble(
+        regularControlHeight,
+        other.regularControlHeight,
+        t,
+      ),
+      graphRowHeight: _lerpDouble(graphRowHeight, other.graphRowHeight, t),
+      listRowHeight: _lerpDouble(listRowHeight, other.listRowHeight, t),
+      menuRowHeight: _lerpDouble(menuRowHeight, other.menuRowHeight, t),
+      statusIconSize: _lerpDouble(statusIconSize, other.statusIconSize, t),
+      compactIconSize: _lerpDouble(compactIconSize, other.compactIconSize, t),
+      regularIconSize: _lerpDouble(regularIconSize, other.regularIconSize, t),
     );
   }
 

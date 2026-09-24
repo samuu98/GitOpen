@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -107,7 +108,7 @@ enum AppButtonKind { primary, secondary, danger }
 
 /// Button that adapts to the app palette and three semantic kinds.
 /// Use as the action in [AppDialog].
-class AppButton extends StatefulWidget {
+class AppButton extends StatelessWidget {
   const AppButton({
     required this.label,
     required this.onPressed,
@@ -115,6 +116,10 @@ class AppButton extends StatefulWidget {
     this.kind = AppButtonKind.secondary,
     this.icon,
     this.autofocus = false,
+    this.selected = false,
+    this.compact = false,
+    this.tooltip,
+    this.visualStates = const {},
   });
 
   const AppButton.primary({
@@ -123,6 +128,10 @@ class AppButton extends StatefulWidget {
     super.key,
     this.icon,
     this.autofocus = false,
+    this.selected = false,
+    this.compact = false,
+    this.tooltip,
+    this.visualStates = const {},
   }) : kind = AppButtonKind.primary;
 
   const AppButton.secondary({
@@ -131,6 +140,10 @@ class AppButton extends StatefulWidget {
     super.key,
     this.icon,
     this.autofocus = false,
+    this.selected = false,
+    this.compact = false,
+    this.tooltip,
+    this.visualStates = const {},
   }) : kind = AppButtonKind.secondary;
 
   const AppButton.danger({
@@ -139,103 +152,73 @@ class AppButton extends StatefulWidget {
     super.key,
     this.icon,
     this.autofocus = false,
+    this.selected = false,
+    this.compact = false,
+    this.tooltip,
+    this.visualStates = const {},
   }) : kind = AppButtonKind.danger;
   final String label;
   final VoidCallback? onPressed;
   final AppButtonKind kind;
   final IconData? icon;
   final bool autofocus;
-
-  @override
-  State<AppButton> createState() => _AppButtonState();
-}
-
-class _AppButtonState extends State<AppButton> {
-  bool _hover = false;
-  bool _focused = false;
+  final bool selected;
+  final bool compact;
+  final String? tooltip;
+  final Set<WidgetState> visualStates;
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final disabled = widget.onPressed == null;
-    final (bg, bgHover, fg, border) = switch (widget.kind) {
+    final spacing = AppSpacing.of(context);
+    final (bg, fg, border) = switch (kind) {
       AppButtonKind.primary => (
         palette.accentCurrent,
-        palette.accentCurrent.withValues(alpha: 0.85),
         palette.onAccentCurrent,
         palette.accentCurrent,
       ),
       AppButtonKind.danger => (
         palette.accentErr,
-        palette.accentErr.withValues(alpha: 0.85),
         palette.onAccentErr,
         palette.accentErr,
       ),
       AppButtonKind.secondary => (
         palette.bg3,
-        palette.bg4,
         palette.fg0,
         palette.borderStrong,
       ),
     };
-    return MouseRegion(
-      cursor: disabled
-          ? SystemMouseCursors.forbidden
-          : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Semantics(
-        button: true,
-        enabled: !disabled,
-        label: widget.label,
-        onTap: disabled ? null : widget.onPressed,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: disabled ? null : widget.onPressed,
-            autofocus: widget.autofocus,
-            canRequestFocus: !disabled,
-            excludeFromSemantics: true,
-            hoverColor: Colors.transparent,
-            focusColor: Colors.transparent,
-            borderRadius: AppRadii.of(context).controlRadius,
-            onFocusChange: (focused) => setState(() => _focused = focused),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 80),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              decoration: BoxDecoration(
-                color: disabled ? palette.bg3 : (_hover ? bgHover : bg),
-                border: Border.all(
-                  color: disabled
-                      ? palette.border
-                      : (_focused ? palette.accentRemote : border),
-                  width: _focused ? 1.5 : 1,
-                ),
-                borderRadius: AppRadii.of(context).controlRadius,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.icon != null) ...[
-                    Icon(
-                      widget.icon,
-                      size: 14,
-                      color: disabled ? palette.fg3 : fg,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  Text(
-                    widget.label,
-                    style: AppTypography.of(context).body.copyWith(
-                      color: disabled ? palette.fg3 : fg,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+    return AppInteractiveSurface(
+      onTap: onPressed,
+      semanticLabel: label,
+      tooltip: tooltip,
+      selected: selected,
+      autofocus: autofocus,
+      visualStates: visualStates,
+      height: compact
+          ? spacing.compactControlHeight
+          : spacing.regularControlHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      alignment: null,
+      baseColor: bg,
+      hoverColor: kind == AppButtonKind.secondary ? palette.bg4 : null,
+      foregroundColor: fg,
+      borderColor: border,
+      child: (context, visual) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: spacing.regularIconSize, color: visual.foreground),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: AppTypography.of(context).body.copyWith(
+              color: visual.foreground,
+              fontWeight: FontWeight.w500,
             ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -91,4 +91,16 @@ void main() {
     );
     expect(a.lerp(b, 0.5).md, 14);
   });
+
+  test('interaction sizes match desktop control and row roles', () {
+    const spacing = AppSpacing.desktop();
+    expect(spacing.compactControlHeight, 28);
+    expect(spacing.regularControlHeight, 38);
+    expect(spacing.graphRowHeight, 26);
+    expect(spacing.listRowHeight, 30);
+    expect(spacing.menuRowHeight, 30);
+    expect(spacing.statusIconSize, 11);
+    expect(spacing.compactIconSize, 13);
+    expect(spacing.regularIconSize, 14);
+  });
 }
