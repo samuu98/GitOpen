@@ -7,15 +7,16 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/author_avatar.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/settings/settings_widgets.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final _activeRepoIdentityProvider = FutureProvider.autoDispose
     .family<({String? name, String? email}), RepoLocation>(
-  (ref, repo) async {
-    return ref.watch(gitIdentityServiceProvider).readEffective(repo);
-  },
-);
+      (ref, repo) async {
+        return ref.watch(gitIdentityServiceProvider).readEffective(repo);
+      },
+    );
 
 class GitIdentitySection extends ConsumerWidget {
   const GitIdentitySection({super.key});
@@ -28,8 +29,8 @@ class GitIdentitySection extends ConsumerWidget {
     final activeRepo = activeId == null
         ? null
         : workspaces
-            .firstWhereOrNull((w) => w.location.id == activeId)
-            ?.location;
+              .firstWhereOrNull((w) => w.location.id == activeId)
+              ?.location;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
       child: Column(
@@ -129,14 +130,17 @@ class _CurrentIdentityCard extends ConsumerWidget {
         loading: () => const SizedBox(
           height: 36,
           child: Center(
-              child: SizedBox(
-                  height: 16,
-                  width: 16,
-                  child:
-                      CircularProgressIndicator(strokeWidth: 1.5))),
+            child: SizedBox(
+              height: 16,
+              width: 16,
+              child: CircularProgressIndicator(strokeWidth: 1.5),
+            ),
+          ),
         ),
-        error: (e, _) => Text('Error reading config: $e',
-            style: TextStyle(color: palette.accentErr)),
+        error: (e, _) => Text(
+          'Error reading config: $e',
+          style: TextStyle(color: palette.accentErr),
+        ),
         data: (id) {
           final name = id.name ?? '(not set)';
           final email = id.email ?? '(not set)';
@@ -151,19 +155,20 @@ class _CurrentIdentityCard extends ConsumerWidget {
                     Text(
                       name,
                       style: TextStyle(
-                          color: palette.fg0,
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600),
+                        color: palette.fg0,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 2),
-                    Text(email,
-                        style: TextStyle(
-                            color: palette.fg2, fontSize: 12)),
+                    Text(
+                      email,
+                      style: TextStyle(color: palette.fg2, fontSize: 12),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       'Effective values — local config overrides global.',
-                      style: TextStyle(
-                          color: palette.fg3, fontSize: 11),
+                      style: TextStyle(color: palette.fg3, fontSize: 11),
                     ),
                   ],
                 ),
@@ -196,27 +201,33 @@ class _ProfileTile extends ConsumerWidget {
       decoration: isLast
           ? null
           : BoxDecoration(
-              border: Border(bottom: BorderSide(color: palette.border))),
+              border: Border(bottom: BorderSide(color: palette.border)),
+            ),
       child: Row(
         children: [
-          AuthorAvatar(
-              name: identity.name, email: identity.email, size: 30),
+          AuthorAvatar(name: identity.name, email: identity.email, size: 30),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(identity.label,
-                    style: TextStyle(
-                        color: palette.fg0,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  identity.label,
+                  style: TextStyle(
+                    color: palette.fg0,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text('${identity.name} <${identity.email}>',
-                    style: TextStyle(
-                        color: palette.fg2,
-                        fontSize: 11.5,
-                        fontFamily: 'monospace')),
+                Text(
+                  '${identity.name} <${identity.email}>',
+                  style: TextStyle(
+                    color: palette.fg2,
+                    fontSize: 11.5,
+                    fontFamily: 'monospace',
+                  ),
+                ),
               ],
             ),
           ),
@@ -230,9 +241,8 @@ class _ProfileTile extends ConsumerWidget {
           ],
           AppButton.danger(
             label: 'Remove',
-            onPressed: () => ref
-                .read(appSettingsProvider.notifier)
-                .removeGitIdentity(index),
+            onPressed: () =>
+                ref.read(appSettingsProvider.notifier).removeGitIdentity(index),
           ),
         ],
       ),
@@ -240,23 +250,21 @@ class _ProfileTile extends ConsumerWidget {
   }
 
   Future<void> _apply(
-      BuildContext context, WidgetRef ref, RepoLocation repo) async {
+    BuildContext context,
+    WidgetRef ref,
+    RepoLocation repo,
+  ) async {
     final svc = ref.read(gitIdentityServiceProvider);
     try {
       await svc.setLocal(repo, identity.name, identity.email);
       ref.invalidate(_activeRepoIdentityProvider(repo));
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Applied "${identity.label}" to this repo')),
-      );
+      ref
+          .read(actionFeedbackProvider)
+          .showActionSuccess('Applied "${identity.label}" to this repo');
     } on Object catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to apply: $e'),
-          backgroundColor: AppPalette.of(context).accentErr,
-        ),
-      );
+      ref.read(actionFeedbackProvider).showActionFailure('Failed to apply: $e');
     }
   }
 }
@@ -327,7 +335,9 @@ class _AddProfileFormState extends ConsumerState<_AddProfileForm> {
   }
 
   Future<void> _save() async {
-    await ref.read(appSettingsProvider.notifier).addGitIdentity(
+    await ref
+        .read(appSettingsProvider.notifier)
+        .addGitIdentity(
           GitIdentity(
             label: _label.text.trim(),
             name: _name.text.trim(),
@@ -372,8 +382,7 @@ class _Field extends StatelessWidget {
             child: TextField(
               controller: controller,
               style: TextStyle(color: palette.fg0, fontSize: 13),
-              decoration:
-                  appInputDecoration(context, label: '', hint: hint),
+              decoration: appInputDecoration(context, label: '', hint: hint),
               onChanged: (_) => onChanged(),
             ),
           ),

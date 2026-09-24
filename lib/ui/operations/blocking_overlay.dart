@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// Full-screen modal shown while a git operation runs. Absorbs all input so
@@ -20,7 +21,9 @@ class BlockingOverlay extends ConsumerWidget {
     final palette = AppPalette.of(context);
 
     // Cancel comes from a running network op that registered an onCancel.
-    final cancelable = ref.watch(operationsProvider).firstWhereOrNull(
+    final cancelable = ref
+        .watch(operationsProvider)
+        .firstWhereOrNull(
           (o) => o.status == OperationStatus.running && o.onCancel != null,
         );
     final label = busy.visibleLabel ?? cancelable?.label ?? 'Working…';
@@ -52,11 +55,11 @@ class BlockingOverlay extends ConsumerWidget {
                   ),
                   if (cancelable != null) ...[
                     const SizedBox(height: 14),
-                    TextButton(
+                    AppButton.secondary(
+                      label: 'Cancel',
                       onPressed: () => ref
                           .read(operationsProvider.notifier)
                           .cancel(cancelable.id),
-                      child: const Text('Cancel'),
                     ),
                   ],
                 ],

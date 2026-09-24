@@ -4,6 +4,9 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/blame/blame_line.dart';
 import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/common/author_avatar.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:intl/intl.dart';
@@ -12,21 +15,19 @@ import 'package:intl/intl.dart';
 typedef FileKey = ({RepoLocation repo, String path});
 
 /// Commits that touched a given path, newest first (`git log --follow`).
-final fileHistoryProvider =
-    FutureProvider.family.autoDispose<List<CommitInfo>, FileKey>(
-        (ref, key) async {
-  final git = ref.watch(gitReadOperationsProvider);
-  // Cap at a sane page; the dialog is for browsing, not full archaeology.
-  return git.getFileHistory(key.repo, key.path, take: 200);
-});
+final fileHistoryProvider = FutureProvider.family
+    .autoDispose<List<CommitInfo>, FileKey>((ref, key) async {
+      final git = ref.watch(gitReadOperationsProvider);
+      // Cap at a sane page; the dialog is for browsing, not full archaeology.
+      return git.getFileHistory(key.repo, key.path, take: 200);
+    });
 
 /// Per-line blame for a path at HEAD (`git blame --porcelain`).
-final fileBlameProvider =
-    FutureProvider.family.autoDispose<List<BlameLine>, FileKey>(
-        (ref, key) async {
-  final git = ref.watch(gitReadOperationsProvider);
-  return git.getBlame(key.repo, key.path);
-});
+final fileBlameProvider = FutureProvider.family
+    .autoDispose<List<BlameLine>, FileKey>((ref, key) async {
+      final git = ref.watch(gitReadOperationsProvider);
+      return git.getBlame(key.repo, key.path);
+    });
 
 /// Self-contained dialog surfacing a file's commit history and per-line blame.
 ///
@@ -143,9 +144,8 @@ class _Header extends StatelessWidget {
                   ),
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.close, size: 16, color: palette.fg2),
-                splashRadius: 16,
+              AppIconButton(
+                icon: Icons.close,
                 tooltip: 'Close',
                 onPressed: onClose,
               ),
@@ -222,25 +222,24 @@ class _HistoryBody extends ConsumerWidget {
     final palette = AppPalette.of(context);
     final async = ref.watch(fileHistoryProvider((repo: repo, path: path)));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
+      loading: () => const AppLoadingState.list(rows: 8),
+      error: (e, _) => AppErrorState(
+        message: 'Could not load file history',
+        detail: '$e',
+        onRetry: () =>
+            ref.invalidate(fileHistoryProvider((repo: repo, path: path))),
       ),
       data: (commits) {
         if (commits.isEmpty) {
-          return Center(
-            child: Text(
-              'No history for this file.',
-              style: TextStyle(
-                  color: palette.fg2, fontStyle: FontStyle.italic),
-            ),
+          return const AppEmptyState(
+            icon: Icons.history,
+            title: 'No history for this file',
           );
         }
         return ListView.separated(
           padding: const EdgeInsets.symmetric(vertical: 6),
           itemCount: commits.length,
-          separatorBuilder: (_, _) =>
-              Divider(height: 1, color: palette.border),
+          separatorBuilder: (_, _) => Divider(height: 1, color: palette.border),
           itemBuilder: (_, i) => _CommitRow(
             commit: commits[i],
             date: _dateFmt.format(commits[i].author.when.toLocal()),
@@ -335,21 +334,20 @@ class _BlameBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = AppPalette.of(context);
     final async = ref.watch(fileBlameProvider((repo: repo, path: path)));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
+      loading: () => const AppLoadingState.list(rows: 8),
+      error: (e, _) => AppErrorState(
+        message: 'Could not load blame',
+        detail: '$e',
+        onRetry: () =>
+            ref.invalidate(fileBlameProvider((repo: repo, path: path))),
       ),
       data: (lines) {
         if (lines.isEmpty) {
-          return Center(
-            child: Text(
-              'Nothing to blame.',
-              style: TextStyle(
-                  color: palette.fg2, fontStyle: FontStyle.italic),
-            ),
+          return const AppEmptyState(
+            icon: Icons.notes_outlined,
+            title: 'Nothing to blame',
           );
         }
         return Scrollbar(

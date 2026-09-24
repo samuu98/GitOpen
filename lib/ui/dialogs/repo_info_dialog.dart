@@ -6,7 +6,9 @@ import 'package:gitopen/application/git_lfs/git_lfs_models.dart';
 import 'package:gitopen/application/main_view_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -49,8 +51,9 @@ class RepoInfoDialog extends ConsumerWidget {
           final identity = (i.userName == null && i.userEmail == null)
               ? null
               : '${i.userName ?? '?'} <${i.userEmail ?? '?'}>';
-          final webUrl =
-              i.originUrl == null ? null : remoteWebUrl(i.originUrl!);
+          final webUrl = i.originUrl == null
+              ? null
+              : remoteWebUrl(i.originUrl!);
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,7 +73,11 @@ class RepoInfoDialog extends ConsumerWidget {
                             .revealInFiles(repo);
                       } on Object catch (e) {
                         if (context.mounted) {
-                          _snack(context, 'Could not open folder: $e');
+                          _snack(
+                            context,
+                            'Could not open folder: $e',
+                            failed: true,
+                          );
                         }
                       }
                     },
@@ -105,15 +112,13 @@ class RepoInfoDialog extends ConsumerWidget {
               _InfoRow(
                 label: 'Git LFS',
                 value: _lfsLabel(lfsAsync.value),
-                muted:
-                    !(lfsAsync.value?.isRepoConfigured ?? false),
+                muted: !(lfsAsync.value?.isRepoConfigured ?? false),
                 actions: [
                   _ActionButton(
                     icon: Icons.chevron_right,
                     tooltip: 'Open Git LFS',
                     onTap: () {
-                      ref.read(mainViewProvider.notifier).state =
-                          MainView.lfs;
+                      ref.read(mainViewProvider.notifier).state = MainView.lfs;
                       Navigator.pop(context);
                     },
                   ),
@@ -133,9 +138,15 @@ class RepoInfoDialog extends ConsumerWidget {
   }
 }
 
-void _snack(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(message)));
+void _snack(BuildContext context, String message, {bool failed = false}) {
+  final feedback = ProviderScope.containerOf(
+    context,
+  ).read(actionFeedbackProvider);
+  if (failed) {
+    feedback.showActionFailure(message);
+  } else {
+    feedback.showActionSuccess(message);
+  }
 }
 
 String _lfsLabel(GitLfsStatus? status) {
@@ -218,14 +229,10 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return IconButton(
-      icon: Icon(icon, size: 15, color: palette.fg2),
+    return AppIconButton(
+      icon: icon,
       tooltip: tooltip,
-      splashRadius: 16,
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+      size: 30,
       onPressed: onTap,
     );
   }

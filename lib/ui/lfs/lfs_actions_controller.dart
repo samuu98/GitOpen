@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -5,8 +7,9 @@ import 'package:gitopen/application/git/git_action_ports.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/git/git_action_bridges.dart';
-import 'package:gitopen/ui/theme/app_palette.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 
 /// Exposes [LfsActionsController] — the single UI entry point for LFS actions.
 final lfsActionsControllerProvider = Provider<LfsActionsController>(
@@ -19,8 +22,7 @@ final lfsSyncBusyProvider = StateProvider.family<bool, RepoLocation>(
 
 /// Thin UI adapter over the pure `GitLfsService`, mirroring
 /// `GitActionsController`: supplies the auth-prompt and progress-sink
-/// bridges, then applies the returned [ActionResult] by invalidating the
-/// LFS read providers and showing any message as a snackbar.
+/// bridges, then waits for affected views before clearing pending state.
 class LfsActionsController {
   LfsActionsController(this._ref);
   final Ref _ref;
@@ -30,6 +32,7 @@ class LfsActionsController {
       _runLocal(
         context,
         repo,
+        'install',
         () => _ref.read(gitLfsServiceProvider).installLocal(repo),
       );
 
@@ -41,6 +44,7 @@ class LfsActionsController {
   ) => _runLocal(
     context,
     repo,
+    'track:$pattern',
     () => _ref.read(gitLfsServiceProvider).track(repo, pattern),
   );
 
@@ -52,6 +56,7 @@ class LfsActionsController {
   ) => _runLocal(
     context,
     repo,
+    'untrack:$pattern',
     () => _ref.read(gitLfsServiceProvider).untrack(repo, pattern),
   );
 
@@ -59,6 +64,7 @@ class LfsActionsController {
   Future<ActionResult> fetch(BuildContext context, RepoLocation repo) => _run(
     context,
     repo,
+    'fetch',
     (prompt, progress) => _ref
         .read(gitLfsServiceProvider)
         .fetch(repo, prompt: prompt, progress: progress),
@@ -68,6 +74,7 @@ class LfsActionsController {
   Future<ActionResult> pull(BuildContext context, RepoLocation repo) => _run(
     context,
     repo,
+    'pull',
     (prompt, progress) => _ref
         .read(gitLfsServiceProvider)
         .pull(repo, prompt: prompt, progress: progress),
@@ -77,6 +84,7 @@ class LfsActionsController {
   Future<ActionResult> push(BuildContext context, RepoLocation repo) => _run(
     context,
     repo,
+    'push',
     (prompt, progress) => _ref
         .read(gitLfsServiceProvider)
         .push(repo, prompt: prompt, progress: progress),
@@ -85,21 +93,68 @@ class LfsActionsController {
   Future<ActionResult> _run(
     BuildContext context,
     RepoLocation repo,
+    String key,
     Future<ActionResult> Function(AuthPrompt prompt, ProgressSink progress) op,
+  ) => _execute(
+    repo,
+    key,
+    () => op(
+      DialogAuthPrompt(context, _ref),
+      OperationsProgressSink(_ref),
+    ),
+  );
+
+  Future<ActionResult> _runLocal(
+    BuildContext context,
+    RepoLocation repo,
+    String key,
+    Future<ActionResult> Function() op,
+  ) => _execute(repo, key, op);
+
+  Future<ActionResult> _execute(
+    RepoLocation repo,
+    String key,
+    Future<ActionResult> Function() op,
   ) async {
     if (_ref.read(lfsSyncBusyProvider(repo))) {
       return const ActionResult(ActionOutcome.failed);
     }
     _ref.read(lfsSyncBusyProvider(repo).notifier).state = true;
     try {
-      final result = await op(
-        DialogAuthPrompt(context, _ref),
-        OperationsProgressSink(_ref),
-      );
-      if (_ref.mounted) _invalidate(repo);
-      final message = result.message;
-      if (message != null && context.mounted) {
-        _showSnack(context, message, result.severity);
+      final run = await _ref
+          .read(actionRunnerProvider)
+          .runAndRefresh<ActionResult>(
+            key: 'lfs:$key',
+            repo: repo,
+            scopes: const {RefreshScope.status, RefreshScope.workingCopy},
+            action: op,
+            failed: (value) => value.outcome == ActionOutcome.failed,
+            operationId: (value) => value.operationId,
+          );
+      final result = run.value;
+      if (result == null) return const ActionResult(ActionOutcome.failed);
+      if (run.status != ActionRunStatus.stale) {
+        var lfsReloaded = false;
+        try {
+          await _reloadLfs(repo);
+          lfsReloaded = true;
+        } on Object {
+          _ref
+              .read(actionFeedbackProvider)
+              .showActionFailure(
+                refreshFailureMessage,
+                retry: () => unawaited(_retryRefresh(repo)),
+              );
+        }
+        final message = result.message;
+        if (message != null && run.status != ActionRunStatus.refreshFailed) {
+          final feedback = _ref.read(actionFeedbackProvider);
+          if (result.severity == MessageSeverity.error) {
+            feedback.showActionFailure(message);
+          } else if (lfsReloaded) {
+            feedback.showActionSuccess(message);
+          }
+        }
       }
       return result;
     } finally {
@@ -109,42 +164,35 @@ class LfsActionsController {
     }
   }
 
-  Future<ActionResult> _runLocal(
-    BuildContext context,
-    RepoLocation repo,
-    Future<ActionResult> Function() op,
-  ) async {
-    final result = await op();
-    _invalidate(repo);
-    final message = result.message;
-    if (message != null && context.mounted) {
-      _showSnack(context, message, result.severity);
-    }
-    return result;
-  }
-
-  void _invalidate(RepoLocation repo) {
-    // Needs no context; runs whether or not the caller is still mounted.
+  Future<void> _reloadLfs(RepoLocation repo) async {
+    final status = gitLfsStatusProvider(repo);
+    final patterns = gitLfsTrackedPatternsProvider(repo);
+    final files = gitLfsFilesProvider(repo);
     _ref
       ..invalidate(gitLfsStatusProvider(repo))
       ..invalidate(gitLfsTrackedPatternsProvider(repo))
-      ..invalidate(gitLfsFilesProvider(repo))
-      ..invalidate(repoStatusProvider(repo));
+      ..invalidate(gitLfsFilesProvider(repo));
+    await Future.wait<Object>([
+      _ref.read(status.future),
+      _ref.read(patterns.future),
+      _ref.read(files.future),
+    ]);
   }
 
-  void _showSnack(
-    BuildContext context,
-    String message,
-    MessageSeverity? severity,
-  ) {
-    final palette = AppPalette.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: severity == MessageSeverity.error
-            ? palette.accentErr
-            : null,
-      ),
+  Future<void> _retryRefresh(RepoLocation repo) async {
+    await _ref.read(actionRunnerProvider).refreshOnly(
+      repo,
+      const {RefreshScope.status, RefreshScope.workingCopy},
     );
+    try {
+      await _reloadLfs(repo);
+    } on Object {
+      _ref
+          .read(actionFeedbackProvider)
+          .showActionFailure(
+            refreshFailureMessage,
+            retry: () => unawaited(_retryRefresh(repo)),
+          );
+    }
   }
 }

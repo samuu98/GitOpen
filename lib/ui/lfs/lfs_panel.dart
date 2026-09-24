@@ -5,6 +5,7 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_empty_state.dart';
 import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/lfs/lfs_actions_controller.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -20,8 +21,12 @@ class LfsPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final statusAsync = ref.watch(gitLfsStatusProvider(repo));
     return statusAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _LfsError(message: '$e'),
+      loading: () => const AppLoadingState.detail(),
+      error: (e, _) => AppErrorState(
+        message: 'Could not load Git LFS',
+        detail: '$e',
+        onRetry: () => ref.invalidate(gitLfsStatusProvider(repo)),
+      ),
       data: (status) {
         if (!status.isInstalled) {
           return const _LfsNotInstalled();
@@ -36,17 +41,16 @@ class LfsPanel extends ConsumerWidget {
 }
 
 class _LfsError extends StatelessWidget {
-  const _LfsError({required this.message});
+  const _LfsError({required this.message, required this.onRetry});
   final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return Center(
-      child: Text(
-        'Git LFS error: $message',
-        style: TextStyle(color: palette.accentErr, fontSize: 12.5),
-      ),
+    return AppErrorState(
+      message: 'Could not load Git LFS',
+      detail: message,
+      onRetry: onRetry,
     );
   }
 }
@@ -71,6 +75,8 @@ class _LfsSetup extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final busy = ref.watch(lfsSyncBusyProvider(repo));
+    if (busy) return const AppLoadingState.detail();
     return AppEmptyState(
       icon: Icons.download_done,
       title: 'Git LFS is available',
@@ -161,16 +167,10 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return TextButton.icon(
-      style: TextButton.styleFrom(
-        foregroundColor: palette.fg1,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        minimumSize: const Size(0, 24),
-        textStyle: const TextStyle(fontSize: 11.5),
-      ),
-      icon: Icon(icon, size: 13),
-      label: Text(label),
+    return AppButton.secondary(
+      icon: icon,
+      label: label,
+      compact: true,
       onPressed: onPressed,
     );
   }
@@ -184,6 +184,7 @@ class _TrackedPatternsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
     final patternsAsync = ref.watch(gitLfsTrackedPatternsProvider(repo));
+    final busy = ref.watch(lfsSyncBusyProvider(repo));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -203,15 +204,19 @@ class _TrackedPatternsSection extends ConsumerWidget {
               AppIconButton(
                 icon: Icons.add,
                 tooltip: 'Add pattern',
-                onPressed: () => _addPattern(context, ref),
+                onPressed: busy ? null : () => _addPattern(context, ref),
               ),
             ],
           ),
         ),
         Expanded(
           child: patternsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => _LfsError(message: '$e'),
+            loading: () => const AppLoadingState.list(rows: 5),
+            error: (e, _) => _LfsError(
+              message: '$e',
+              onRetry: () =>
+                  ref.invalidate(gitLfsTrackedPatternsProvider(repo)),
+            ),
             data: (patterns) => patterns.isEmpty
                 ? const AppEmptyState(
                     icon: Icons.label_off_outlined,
@@ -267,13 +272,13 @@ class _AddPatternDialogState extends State<_AddPatternDialog> {
         onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
       ),
       actions: [
-        TextButton(
+        AppButton.secondary(
+          label: 'Cancel',
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
         ),
-        FilledButton(
+        AppButton.primary(
+          label: 'Track',
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
-          child: const Text('Track'),
         ),
       ],
     );
@@ -288,6 +293,7 @@ class _PatternRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
+    final busy = ref.watch(lfsSyncBusyProvider(repo));
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: Row(
@@ -309,9 +315,11 @@ class _PatternRow extends ConsumerWidget {
           AppIconButton(
             icon: Icons.close,
             tooltip: 'Untrack ${pattern.pattern}',
-            onPressed: () => ref
-                .read(lfsActionsControllerProvider)
-                .untrack(context, repo, pattern.pattern),
+            onPressed: busy
+                ? null
+                : () => ref
+                      .read(lfsActionsControllerProvider)
+                      .untrack(context, repo, pattern.pattern),
           ),
         ],
       ),
@@ -343,8 +351,11 @@ class _LfsFilesSection extends ConsumerWidget {
         ),
         Expanded(
           child: filesAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => _LfsError(message: '$e'),
+            loading: () => const AppLoadingState.list(rows: 5),
+            error: (e, _) => _LfsError(
+              message: '$e',
+              onRetry: () => ref.invalidate(gitLfsFilesProvider(repo)),
+            ),
             data: (files) => files.isEmpty
                 ? const AppEmptyState(
                     icon: Icons.folder_off_outlined,

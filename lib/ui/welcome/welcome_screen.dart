@@ -7,16 +7,28 @@ import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/workspaces/workspace.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/clone_dialog.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
+import 'package:gitopen/ui/welcome/workspace_ready.dart';
 
-class WelcomeScreen extends ConsumerWidget {
+class WelcomeScreen extends ConsumerStatefulWidget {
   const WelcomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
+  bool _busy = false;
+  bool _pendingInit = false;
+  String? _pendingPath;
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final recents = ref.watch(workspaceManagerProvider);
     return Center(
@@ -45,7 +57,7 @@ class WelcomeScreen extends ConsumerWidget {
               AppButton.primary(
                 icon: Icons.folder_open,
                 label: 'Open repository',
-                onPressed: () => _openRepo(ref),
+                onPressed: _busy ? null : _openRepo,
               ),
               const SizedBox(width: 12),
               AppButton.secondary(
@@ -57,65 +69,106 @@ class WelcomeScreen extends ConsumerWidget {
               AppButton.secondary(
                 icon: Icons.fiber_new_outlined,
                 label: 'Init',
-                onPressed: () => _initRepo(ref),
+                onPressed: _busy ? null : _initRepo,
               ),
             ],
           ),
-          if (recents.isNotEmpty) _RecentRepos(recents: recents),
+          if (_busy) ...[
+            const SizedBox(height: 20),
+            const AppLoadingState.detail(),
+            const SizedBox(height: 8),
+            Text('Opening repository…', style: TextStyle(color: palette.fg2)),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 20),
+            AppErrorState(
+              message: 'Could not load repository',
+              detail: _error,
+              onRetry: _retry,
+            ),
+          ],
+          if (recents.isNotEmpty)
+            _RecentRepos(recents: recents, onOpen: _openPath),
         ],
       ),
     );
   }
 
-  Future<void> _openRepo(WidgetRef ref) async {
+  Future<void> _openRepo() async {
     final picker = ref.read(folderPickerProvider);
     final path = await picker.pickFolder('Open repository');
-    if (path == null) return;
-    final ops = ref.read(operationsProvider.notifier);
-    final opId = ops.start(OpKind.other, 'Open repository');
-    final manager = ref.read(workspaceManagerProvider.notifier);
-    try {
-      final ws = await manager.open(path);
-      ops.finishSuccess(opId);
-      ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
-    } on Object catch (error) {
-      ops.finishFailure(opId, '$error');
-    }
+    if (path != null && mounted) await _openPath(path);
   }
 
   /// `git init` in a picked folder, then open it as a workspace. Failures are
   /// surfaced through the shared operations/toast system, like every other git
   /// action — not a one-off SnackBar.
-  Future<void> _initRepo(WidgetRef ref) async {
+  Future<void> _initRepo() async {
     final picker = ref.read(folderPickerProvider);
     final path = await picker.pickFolder('Initialize repository');
+    if (path == null || !mounted) return;
+    await _openPath(path, initialize: true);
+  }
+
+  Future<void> _retry() async {
+    final path = _pendingPath;
     if (path == null) return;
+    await _openPath(path, initialize: _pendingInit, retry: true);
+  }
+
+  Future<void> _openPath(
+    String path, {
+    bool initialize = false,
+    bool retry = false,
+  }) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+      _pendingPath = path;
+      _pendingInit = initialize;
+    });
     final ops = ref.read(operationsProvider.notifier);
-    final opId = ops.start(OpKind.other, 'Initialize repository');
-    final result = await ref.read(gitWriteOperationsProvider).initRepo(path);
-    if (result case GitFailure(:final message)) {
-      ops.finishFailure(opId, message);
-      return;
-    }
+    final active = ref.read(activeWorkspaceIdProvider.notifier);
     final manager = ref.read(workspaceManagerProvider.notifier);
+    final write = ref.read(gitWriteOperationsProvider);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final opId = ops.start(
+      OpKind.other,
+      initialize ? 'Initialize repository' : 'Open repository',
+    );
     try {
+      if (initialize) {
+        final result = await write.initRepo(path);
+        if (result case GitFailure(:final message)) throw StateError(message);
+        _pendingInit = false;
+      }
       final ws = await manager.open(path);
+      if (retry) {
+        await retryWorkspaceReady(container, ws.location);
+      } else {
+        await container.read(workspaceReadyProvider(ws.location).future);
+      }
       ops.finishSuccess(opId);
-      ref.read(activeWorkspaceIdProvider.notifier).state = ws.location.id;
+      active.state = ws.location.id;
     } on Object catch (error) {
       ops.finishFailure(opId, '$error');
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 }
 
 /// The known-repository catalog, shown beneath the actions so a returning user
 /// can re-open a recent repo in one click instead of re-picking the folder.
-class _RecentRepos extends ConsumerWidget {
-  const _RecentRepos({required this.recents});
+class _RecentRepos extends StatelessWidget {
+  const _RecentRepos({required this.recents, required this.onOpen});
   final List<Workspace> recents;
+  final Future<void> Function(String) onOpen;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final shown = recents.take(6).toList();
     return Padding(
@@ -141,26 +194,12 @@ class _RecentRepos extends ConsumerWidget {
             for (final w in shown)
               _RecentTile(
                 workspace: w,
-                onOpen: () => unawaited(_openRecent(ref, w)),
+                onOpen: () => unawaited(onOpen(w.location.path)),
               ),
           ],
         ),
       ),
     );
-  }
-
-  Future<void> _openRecent(WidgetRef ref, Workspace workspace) async {
-    final ops = ref.read(operationsProvider.notifier);
-    final opId = ops.start(OpKind.other, 'Open repository');
-    try {
-      final opened = await ref
-          .read(workspaceManagerProvider.notifier)
-          .open(workspace.location.path);
-      ref.read(activeWorkspaceIdProvider.notifier).state = opened.location.id;
-      ops.finishSuccess(opId);
-    } on Object catch (error) {
-      ops.finishFailure(opId, '$error');
-    }
   }
 }
 
