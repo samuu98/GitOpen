@@ -324,8 +324,9 @@ class _StashListDialogState extends ConsumerState<_StashListDialog> {
     if (stash == null) return;
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Drop stash',
-      body: 'Drop "stash@{${stash.index}}"? This cannot be undone.',
+      title: 'Drop stash?',
+      body: '"stash@{${stash.index}}" will be dropped. This cannot be '
+          'undone.',
       confirmLabel: 'Drop',
       dangerous: true,
     );

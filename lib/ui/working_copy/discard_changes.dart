@@ -76,7 +76,7 @@ Future<void> confirmAndDiscardAll(
   }
   final confirmed = await ConfirmDialog.show(
     context,
-    title: 'Discard all unstaged changes',
+    title: 'Discard all unstaged changes?',
     body: 'This will ${parts.join(' and ')}. This cannot be undone.',
     confirmLabel: 'Discard all',
     dangerous: true,

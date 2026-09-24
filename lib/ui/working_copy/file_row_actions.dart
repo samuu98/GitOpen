@@ -80,12 +80,12 @@ final class FileRowActions {
     final isUntracked = entry.workingTreeState == WorkingFileState.untracked;
     final confirmed = await ConfirmDialog.show(
       context,
-      title: isUntracked ? 'Delete untracked file' : 'Discard changes',
+      title: isUntracked ? 'Delete untracked file?' : 'Discard changes?',
       body: isUntracked
-          ? 'Delete "${entry.path}"? The file is untracked and will be '
-                'removed from disk. This cannot be undone.'
-          : 'Discard all changes to "${entry.path}"? Local edits will be '
-                'lost and the file will be restored to its committed state.',
+          ? 'The file "${entry.path}" is untracked and will be removed '
+                'from disk. This cannot be undone.'
+          : 'Local edits to "${entry.path}" will be lost and the file will '
+                'be restored to its committed state.',
       confirmLabel: isUntracked ? 'Delete' : 'Discard',
       dangerous: true,
     );
@@ -244,10 +244,9 @@ final class FileRowActions {
   ) async {
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Discard hunk',
+      title: 'Discard hunk?',
       body:
-          'Discard this hunk from "$path"? Local edits in the hunk will '
-          'be lost.',
+          'Local edits in this hunk from "$path" will be lost.',
       confirmLabel: 'Discard hunk',
       dangerous: true,
     );
@@ -271,10 +270,9 @@ final class FileRowActions {
   ) async {
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Discard selected hunks',
+      title: 'Discard selected hunks?',
       body:
-          'Discard the selected hunks from "$path"? Local edits in them '
-          'will be lost.',
+          'Local edits in the selected hunks from "$path" will be lost.',
       confirmLabel: 'Discard',
       dangerous: true,
     );
@@ -296,10 +294,9 @@ final class FileRowActions {
   ) async {
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Discard selected lines',
+      title: 'Discard selected lines?',
       body:
-          'Discard the selected lines from "$path"? Local edits to them '
-          'will be lost.',
+          'Local edits to the selected lines from "$path" will be lost.',
       confirmLabel: 'Discard',
       dangerous: true,
     );

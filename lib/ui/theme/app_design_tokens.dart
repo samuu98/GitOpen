@@ -18,6 +18,8 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
     this.statusIconSize = 11,
     this.compactIconSize = 13,
     this.regularIconSize = 14,
+    this.panelIconSize = 34,
+    this.detailIndicatorSize = 20,
   });
 
   const factory AppSpacing.desktop() = AppSpacing._desktop;
@@ -37,7 +39,9 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
       menuRowHeight = 30,
       statusIconSize = 11,
       compactIconSize = 13,
-      regularIconSize = 14;
+      regularIconSize = 14,
+      panelIconSize = 34,
+      detailIndicatorSize = 20;
 
   final double xxs;
   final double xs;
@@ -54,6 +58,8 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
   final double statusIconSize;
   final double compactIconSize;
   final double regularIconSize;
+  final double panelIconSize;
+  final double detailIndicatorSize;
 
   EdgeInsets get panel => EdgeInsets.all(md);
   EdgeInsets get row => EdgeInsets.symmetric(horizontal: md, vertical: sm);
@@ -79,6 +85,8 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
     double? statusIconSize,
     double? compactIconSize,
     double? regularIconSize,
+    double? panelIconSize,
+    double? detailIndicatorSize,
   }) {
     return AppSpacing(
       xxs: xxs ?? this.xxs,
@@ -96,6 +104,8 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
       statusIconSize: statusIconSize ?? this.statusIconSize,
       compactIconSize: compactIconSize ?? this.compactIconSize,
       regularIconSize: regularIconSize ?? this.regularIconSize,
+      panelIconSize: panelIconSize ?? this.panelIconSize,
+      detailIndicatorSize: detailIndicatorSize ?? this.detailIndicatorSize,
     );
   }
 
@@ -126,6 +136,12 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
       statusIconSize: _lerpDouble(statusIconSize, other.statusIconSize, t),
       compactIconSize: _lerpDouble(compactIconSize, other.compactIconSize, t),
       regularIconSize: _lerpDouble(regularIconSize, other.regularIconSize, t),
+      panelIconSize: _lerpDouble(panelIconSize, other.panelIconSize, t),
+      detailIndicatorSize: _lerpDouble(
+        detailIndicatorSize,
+        other.detailIndicatorSize,
+        t,
+      ),
     );
   }
 

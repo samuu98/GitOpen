@@ -279,7 +279,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         ),
         const AppMenuItem(
           value: 'edit_commit',
-          label: 'Edit (amend) here…',
+          label: 'Edit (amend) here',
           icon: Icons.build_outlined,
         ),
         AppMenuItem(
@@ -325,7 +325,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (canUndoLastCommit) ...const [
           AppMenuItem(
             value: 'undo_last_commit',
-            label: 'Undo last commit (soft reset)…',
+            label: 'Undo last commit (soft reset)',
             icon: Icons.undo_outlined,
           ),
           AppMenuDivider(),
@@ -342,7 +342,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         ),
         const AppMenuItem(
           value: 'reset_hard',
-          label: 'Reset (hard)…',
+          label: 'Reset (hard)',
           icon: Icons.restore,
           danger: true,
         ),
@@ -373,10 +373,10 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (!context.mounted) return;
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Rebase current branch',
+          title: 'Rebase current branch?',
           body:
-              'Rebase the current branch onto ${sha.short()}? '
-              'This rewrites commits on the current branch.',
+              'This rewrites commits on the current branch onto '
+              '${sha.short()}.',
           confirmLabel: 'Rebase',
         );
         if (!confirmed || !context.mounted) return;
@@ -419,9 +419,9 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (!context.mounted) return;
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Edit commit',
+          title: 'Edit commit?',
           body:
-              'Pause a rebase at ${sha.short()} so you can amend it? '
+              'This pauses a rebase at ${sha.short()} so you can amend it. '
               'Commits after it will be replayed when you continue. '
               'This rewrites history.',
           confirmLabel: 'Pause here',
@@ -596,11 +596,11 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     final parent = commit.parentShas.first;
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Undo last commit',
+      title: 'Undo last commit?',
       body:
-          'Soft reset HEAD from ${commit.sha.short()} to ${parent.short()}? '
-          'The commit will be removed from the current branch, with its '
-          'changes kept staged.',
+          'This soft-resets HEAD from ${commit.sha.short()} to '
+          '${parent.short()}. The commit will be removed from the current '
+          'branch, with its changes kept staged.',
       confirmLabel: 'Undo commit',
     );
     if (!confirmed || !context.mounted) return;
@@ -619,10 +619,9 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
       if (!context.mounted) return;
       final confirmed = await ConfirmDialog.show(
         context,
-        title: 'Hard reset',
+        title: 'Hard reset branch?',
         body:
-            'This will discard all uncommitted changes and rewrite '
-            'history. Are you sure?',
+            'This discards all uncommitted changes and rewrites history.',
         confirmLabel: 'Reset',
         dangerous: true,
       );

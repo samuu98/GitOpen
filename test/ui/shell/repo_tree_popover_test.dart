@@ -333,7 +333,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Open repository...'));
+      await tester.tap(find.text('Open repository…'));
       // _openRepo ran up to the await; onDismiss fired -> rebuild disposes it.
       await tester.pump();
       expect(find.byType(RepoTreePopover), findsNothing); // popover is gone

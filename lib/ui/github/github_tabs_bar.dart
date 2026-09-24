@@ -21,7 +21,7 @@ class GitHubTabsBar extends StatelessWidget {
       child: Row(
         children: [
           _Tab(
-            label: 'Pull Requests',
+            label: 'Pull requests',
             value: 'prs',
             active: active,
             onSelect: onSelect,

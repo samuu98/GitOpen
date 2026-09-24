@@ -123,7 +123,7 @@ class WorktreeRow extends ConsumerWidget {
         if (!_isThisCheckout)
           const AppMenuItem(
             value: 'remove',
-            label: 'Remove worktree…',
+            label: 'Remove worktree',
             icon: Icons.delete_outline,
             danger: true,
           ),
@@ -138,8 +138,8 @@ class WorktreeRow extends ConsumerWidget {
       case 'remove':
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Remove worktree',
-          body: 'Remove the worktree at "${worktree.path}"? '
+          title: 'Remove worktree?',
+          body: 'The worktree at "${worktree.path}" will be removed. '
               'Uncommitted changes in it will block the removal.',
           confirmLabel: 'Remove',
           dangerous: true,

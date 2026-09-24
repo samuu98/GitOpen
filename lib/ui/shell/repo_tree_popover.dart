@@ -258,14 +258,14 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
       _action(palette, Icons.create_new_folder, 'New folder', () {
         setState(() => _addingFolder = !_addingFolder);
       }),
-      _action(palette, Icons.folder_open, 'Open repository...', _openRepo),
+      _action(palette, Icons.folder_open, 'Open repository…', _openRepo),
       _action(
         palette,
         Icons.folder_copy,
-        'Open folder of repos...',
+        'Open folder of repos…',
         _openReposFolder,
       ),
-      _action(palette, Icons.download, 'Clone repository...', _clone),
+      _action(palette, Icons.download, 'Clone repository…', _clone),
     ],
   );
 
@@ -310,10 +310,10 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
   Future<void> _removeRepo(RepoId id, String name) async {
     final ok = await ConfirmDialog.show(
       context,
-      title: 'Remove repository',
+      title: 'Remove repository?',
       body:
-          "Remove '$name' from GitOpen? This only takes it off the list — "
-          'your files on disk are not touched.',
+          "'$name' will be removed from GitOpen's list. Your files on disk "
+          'are not touched.',
       confirmLabel: 'Remove',
       dangerous: true,
     );
@@ -332,10 +332,11 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
   Future<void> _removeFolder(FolderId id, String name) async {
     final ok = await ConfirmDialog.show(
       context,
-      title: 'Remove folder',
+      title: 'Remove folder?',
       body:
-          "Remove the folder '$name'? Repositories and folders inside it "
-          'move up to the level above. Nothing is deleted from disk.',
+          "The folder '$name' will be removed. Repositories and folders "
+          'inside it move up to the level above; nothing is deleted from '
+          'disk.',
       confirmLabel: 'Remove',
       dangerous: true,
     );

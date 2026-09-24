@@ -236,9 +236,9 @@ class _ProfileRow extends StatelessWidget {
             onPressed: () async {
               final ok = await ConfirmDialog.show(
                 context,
-                title: 'Delete account',
-                body: 'Remove saved account ${profile.username} '
-                    '(${profile.host})?',
+                title: 'Delete account?',
+                body: 'Saved account ${profile.username} (${profile.host}) '
+                    'will be deleted.',
                 confirmLabel: 'Delete',
                 dangerous: true,
               );

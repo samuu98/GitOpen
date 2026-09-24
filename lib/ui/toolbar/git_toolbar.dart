@@ -110,8 +110,8 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
 
   Future<void> _pull(RepoLocation repo) async {
     if (!await _confirm(
-      'Pull',
-      'Pull from origin into the current branch?',
+      'Pull from origin?',
+      'This merges the latest changes from origin into the current branch.',
       'Pull',
     )) {
       return;
@@ -122,8 +122,8 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
 
   Future<void> _push(RepoLocation repo) async {
     if (!await _confirm(
-      'Push',
-      'Push the current branch to origin?',
+      'Push to origin?',
+      'This sends the current branch to origin.',
       'Push',
     )) {
       return;
@@ -163,7 +163,7 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
         ),
         AppMenuItem(
           value: 'branch',
-          label: 'Push branch...',
+          label: 'Push branch…',
           icon: Icons.alt_route,
         ),
       ],
@@ -177,10 +177,10 @@ class _GitToolbarState extends ConsumerState<GitToolbar> {
       case 'force':
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Force push',
+          title: 'Force push?',
           body:
-              'Force-push with --force-with-lease? This rewrites the '
-              'remote branch, but refuses if someone else pushed first.',
+              'This rewrites the remote branch using --force-with-lease, '
+              'and refuses if someone else pushed first.',
           confirmLabel: 'Force push',
           dangerous: true,
         );

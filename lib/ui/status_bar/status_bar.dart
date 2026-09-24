@@ -45,10 +45,10 @@ class StatusBar extends ConsumerWidget {
       child: Row(children: [
         branchesAsync.when(
           // Keep the branch name during background reloads (auto-refresh on
-          // fetch / focus regain) instead of flashing 'loading...'.
+          // fetch / focus regain) instead of flashing 'Loading…'.
           skipLoadingOnReload: true,
           loading: () => Text(
-            'loading...',
+            'Loading…',
             style: t.caption.copyWith(color: p.fg2),
           ),
           // The explicit parameter types document the AsyncValue.when error

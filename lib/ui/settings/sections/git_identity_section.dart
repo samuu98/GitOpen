@@ -36,7 +36,7 @@ class GitIdentitySection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SettingsPageHeader(
-            title: 'Git Identity',
+            title: 'Git identity',
             description:
                 'Author name and email used for new commits. Each repository '
                 'can override the global default.',

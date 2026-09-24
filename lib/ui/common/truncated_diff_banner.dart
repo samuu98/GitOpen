@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// Shown under a truncated file diff: explains the cap and offers the
@@ -23,9 +24,10 @@ class TruncatedDiffBanner extends StatelessWidget {
               style: TextStyle(color: palette.fg2, fontSize: 12),
             ),
           ),
-          TextButton(
+          AppButton.secondary(
+            label: 'Load full diff',
             onPressed: onLoadFull,
-            child: const Text('Load full diff'),
+            compact: true,
           ),
         ],
       ),

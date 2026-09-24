@@ -88,7 +88,7 @@ class _TabsBar extends StatelessWidget {
             onSelect: onSelect,
           ),
           _Tab(
-            label: 'File Tree',
+            label: 'File tree',
             value: 'files',
             active: active,
             onSelect: onSelect,

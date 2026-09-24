@@ -235,10 +235,10 @@ class _RemoteGroupState extends ConsumerState<RemoteGroup> {
         if (!context.mounted) return;
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Remove remote',
+          title: 'Remove remote?',
           body:
-              'Remove remote "${remote.name}"? Tracking branches under this '
-              'remote will no longer update.',
+              'Remote "${remote.name}" will be removed. Tracking branches '
+              'under it will no longer update.',
           confirmLabel: 'Remove',
           dangerous: true,
         );

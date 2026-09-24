@@ -104,8 +104,8 @@ class TagRow extends ConsumerWidget {
         if (!context.mounted) return;
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Delete tag',
-          body: 'Delete tag "${tag.name}"? This cannot be undone.',
+          title: 'Delete tag?',
+          body: 'Tag "${tag.name}" will be deleted. This cannot be undone.',
           confirmLabel: 'Delete',
           dangerous: true,
         );

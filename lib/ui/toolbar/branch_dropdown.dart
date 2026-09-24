@@ -156,8 +156,8 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
     if (selected == null || !mounted) return;
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Delete branch',
-      body: 'Delete "$selected"? This cannot be undone.',
+      title: 'Delete branch?',
+      body: '"$selected" will be deleted. This cannot be undone.',
       confirmLabel: 'Delete',
       dangerous: true,
     );
