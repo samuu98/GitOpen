@@ -308,9 +308,13 @@ class _AppContextMenuRowState extends State<AppContextMenuRow> {
                         ),
                 ),
                 const SizedBox(width: 2),
-                Text(
-                  widget.label,
-                  style: TextStyle(color: visual.foreground, fontSize: 12.5),
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: visual.foreground, fontSize: 12.5),
+                  ),
                 ),
               ],
             ),

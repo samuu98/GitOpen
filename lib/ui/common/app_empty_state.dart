@@ -26,8 +26,9 @@ class AppEmptyState extends StatelessWidget {
     final palette = AppPalette.of(context);
     final spacing = AppSpacing.of(context);
     final typography = AppTypography.of(context);
+    // Scrolls instead of overflowing when a short panel cannot fit it.
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: spacing.panel,
         child: Column(
           mainAxisSize: MainAxisSize.min,

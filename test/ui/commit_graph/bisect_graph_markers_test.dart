@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/commit_graph/commit_node.dart';
@@ -24,6 +23,8 @@ import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
+
+import '../../_helpers/screenshot.dart';
 
 void main() {
   testWidgets('graph marks bisect bounds, result, and clears on reset', (
@@ -85,17 +86,7 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
-    final font = FontLoader('Roboto')
-      ..addFont(
-        Future.value(
-          ByteData.sublistView(
-            File(
-              r'C:\Users\g.chirico\flutter\bin\cache\artifacts\material_fonts\roboto-regular.ttf',
-            ).readAsBytesSync(),
-          ),
-        ),
-      );
-    await font.load();
+    await loadAppFonts();
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
