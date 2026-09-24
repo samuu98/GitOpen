@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/ui/common/app_animated_row.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
@@ -10,6 +7,8 @@ import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
+
+import '../../_helpers/screenshot.dart';
 
 const _states = [
   'default',
@@ -80,43 +79,6 @@ Widget _control(int kind, bool compact, String state) {
       visualStates: visualStates,
     ),
   };
-}
-
-Future<void> _loadRoboto() async {
-  const fontRoot =
-      r'C:\Users\g.chirico\flutter\bin\cache\artifacts\material_fonts';
-  for (final (family, filename) in [
-    ('Roboto', 'roboto-regular.ttf'),
-    ('MaterialIcons', 'materialicons-regular.otf'),
-  ]) {
-    final font = File('$fontRoot\\$filename');
-    if (!font.existsSync()) continue;
-    final bytes = await font.readAsBytes();
-    final loader = FontLoader(family)
-      ..addFont(Future.value(ByteData.view(bytes.buffer)));
-    await loader.load();
-  }
-}
-
-class _GalleryWriter extends GoldenFileComparator {
-  @override
-  Future<bool> compare(Uint8List imageBytes, Uri golden) async {
-    _write(imageBytes, golden);
-    return true;
-  }
-
-  @override
-  Future<void> update(Uri golden, Uint8List imageBytes) async {
-    _write(imageBytes, golden);
-  }
-
-  void _write(Uint8List bytes, Uri golden) {
-    final file = File(
-      'build/pipeline/ux-l1-interaction/${golden.pathSegments.last}',
-    );
-    file.parent.createSync(recursive: true);
-    file.writeAsBytesSync(bytes);
-  }
 }
 
 Widget _gallery(AppPalette palette, Key key) {
@@ -204,8 +166,10 @@ Widget _gallery(AppPalette palette, Key key) {
   );
 }
 
+final _screenshots = PipelineScreenshotComparator('ux-l1-interaction');
+
 void main() {
-  setUpAll(_loadRoboto);
+  setUpAll(loadAppFonts);
   for (final (name, palette) in [
     ('dark', AppPalette.dark()),
     ('light', AppPalette.light()),
@@ -213,7 +177,7 @@ void main() {
     testWidgets('renders $name interaction gallery', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1610, 610));
       final previousComparator = goldenFileComparator;
-      goldenFileComparator = _GalleryWriter();
+      goldenFileComparator = _screenshots;
       addTearDown(() => goldenFileComparator = previousComparator);
       final key = GlobalKey();
       await tester.pumpWidget(_gallery(palette, key));
@@ -230,10 +194,10 @@ void main() {
         find.byKey(key),
         matchesGoldenFile('interaction_gallery_$name.png'),
       );
-      final file = File(
-        'build/pipeline/ux-l1-interaction/interaction_gallery_$name.png',
+      expect(
+        _screenshots.fileFor('interaction_gallery_$name.png').existsSync(),
+        isTrue,
       );
-      expect(file.existsSync(), isTrue);
     });
   }
 }
