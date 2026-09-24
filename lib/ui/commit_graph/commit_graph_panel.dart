@@ -20,7 +20,8 @@ import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_search_field.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
-import 'package:gitopen/ui/common/skeleton.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/branch_create_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
@@ -28,6 +29,7 @@ import 'package:gitopen/ui/dialogs/interactive_rebase_dialog.dart';
 import 'package:gitopen/ui/dialogs/merge_dialog.dart';
 import 'package:gitopen/ui/dialogs/tag_create_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 class CommitGraphPanel extends ConsumerStatefulWidget {
@@ -134,13 +136,11 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
               skipLoadingOnReload: true,
               data: (data) {
                 if (data.nodes.isEmpty) {
-                  return Center(
-                    child: Text(
-                      searchActive
-                          ? 'No commits match the search.'
-                          : 'No commits in this repository.',
-                      style: TextStyle(color: palette.fg2),
-                    ),
+                  return AppEmptyState(
+                    icon: Icons.account_tree_outlined,
+                    title: searchActive
+                        ? 'No commits match the search'
+                        : 'No commits in this repository',
                   );
                 }
                 final selected = ref.watch(selectedCommitShaProvider);
@@ -150,7 +150,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                     Expanded(
                       child: ListView.builder(
                         controller: _controller,
-                        itemExtent: 26,
+                        itemExtent: AppSpacing.of(context).graphRowHeight,
                         itemCount: data.nodes.length + (data.hasMore ? 1 : 0),
                         itemBuilder: (context, i) {
                           if (i >= data.nodes.length) {
@@ -224,15 +224,11 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                 );
               },
               loading: () =>
-                  const SkeletonList(rows: 18, rowHeight: 11, gap: 15),
-              error: (e, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'Failed to load graph: $e',
-                    style: TextStyle(color: palette.accentErr),
-                  ),
-                ),
+                  const AppLoadingState.list(rows: 18, rowHeight: 11, gap: 15),
+              error: (e, _) => AppErrorState(
+                message: 'Failed to load graph',
+                detail: '$e',
+                onRetry: () => ref.invalidate(commitGraphDataProvider(repo)),
               ),
             ),
           ),
@@ -620,8 +616,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
       final confirmed = await ConfirmDialog.show(
         context,
         title: 'Hard reset branch?',
-        body:
-            'This discards all uncommitted changes and rewrites history.',
+        body: 'This discards all uncommitted changes and rewrites history.',
         confirmLabel: 'Reset',
         dangerous: true,
       );

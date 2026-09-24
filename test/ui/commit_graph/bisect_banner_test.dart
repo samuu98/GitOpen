@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/git/bisect_state.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/ui/commit_graph/bisect_banner.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 void main() {
@@ -37,6 +38,8 @@ void main() {
     );
 
     await tester.pumpWidget(host(running));
+    expect(find.byType(TextButton), findsNothing);
+    expect(find.byType(AppButton), findsNWidgets(4));
     expect(find.textContaining('suspect change'), findsOneWidget);
     expect(find.textContaining('2 steps left'), findsOneWidget);
     await tester.tap(find.text('Good'));
@@ -44,9 +47,7 @@ void main() {
     expect(action, BisectAction.good);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(
-      tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Bad'))
-          .onPressed,
+      tester.widget<AppButton>(find.widgetWithText(AppButton, 'Bad')).onPressed,
       isNull,
     );
     pending.complete('Git could not classify this commit');
@@ -68,5 +69,18 @@ void main() {
     await tester.tap(find.text('Reset'));
     await tester.pump();
     expect(action, BisectAction.reset);
+
+    await tester.pumpWidget(
+      host(
+        BisectState(
+          candidate: candidate,
+          subject: 'suspect change',
+          good: [good],
+          bad: bad,
+          stepsLeft: 1,
+        ),
+      ),
+    );
+    expect(find.textContaining('1 step left'), findsOneWidget);
   });
 }

@@ -67,13 +67,13 @@ class CommitRow extends StatelessWidget {
       onSecondaryTapDown: onSecondaryTap == null
           ? null
           : (details) => onSecondaryTap!(details.globalPosition),
-      height: kRowHeight,
+      height: AppSpacing.of(context).graphRowHeight,
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.of(context).md),
       child: Row(
         children: [
           SizedBox(
             width: svgWidth(maxLane),
-            height: kRowHeight,
+            height: AppSpacing.of(context).graphRowHeight,
             child: CustomPaint(
               painter: LanePainter(
                 node: node,
@@ -138,7 +138,7 @@ class CommitRow extends StatelessWidget {
                   AuthorAvatar(
                     name: node.commit.author.name,
                     email: node.commit.author.email,
-                    size: 16,
+                    size: AppSpacing.of(context).regularIconSize,
                   )
                 else
                   _AvatarCluster(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gitopen/ui/commit_graph/ref_decoration.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -39,22 +40,22 @@ class RefPill extends StatelessWidget {
       fg: palette.fg,
     );
 
-    final Widget pill;
-    if (!decoration.isSynced) {
-      pill = Container(
-        padding: sectionPadding,
+    Widget buildPill(Color background, Color border) {
+      if (!decoration.isSynced) {
+        return Container(
+          padding: sectionPadding,
+          decoration: BoxDecoration(
+            color: background,
+            border: Border.all(color: border),
+            borderRadius: radii.controlRadius,
+          ),
+          child: localSide,
+        );
+      }
+      return Container(
         decoration: BoxDecoration(
-          color: palette.bg,
-          border: Border.all(color: palette.border),
-          borderRadius: radii.controlRadius,
-        ),
-        child: localSide,
-      );
-    } else {
-      pill = Container(
-        decoration: BoxDecoration(
-          color: palette.bg,
-          border: Border.all(color: palette.border),
+          color: background,
+          border: Border.all(color: border),
           borderRadius: radii.controlRadius,
         ),
         child: IntrinsicHeight(
@@ -67,7 +68,11 @@ class RefPill extends StatelessWidget {
                 padding: sectionPadding,
                 color: palette.remoteTintBg,
                 child: _Section(
-                  icon: Icon(Icons.sync_alt, size: 10, color: palette.remoteFg),
+                  icon: Icon(
+                    Icons.sync_alt,
+                    size: spacing.statusIconSize,
+                    color: palette.remoteFg,
+                  ),
                   label: decoration.syncedRemotes.join(', '),
                   fg: palette.remoteFg,
                 ),
@@ -78,14 +83,32 @@ class RefPill extends StatelessWidget {
       );
     }
 
-    if (onTap == null && onDoubleTap == null) return pill;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        onDoubleTap: onDoubleTap,
-        behavior: HitTestBehavior.opaque,
-        child: pill,
+    if (onTap == null && onDoubleTap == null) {
+      return buildPill(palette.bg, palette.border);
+    }
+    final kind = decoration.isTag
+        ? 'tag'
+        : decoration.isRemote
+        ? 'remote branch'
+        : 'branch';
+    final name = '$kind ${decoration.name}';
+    final tooltip = onDoubleTap == null
+        ? 'Select $name'
+        : onTap == null
+        ? 'Double-click to check out $name'
+        : 'Select $name · double-click to check out';
+    return GestureDetector(
+      onDoubleTap: onDoubleTap,
+      child: AppInteractiveSurface(
+        // A single click never runs the double-click action (checkout).
+        onTap: onTap ?? () {},
+        tooltip: tooltip,
+        semanticLabel: tooltip,
+        alignment: null,
+        baseColor: palette.bg,
+        borderColor: palette.border,
+        child: (context, visual) =>
+            buildPill(Colors.transparent, visual.border),
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,30 +8,32 @@ import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/shell/view_selector.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 RepoStatus _statusWith(int n) => RepoStatus(
-      isDetached: false,
-      isBare: false,
-      currentBranch: 'main',
-      entries: [
-        for (var i = 0; i < n; i++)
-          WorkingFileEntry(
-            path: 'file_$i.dart',
-            indexState: WorkingFileState.unmodified,
-            workingTreeState: WorkingFileState.modified,
-          ),
-      ],
-    );
+  isDetached: false,
+  isBare: false,
+  currentBranch: 'main',
+  entries: [
+    for (var i = 0; i < n; i++)
+      WorkingFileEntry(
+        path: 'file_$i.dart',
+        indexState: WorkingFileState.unmodified,
+        workingTreeState: WorkingFileState.modified,
+      ),
+  ],
+);
 
 /// Hosts [ViewSelector] with the three providers it reads stubbed so the test
 /// stays off the `git` CLI: only the working-tree count varies.
 Widget _host(RepoLocation repo, int changedCount) {
   return ProviderScope(
     overrides: [
-      repoStatusProvider(repo)
-          .overrideWith((_) async => _statusWith(changedCount)),
+      repoStatusProvider(
+        repo,
+      ).overrideWith((_) async => _statusWith(changedCount)),
       githubSlugProvider(repo).overrideWith((_) async => null),
       gitLfsStatusProvider(repo).overrideWith(
         (_) async => const GitLfsStatus(
@@ -49,8 +52,53 @@ Widget _host(RepoLocation repo, int changedCount) {
 }
 
 void main() {
-  testWidgets('Changes tab shows a count badge when files are changed',
-      (tester) async {
+  testWidgets('segments use shared surface and expose shortcut tooltips', (
+    tester,
+  ) async {
+    final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
+    await tester.pumpWidget(_host(repo, 0));
+    expect(find.byType(AppInteractiveSurface), findsNWidgets(2));
+    expect(find.byTooltip('Graph'), findsOneWidget);
+    expect(find.byTooltip('Changes'), findsOneWidget);
+    final graph = find.widgetWithText(AppInteractiveSurface, 'Graph');
+    final changes = find.widgetWithText(AppInteractiveSurface, 'Changes');
+    expect(tester.widget<AppInteractiveSurface>(graph).selected, isTrue);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(find.text('Graph')));
+    await tester.pump(const Duration(milliseconds: 200));
+    final graphContainer = find
+        .descendant(
+          of: graph,
+          matching: find.byType(AnimatedContainer),
+        )
+        .first;
+    expect(
+      (tester.widget<AnimatedContainer>(graphContainer).decoration!
+              as BoxDecoration)
+          .color,
+      AppPalette.dark().interactionSelectedHover,
+    );
+    await mouse.moveTo(const Offset(0, 200));
+    Focus.of(tester.element(find.text('Changes'))).requestFocus();
+    await tester.pump(const Duration(milliseconds: 200));
+    final changesContainer = find
+        .descendant(
+          of: changes,
+          matching: find.byType(AnimatedContainer),
+        )
+        .first;
+    expect(
+      (tester.widget<AnimatedContainer>(changesContainer).decoration!
+              as BoxDecoration)
+          .border!
+          .top
+          .color,
+      AppPalette.dark().interactionFocusRing,
+    );
+  });
+  testWidgets('Changes tab shows a count badge when files are changed', (
+    tester,
+  ) async {
     final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
     await tester.pumpWidget(_host(repo, 3));
     // Let the stubbed futures resolve so the count is read.
@@ -61,8 +109,9 @@ void main() {
     expect(find.text('3'), findsOneWidget);
   });
 
-  testWidgets('Changes tab shows no badge when the working tree is clean',
-      (tester) async {
+  testWidgets('Changes tab shows no badge when the working tree is clean', (
+    tester,
+  ) async {
     final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
     await tester.pumpWidget(_host(repo, 0));
     await tester.pump();
