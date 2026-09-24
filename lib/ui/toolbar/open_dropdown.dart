@@ -6,6 +6,7 @@ import 'package:gitopen/application/launcher/repo_launcher.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/toolbar/toolbar_buttons.dart';
 
 /// Toolbar dropdown to reveal the repo in the file explorer, a terminal or an
@@ -125,9 +126,7 @@ class _OpenDropdownState extends ConsumerState<OpenDropdown> {
       await action();
     } on LauncherException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ref.read(actionFeedbackProvider).showActionFailure(e.message);
     }
   }
 }

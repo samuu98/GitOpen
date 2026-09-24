@@ -7,11 +7,13 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/auth_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/settings/settings_widgets.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-final _profilesProvider =
-    FutureProvider.autoDispose<List<AuthProfile>>((ref) async {
+final _profilesProvider = FutureProvider.autoDispose<List<AuthProfile>>((
+  ref,
+) async {
   // Watching the binding map ensures the list refreshes when a binding
   // change indirectly mutates settings; the store itself is the source
   // of truth for the profile list.
@@ -63,14 +65,15 @@ class AuthenticationSection extends ConsumerWidget {
             ),
             error: (e, _) => Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('Error: $e',
-                  style: TextStyle(color: palette.accentErr)),
+              child: Text(
+                'Error: $e',
+                style: TextStyle(color: palette.accentErr),
+              ),
             ),
             data: (list) => list.isEmpty
                 ? _EmptyState()
                 : SettingsCard(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Column(
                       children: [
                         for (var i = 0; i < list.length; i++)
@@ -134,8 +137,10 @@ class _EmptyState extends StatelessWidget {
         children: [
           Icon(Icons.lock_open_outlined, size: 18, color: palette.fg3),
           const SizedBox(width: 10),
-          Text('No saved accounts yet.',
-              style: TextStyle(color: palette.fg2, fontSize: 12.5)),
+          Text(
+            'No saved accounts yet.',
+            style: TextStyle(color: palette.fg2, fontSize: 12.5),
+          ),
         ],
       ),
     );
@@ -143,7 +148,6 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ProfileRow extends StatelessWidget {
-
   const _ProfileRow({
     required this.profile,
     required this.isLast,
@@ -156,8 +160,9 @@ class _ProfileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final emailSuffix =
-        profile.emails.isEmpty ? '' : ' · ${profile.emails.length} email(s)';
+    final emailSuffix = profile.emails.isEmpty
+        ? ''
+        : ' · ${profile.emails.length} email(s)';
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: isLast
@@ -176,8 +181,11 @@ class _ProfileRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: palette.border),
             ),
-            child: Icon(Icons.account_circle_outlined,
-                size: 18, color: palette.fg1),
+            child: Icon(
+              Icons.account_circle_outlined,
+              size: 18,
+              color: palette.fg1,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -188,9 +196,10 @@ class _ProfileRow extends StatelessWidget {
                 Text(
                   profile.username,
                   style: TextStyle(
-                      color: palette.fg0,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600),
+                    color: palette.fg0,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -215,9 +224,12 @@ class _ProfileRow extends StatelessWidget {
                   .read(credentialTesterProvider)
                   .test(profile);
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(result.message)),
-                );
+                final feedback = refreshKey.read(actionFeedbackProvider);
+                if (result.ok) {
+                  feedback.showActionSuccess(result.message);
+                } else {
+                  feedback.showActionFailure(result.message);
+                }
               }
             },
           ),
@@ -225,8 +237,7 @@ class _ProfileRow extends StatelessWidget {
           AppButton.secondary(
             label: 'Edit',
             onPressed: () async {
-              await AuthDialog.show(context, profile.host,
-                  editing: profile);
+              await AuthDialog.show(context, profile.host, editing: profile);
               refreshKey.invalidate(_profilesProvider);
             },
           ),
@@ -236,9 +247,10 @@ class _ProfileRow extends StatelessWidget {
             onPressed: () async {
               final ok = await ConfirmDialog.show(
                 context,
-                title: 'Delete account',
-                body: 'Remove saved account ${profile.username} '
-                    '(${profile.host})?',
+                title: 'Delete account?',
+                body:
+                    'Saved account ${profile.username} (${profile.host}) '
+                    'will be deleted.',
                 confirmLabel: 'Delete',
                 dangerous: true,
               );
@@ -246,8 +258,7 @@ class _ProfileRow extends StatelessWidget {
               await refreshKey
                   .read(authProfileStoreProvider)
                   .delete(profile.id);
-              final notifier = refreshKey
-                  .read(appSettingsProvider.notifier);
+              final notifier = refreshKey.read(appSettingsProvider.notifier);
               final current = refreshKey
                   .read(appSettingsProvider)
                   .authRepoBindings
@@ -335,7 +346,9 @@ class _EmailsDialogState extends ConsumerState<_EmailsDialog> {
 
   Future<void> _save() async {
     setState(() => _busy = true);
-    await ref.read(authProfileStoreProvider).upsert(
+    await ref
+        .read(authProfileStoreProvider)
+        .upsert(
           id: widget.profile.id,
           host: widget.profile.host,
           username: widget.profile.username,
@@ -348,11 +361,13 @@ class _EmailsDialogState extends ConsumerState<_EmailsDialog> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    final canRefresh = githubApiToken(widget.profile.spec) != null &&
+    final canRefresh =
+        githubApiToken(widget.profile.spec) != null &&
         widget.profile.host == 'github.com';
     return AppDialog(
       title: 'Emails for ${widget.profile.username}',
-      subtitle: 'Used to auto-select this account for repos whose git '
+      subtitle:
+          'Used to auto-select this account for repos whose git '
           'user.email matches.',
       busy: _busy,
       content: Column(
@@ -362,8 +377,10 @@ class _EmailsDialogState extends ConsumerState<_EmailsDialog> {
           if (_emails.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text('No emails yet.',
-                  style: TextStyle(color: palette.fg2, fontSize: 12)),
+              child: Text(
+                'No emails yet.',
+                style: TextStyle(color: palette.fg2, fontSize: 12),
+              ),
             )
           else
             Wrap(

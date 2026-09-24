@@ -59,7 +59,7 @@ class _MergeDialogState extends ConsumerState<MergeDialog> {
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     return AppDialog(
-      title: 'Merge Branch',
+      title: 'Merge branch',
       subtitle: 'Merge branch into another one',
       width: 520,
       content: Row(

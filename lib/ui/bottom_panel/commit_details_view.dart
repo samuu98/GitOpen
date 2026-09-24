@@ -13,6 +13,9 @@ import 'package:gitopen/domain/commits/gpg_signature_status.dart';
 import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_view.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/common/author_avatar.dart';
 import 'package:gitopen/ui/common/file_kind_badge.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -60,19 +63,25 @@ class CommitDetailsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = AppPalette.of(context);
     final key = (repo: repo, sha: sha);
     final async = ref.watch(_commitInfoProvider(key));
     final messageAsync = ref.watch(_commitFullMessageProvider(key));
     return async.when(
       // Keep the commit details visible during background reloads.
       skipLoadingOnReload: true,
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
+      loading: () => const AppLoadingState.detail(),
+      error: (e, _) => AppErrorState(
+        message: 'Failed to load commit details',
+        detail: '$e',
+        onRetry: () => ref.invalidate(_commitInfoProvider(key)),
       ),
       data: (c) {
-        if (c == null) return const SizedBox.shrink();
+        if (c == null) {
+          return const AppEmptyState(
+            icon: Icons.commit,
+            title: 'Commit not found',
+          );
+        }
         final fullMessage = messageAsync.value ?? c.summary;
         final (summary, body) = _splitMessage(fullMessage);
         final sameSignature = _sameSignature(c.author, c.committer);
@@ -171,35 +180,36 @@ class _ChangedFileRow extends ConsumerWidget {
     final label = file.oldPath != null && file.oldPath != file.path
         ? '${file.oldPath} → ${file.path}'
         : file.path;
-    return InkWell(
+    return AppInteractiveSurface(
       onTap: () {
         ref.read(bottomPanelTabProvider.notifier).state = 'changes';
         ref.read(revealFilePathProvider.notifier).state = file.path;
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(
-          children: [
-            FileKindBadge(kind: file.changeKind, compact: true),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: palette.fg0, fontSize: 12.5),
-              ),
+      tooltip: 'Show $label in Changes',
+      semanticLabel: 'Show $label in Changes',
+      alignment: null,
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: (context, visual) => Row(
+        children: [
+          FileKindBadge(kind: file.changeKind, compact: true),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.fg0, fontSize: 12.5),
             ),
-            const SizedBox(width: 8),
-            Text(
-              '+${file.linesAdded} -${file.linesDeleted}',
-              style: TextStyle(
-                color: palette.fg2,
-                fontSize: 11,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '+${file.linesAdded} -${file.linesDeleted}',
+            style: TextStyle(
+              color: palette.fg2,
+              fontSize: 11,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -307,7 +317,6 @@ class _ShaPill extends StatefulWidget {
 }
 
 class _ShaPillState extends State<_ShaPill> {
-  bool _hover = false;
   bool _justCopied = false;
 
   Future<void> _copy() async {
@@ -322,42 +331,32 @@ class _ShaPillState extends State<_ShaPill> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    return Tooltip(
-      message: _justCopied ? 'Copied!' : 'Copy full SHA',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: _copy,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _hover ? palette.bg4 : palette.bg2,
-              border: Border.all(color: palette.border),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _justCopied ? Icons.check : Icons.tag,
-                  size: 11,
-                  color: _justCopied ? palette.accentCurrent : palette.fg2,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  widget.sha.short(),
-                  style: TextStyle(
-                    color: palette.fg0,
-                    fontFamily: 'monospace',
-                    fontSize: 11.5,
-                  ),
-                ),
-              ],
+    return AppInteractiveSurface(
+      onTap: _copy,
+      tooltip: _justCopied ? 'Copied!' : 'Copy full SHA',
+      semanticLabel: 'Copy full SHA',
+      alignment: null,
+      baseColor: palette.bg2,
+      borderColor: palette.border,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: (context, visual) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _justCopied ? Icons.check : Icons.tag,
+            size: 11,
+            color: _justCopied ? palette.accentCurrent : palette.fg2,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            widget.sha.short(),
+            style: TextStyle(
+              color: palette.fg0,
+              fontFamily: 'monospace',
+              fontSize: 11.5,
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -480,8 +479,6 @@ class _ParentPill extends StatefulWidget {
 }
 
 class _ParentPillState extends State<_ParentPill> {
-  bool _hover = false;
-
   void _reveal() {
     widget.ref.read(mainViewProvider.notifier).state = MainView.graph;
     widget.ref.read(selectedCommitShaProvider.notifier).state = widget.sha;
@@ -491,29 +488,20 @@ class _ParentPillState extends State<_ParentPill> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: _reveal,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: _hover ? palette.bg4 : palette.bg2,
-            border: Border.all(
-              color: _hover ? palette.borderStrong : palette.border,
-            ),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            widget.sha.short(),
-            style: TextStyle(
-              color: palette.accentRemote,
-              fontFamily: 'monospace',
-              fontSize: 11.5,
-            ),
-          ),
+    return AppInteractiveSurface(
+      onTap: _reveal,
+      tooltip: 'Show parent ${widget.sha.short()} in graph',
+      semanticLabel: 'Show parent ${widget.sha.short()} in graph',
+      alignment: null,
+      baseColor: palette.bg2,
+      borderColor: palette.border,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: (context, visual) => Text(
+        widget.sha.short(),
+        style: TextStyle(
+          color: palette.accentRemote,
+          fontFamily: 'monospace',
+          fontSize: 11.5,
         ),
       ),
     );

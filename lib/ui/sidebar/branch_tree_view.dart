@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/branch_visibility_provider.dart';
-import 'package:gitopen/application/git/branch_deletion.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/common/divergence_badge.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/compare_refs_dialog.dart';
@@ -16,6 +21,7 @@ import 'package:gitopen/ui/dialogs/merge_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/toolbar/branch_picker_dialog.dart';
 
@@ -39,22 +45,146 @@ class BranchTreeView extends ConsumerStatefulWidget {
 
 class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
   final Set<String> _collapsed = {};
+  final Set<String> _selected = {};
+  final FocusNode _focus = FocusNode();
+  String? _anchor;
+  String? _lastTapBranch;
+  DateTime? _lastTapAt;
   List<String> _pinned = const [];
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     // Watch hidden refs + pinned branches so the tree re-renders on change.
     ref.watch(hiddenRefsProvider);
     _pinned = ref.watch(
-      appSettingsProvider
-          .select((s) => s.pinnedBranches[widget.repo.id.value] ?? const []),
+      appSettingsProvider.select(
+        (s) => s.pinnedBranches[widget.repo.id.value] ?? const [],
+      ),
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final n in widget.nodes) _renderNode(n, widget.depth),
-      ],
+    return Focus(
+      focusNode: _focus,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.escape) {
+          setState(_selected.clear);
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.delete &&
+            _selected.isNotEmpty) {
+          final branches = _visibleBranches()
+              .where(
+                (b) => _selected.contains(b.fullName),
+              )
+              .toList();
+          unawaited(_deleteBranches(branches));
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [for (final n in widget.nodes) _renderNode(n, widget.depth)],
+      ),
     );
+  }
+
+  List<Branch> _visibleBranches() {
+    final branches = <Branch>[];
+    void visit(BranchTreeNode node) {
+      if (node.branch case final b?) branches.add(b);
+      if (!_collapsed.contains(node.fullPath)) {
+        node.children.forEach(visit);
+      }
+    }
+
+    widget.nodes.forEach(visit);
+    return branches;
+  }
+
+  void _select(Branch branch) {
+    _focus.requestFocus();
+    final keyboard = HardwareKeyboard.instance;
+    final toggle = keyboard.isControlPressed || keyboard.isMetaPressed;
+    final shift = keyboard.isShiftPressed;
+    setState(() {
+      if (shift && _anchor != null) {
+        final visible = _visibleBranches();
+        final start = visible.indexWhere((b) => b.fullName == _anchor);
+        final end = visible.indexWhere((b) => b.fullName == branch.fullName);
+        if (start >= 0 && end >= 0) {
+          _selected
+            ..clear()
+            ..addAll(
+              visible
+                  .sublist(
+                    start < end ? start : end,
+                    (start > end ? start : end) + 1,
+                  )
+                  .map((b) => b.fullName),
+            );
+        }
+      } else if (toggle) {
+        if (!_selected.add(branch.fullName)) {
+          _selected.remove(branch.fullName);
+        }
+        _anchor = branch.fullName;
+      } else {
+        _selected.clear();
+        _anchor = branch.fullName;
+      }
+    });
+  }
+
+  void _activate(Branch branch) {
+    _select(branch);
+    if (branch.tipSha != null) revealCommit(ref, branch.tipSha!);
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isShiftPressed) {
+      _lastTapBranch = null;
+      _lastTapAt = null;
+      return;
+    }
+    final now = DateTime.now();
+    final doubleTap =
+        _lastTapBranch == branch.fullName &&
+        _lastTapAt != null &&
+        now.difference(_lastTapAt!) < const Duration(milliseconds: 350);
+    _lastTapBranch = branch.fullName;
+    _lastTapAt = now;
+    if (doubleTap && !branch.isCurrent) {
+      unawaited(
+        checkoutRef(
+          context: context,
+          ref: ref,
+          repo: widget.repo,
+          name: branch.name,
+          isRemote: branch.isRemote,
+        ).then((ok) {
+          if (ok && mounted) _refresh();
+        }),
+      );
+    }
+  }
+
+  Future<void> _deleteBranches(List<Branch> branches) async {
+    if (branches.isEmpty) return;
+    final all = await ref.read(branchesProvider(widget.repo).future);
+    if (!mounted) return;
+    await DeleteBranchesDialog.show(
+      context,
+      repo: widget.repo,
+      branches: branches,
+      allBranches: all,
+    );
+    if (mounted) setState(_selected.clear);
   }
 
   void _refresh() {
@@ -67,7 +197,32 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     Offset globalPos,
   ) async {
     final branch = n.branch;
-    if (branch == null) return;
+    if (branch == null) {
+      final branches = <Branch>[];
+      void visit(BranchTreeNode child) {
+        if (child.branch case final b?) branches.add(b);
+        child.children.forEach(visit);
+      }
+
+      visit(n);
+      if (branches.isEmpty) return;
+      final selected = await AppContextMenu.show<String>(
+        context,
+        globalPosition: globalPos,
+        entries: [
+          AppMenuItem(
+            value: 'delete_all',
+            label: 'Delete all branches in ${n.fullPath}/…',
+            icon: Icons.delete_outline,
+            danger: true,
+          ),
+        ],
+      );
+      if (selected == 'delete_all' && context.mounted) {
+        await _deleteBranches(branches);
+      }
+      return;
+    }
     final branchName = branch.name;
     // Merge/rebase only make sense when the right-clicked branch isn't the
     // one already checked out. Local renaming applies to local branches only.
@@ -123,9 +278,11 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         ),
         AppMenuDivider(),
       ],
-      const AppMenuItem(
+      AppMenuItem(
         value: 'delete',
-        label: 'Delete',
+        label: _selected.contains(branch.fullName) && _selected.length > 1
+            ? 'Delete ${_selected.length} branches…'
+            : 'Delete…',
         icon: Icons.delete_outline,
         danger: true,
       ),
@@ -170,10 +327,10 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         if (!context.mounted) return;
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Rebase current branch',
+          title: 'Rebase current branch?',
           body:
-              'Rebase the current branch onto "$branchName"? '
-              'This rewrites commits on the current branch.',
+              'The current branch will be rebased onto "$branchName". '
+              'Its commits will be rewritten.',
           confirmLabel: 'Rebase',
         );
         if (!confirmed || !context.mounted) return;
@@ -240,6 +397,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           context,
           'Rename branch',
           label: 'New name',
+          confirmLabel: 'Rename',
           initial: branchName,
         );
         if (newName == null || newName.trim().isEmpty) return;
@@ -253,45 +411,22 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         _refresh();
 
       case 'delete':
-        final all = await ref.read(branchesProvider(widget.repo).future);
-        if (!context.mounted) return;
-        final targets = branchDeletionTargets(branch, all);
-        final selection = await DeleteBranchDialog.show(
-          context,
-          targets: targets,
+        await _deleteBranches(
+          _selected.contains(branch.fullName) && _selected.length > 1
+              ? _visibleBranches()
+                    .where(
+                      (b) => _selected.contains(b.fullName),
+                    )
+                    .toList()
+              : [branch],
         );
-        if (selection == null || !selection.any || !context.mounted) return;
-        final outcome = await actions.deleteBranchTargets(
-          context,
-          widget.repo,
-          remoteRef: selection.deleteRemote ? targets.remoteRef : null,
-          localName: selection.deleteLocal ? targets.localName : null,
-        );
-        if (outcome.localNeedsForce && context.mounted) {
-          final force = await ConfirmDialog.show(
-            context,
-            title: 'Force delete branch',
-            body: 'Branch "${targets.localName}" is not fully merged. '
-                'Delete it anyway? Unmerged commits will be lost.',
-            confirmLabel: 'Force delete',
-            dangerous: true,
-          );
-          if (force && context.mounted) {
-            await actions.deleteBranchTargets(
-              context,
-              widget.repo,
-              localName: targets.localName,
-              forceLocal: true,
-            );
-          }
-        }
-        _refresh();
 
       case 'upstream':
         final upstream = await _promptText(
           context,
           'Set upstream',
           label: 'Upstream ref (e.g. origin/main)',
+          confirmLabel: 'Set upstream',
         );
         if (upstream == null || upstream.trim().isEmpty) return;
         if (!context.mounted) return;
@@ -311,6 +446,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     BuildContext context,
     String title, {
     required String label,
+    required String confirmLabel,
     String? initial,
   }) async {
     final ctl = TextEditingController(text: initial);
@@ -334,7 +470,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
               onPressed: () => Navigator.pop(ctx),
             ),
             AppButton.primary(
-              label: 'OK',
+              label: confirmLabel,
               onPressed: () => Navigator.pop(ctx, ctl.text),
             ),
           ],
@@ -357,134 +493,105 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           fullName != null && ref.read(hiddenRefsProvider).contains(fullName);
       return Opacity(
         opacity: isHidden ? 0.5 : 1.0,
-        child: GestureDetector(
-          onSecondaryTapDown: (details) =>
-              _handleContextMenu(context, n, details.globalPosition),
-          child: InkWell(
-            onTap: branch?.tipSha == null
-                ? null
-                : () => revealCommit(ref, branch!.tipSha!),
-            onDoubleTap: branch == null || current
-                ? null
-                : () async {
-                    final ok = await checkoutRef(
-                      context: context,
-                      ref: ref,
-                      repo: widget.repo,
-                      name: branch.name,
-                      isRemote: branch.isRemote,
-                    );
-                    if (ok) _refresh();
-                  },
-            child: Padding(
-              // Leaf rows share the same column as a sibling folder's chevron
-              // at this depth (a bullet-list hierarchy), so folderless branches
-              // line up with folders instead of sitting a step deeper.
-              padding: EdgeInsets.only(
-                left: indent,
-                right: 6,
-                top: 3,
-                bottom: 3,
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    // Match the folder chevron width so leaf names align with
-                    // folder names too.
-                    width: kSidebarGlyphColumnWidth,
-                    child: current
-                        ? Text(
-                            '✓',
-                            style: TextStyle(
-                              color: AppPalette.of(context).accentCurrent,
-                              fontSize: 11,
-                            ),
-                          )
+        child: AppInteractiveSurface(
+          height: AppSpacing.of(context).listRowHeight,
+          selected: fullName != null && _selected.contains(fullName),
+          onSecondaryTapDown: (details) => _handleContextMenu(
+            context,
+            n,
+            details.globalPosition,
+          ),
+          onTap: branch == null ? null : () => _activate(branch),
+          child: (context, visual) => Padding(
+            // Leaf rows share the same column as a sibling folder's chevron
+            // at this depth (a bullet-list hierarchy), so folderless branches
+            // line up with folders instead of sitting a step deeper.
+            // The surface's 1 px border already insets the content; take it
+            // out of the padding so labels stay on the sidebar column.
+            padding: EdgeInsets.only(
+              left: indent - 1,
+              right: 5,
+              top: 2,
+              bottom: 2,
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  // Match the folder chevron width so leaf names align with
+                  // folder names too.
+                  width: kSidebarGlyphColumnWidth,
+                  child: current
+                      ? Text(
+                          '✓',
+                          style: TextStyle(
+                            color: AppPalette.of(context).accentCurrent,
+                            fontSize: 11,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: kSidebarGlyphGap),
+                Expanded(
+                  child: Text(
+                    n.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: current
+                          ? AppPalette.of(context).accentCurrent
+                          : visual.foreground,
+                      fontSize: 12.5,
+                      fontWeight: current ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ),
+                // Ahead/behind badge for local branches with an upstream.
+                if (branch != null && !branch.isRemote)
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final div = ref
+                          .watch(branchDivergenceProvider(widget.repo))
+                          .value?[branch.name];
+                      return DivergenceBadge(
+                        ahead: div?.ahead ?? 0,
+                        behind: div?.behind ?? 0,
+                      );
+                    },
+                  ),
+                // Pin (favourite) star for local branches — always shown,
+                // faint when off; click toggles the PINNED sidebar section.
+                if (branch != null && !branch.isRemote && fullName != null)
+                  AppIconButton(
+                    tooltip: _pinned.contains(fullName)
+                        ? 'Unpin ${n.name}'
+                        : 'Pin ${n.name}',
+                    icon: _pinned.contains(fullName)
+                        ? Icons.star
+                        : Icons.star_border,
+                    color: _pinned.contains(fullName)
+                        ? AppPalette.of(context).accentTag
                         : null,
-                  ),
-                  const SizedBox(width: kSidebarGlyphGap),
-                  Expanded(
-                    child: Text(
-                      n.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: current
-                            ? AppPalette.of(context).accentCurrent
-                            : AppPalette.of(context).fg1,
-                        fontSize: 12.5,
-                        fontWeight: current
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                  // Ahead/behind badge for local branches with an upstream.
-                  if (branch != null && !branch.isRemote)
-                    Consumer(
-                      builder: (context, ref, _) {
-                        final div = ref
-                            .watch(branchDivergenceProvider(widget.repo))
-                            .value?[branch.name];
-                        return DivergenceBadge(
-                          ahead: div?.ahead ?? 0,
-                          behind: div?.behind ?? 0,
-                        );
-                      },
-                    ),
-                  // Pin (favourite) star for local branches — always shown,
-                  // faint when off; click toggles the PINNED sidebar section.
-                  if (branch != null && !branch.isRemote && fullName != null)
-                    Semantics(
-                      button: true,
-                      label: _pinned.contains(fullName)
-                          ? 'Unpin ${n.name}'
-                          : 'Pin ${n.name}',
-                      child: GestureDetector(
-                        onTap: () => ref
-                            .read(appSettingsProvider.notifier)
-                            .togglePinnedBranch(
-                              widget.repo.id.value,
-                              fullName,
-                            ),
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 4),
-                          child: Icon(
-                            _pinned.contains(fullName)
-                                ? Icons.star
-                                : Icons.star_border,
-                            size: 13,
-                            color: _pinned.contains(fullName)
-                                ? AppPalette.of(context).accentTag
-                                : AppPalette.of(context).fg3,
-                          ),
+                    size: AppSpacing.of(context).compactControlHeight,
+                    iconSize: AppSpacing.of(context).compactIconSize,
+                    onPressed: () => ref
+                        .read(appSettingsProvider.notifier)
+                        .togglePinnedBranch(
+                          widget.repo.id.value,
+                          fullName,
                         ),
-                      ),
-                    ),
-                  // Visibility eye icon — always visible, click toggles.
-                  if (fullName != null)
-                    Semantics(
-                      button: true,
-                      label: isHidden
-                          ? 'Show ${n.name} in the graph'
-                          : 'Hide ${n.name} from the graph',
-                      child: GestureDetector(
-                        onTap: () => ref
-                            .read(hiddenRefsProvider.notifier)
-                            .toggle(fullName),
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 4),
-                          child: Icon(
-                            isHidden ? Icons.visibility_off : Icons.visibility,
-                            size: 13,
-                            color: isHidden
-                                ? AppPalette.of(context).fg3
-                                : AppPalette.of(context).fg2,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+                  ),
+                // Visibility eye icon — always visible, click toggles.
+                if (fullName != null)
+                  AppIconButton(
+                    tooltip: isHidden
+                        ? 'Show ${n.name} in the graph'
+                        : 'Hide ${n.name} from the graph',
+                    icon: isHidden ? Icons.visibility_off : Icons.visibility,
+                    size: AppSpacing.of(context).compactControlHeight,
+                    iconSize: AppSpacing.of(context).compactIconSize,
+                    onPressed: () =>
+                        ref.read(hiddenRefsProvider.notifier).toggle(fullName),
+                  ),
+              ],
             ),
           ),
         ),
@@ -494,7 +601,13 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InkWell(
+        AppInteractiveSurface(
+          height: AppSpacing.of(context).listRowHeight,
+          onSecondaryTapDown: (details) => _handleContextMenu(
+            context,
+            n,
+            details.globalPosition,
+          ),
           onTap: () {
             setState(() {
               if (!_collapsed.add(n.fullPath)) {
@@ -502,12 +615,14 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
               }
             });
           },
-          child: Padding(
+          child: (context, visual) => Padding(
+            // The surface's 1 px border already insets the content; take it
+            // out of the padding so labels stay on the sidebar column.
             padding: EdgeInsets.only(
-              left: indent,
-              right: 12,
-              top: 3,
-              bottom: 3,
+              left: indent - 1,
+              right: 11,
+              top: 2,
+              bottom: 2,
             ),
             child: Row(
               children: [
@@ -522,7 +637,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
                     n.name,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: AppPalette.of(context).fg1,
+                      color: visual.foreground,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w500,
                     ),
@@ -533,11 +648,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           ),
         ),
         if (open)
-          BranchTreeView(
-            nodes: n.children,
-            depth: depth + 1,
-            repo: widget.repo,
-          ),
+          for (final child in n.children) _renderNode(child, depth + 1),
       ],
     );
   }

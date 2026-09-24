@@ -55,13 +55,15 @@ final class ActionResult {
     this.invalidate = const {},
     this.message,
     this.severity,
+    this.operationId,
   });
 
   /// Convenience for a clean success that invalidated the read cache.
   const ActionResult.reads(this.outcome)
     : invalidate = const {RepoDataScope.reads},
       message = null,
-      severity = null;
+      severity = null,
+      operationId = null;
 
   /// What happened.
   final ActionOutcome outcome;
@@ -75,6 +77,20 @@ final class ActionResult {
 
   /// Severity of [message], when present.
   final MessageSeverity? severity;
+
+  /// Progress record this action started and did **not** finish: the UI
+  /// adapter marks it successful only once the affected views have reloaded,
+  /// so a spinner never ends before the result is on screen.
+  final String? operationId;
+
+  /// The same result, carrying [id] as its unfinished progress record.
+  ActionResult withOperation(String? id) => ActionResult(
+    outcome,
+    invalidate: invalidate,
+    message: message,
+    severity: severity,
+    operationId: id ?? operationId,
+  );
 }
 
 /// Pure application-layer orchestrator for git actions.
@@ -252,7 +268,15 @@ final class GitActionsService {
       progress: progress,
     );
     if (fetched.outcome != ActionOutcome.success) return fetched;
-    return _simple('Checkout', _write.checkout(repo, branch));
+    final checkedOut = await _simple('Checkout', _write.checkout(repo, branch));
+    final id = fetched.operationId;
+    if (checkedOut.outcome != ActionOutcome.success) {
+      // The fetch itself did complete; close its record here because the
+      // failed checkout ends the action before any refresh.
+      if (id != null) progress.success(id);
+      return checkedOut;
+    }
+    return checkedOut.withOperation(id);
   }
 
   // ---- Local (non-streaming) actions ------------------------------------
@@ -681,8 +705,13 @@ final class GitActionsService {
       if (cancelled) {
         return const ActionResult(ActionOutcome.failed);
       }
-      progress.success(id);
-      return const ActionResult.reads(ActionOutcome.success);
+      // Deliberately NOT progress.success(id): git has exited, but the views
+      // have not reloaded yet. The UI adapter finishes this record after its
+      // refresh, so the toast cannot claim success too early.
+      progress.progress(id, null, 'Updating views…');
+      return const ActionResult.reads(
+        ActionOutcome.success,
+      ).withOperation(id);
     } on Object catch (e) {
       if (cancelled) return const ActionResult(ActionOutcome.failed);
       // Classify ONLY git's stderr (via the injected extractor) — never the

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -34,13 +36,14 @@ class ActivityPanel extends ConsumerWidget {
                     ),
                   ),
                   const Spacer(),
-                  TextButton(
+                  AppButton.secondary(
+                    label: 'Clear completed',
                     onPressed: () =>
                         ref.read(operationsProvider.notifier).clearCompleted(),
-                    child: const Text('Clear completed'),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.close, size: 16, color: palette.fg1),
+                  AppIconButton(
+                    icon: Icons.close,
+                    tooltip: 'Close activity',
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],

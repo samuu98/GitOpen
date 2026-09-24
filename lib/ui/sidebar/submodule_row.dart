@@ -5,7 +5,10 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// One submodule in the SUBMODULES section: status badge + update context
@@ -27,45 +30,50 @@ class SubmoduleRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
-    return Semantics(
-      button: true,
-      label: 'Submodule ${submodule.path}, ${submodule.status.name}',
-      child: GestureDetector(
-        onSecondaryTapDown: (details) =>
-            _showContextMenu(context, ref, details.globalPosition),
-        child: InkWell(
-          // Initialized submodules point at a real commit; reveal it in the
-          // graph. Uninitialized ones still record the expected SHA, but it may
-          // not be present locally yet, so tapping is a no-op there.
-          onTap: _isUninitialized
-              ? null
-              : () => revealCommit(ref, submodule.sha),
-          child: Padding(
-            padding: const EdgeInsets.only(
-                left: kSidebarRowIndent, right: 26, top: 3, bottom: 3),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    submodule.path,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: palette.fg1, fontSize: 12.5),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  submodule.sha.short(),
-                  style: TextStyle(
-                    color: palette.fg3,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-                const SizedBox(width: 6),
-                _SubmoduleStatusBadge(status: submodule.status),
-              ],
+    final pending = ref
+        .watch(busyProvider)
+        .isRunning('${repo.id.value}/submodule-update:${submodule.path}');
+    return SidebarRowSurface(
+      semanticLabel: 'Submodule ${submodule.path}, ${submodule.status.name}',
+      onSecondaryTapDown: pending
+          ? null
+          : (details) => _showContextMenu(context, ref, details.globalPosition),
+      // Initialized submodules point at a real commit; reveal it in the
+      // graph. Uninitialized ones still record the expected SHA, but it may
+      // not be present locally yet, so tapping is a no-op there.
+      onTap: pending || _isUninitialized
+          ? null
+          : () => revealCommit(ref, submodule.sha),
+      child: Padding(
+        padding: const EdgeInsets.only(left: kSidebarRowIndent - 1, right: 26),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                submodule.path,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: palette.fg1, fontSize: 12.5),
+              ),
             ),
-          ),
+            const SizedBox(width: 6),
+            Text(
+              submodule.sha.short(),
+              style: TextStyle(
+                color: palette.fg3,
+                fontSize: 11,
+                fontFamily: 'monospace',
+              ),
+            ),
+            const SizedBox(width: 6),
+            if (pending)
+              SizedBox(
+                width: AppSpacing.of(context).compactIconSize,
+                height: AppSpacing.of(context).compactIconSize,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              _SubmoduleStatusBadge(status: submodule.status),
+          ],
         ),
       ),
     );
@@ -96,24 +104,24 @@ class SubmoduleRow extends ConsumerWidget {
     );
     if (selected == null || !context.mounted) return;
     final write = ref.read(gitWriteOperationsProvider);
-    final palette = AppPalette.of(context);
-
     // `init` and `update` both go through updateSubmodule; `init: true`
     // additionally registers + clones an uninitialized submodule.
-    final result = await write.updateSubmodule(
-      repo,
-      submodule.path,
-      init: selected == 'init',
-    );
-    onRefresh();
-    if (!context.mounted) return;
-    if (result case GitFailure(:final message)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Submodule update failed: $message'),
-          backgroundColor: palette.accentErr,
-        ),
-      );
+    final run = await ref
+        .read(actionRunnerProvider)
+        .runAndRefresh(
+          key: 'submodule-update:${submodule.path}',
+          repo: repo,
+          scopes: const {RefreshScope.sidebar, RefreshScope.status},
+          label: 'Updating submodule…',
+          action: () => write.updateSubmodule(
+            repo,
+            submodule.path,
+            init: selected == 'init',
+          ),
+          failed: (result) => result is GitFailure<void>,
+        );
+    if (run.value case GitFailure<void>(:final message)) {
+      ref.read(actionFeedbackProvider).showActionFailure(message);
     }
   }
 }

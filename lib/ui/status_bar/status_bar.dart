@@ -8,6 +8,7 @@ import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/workspaces/workspace.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/dialogs/account_switcher_dialog.dart';
 import 'package:gitopen/ui/operations/activity_panel.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
@@ -20,6 +21,7 @@ class StatusBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final p = AppPalette.of(context);
     final t = AppTypography.of(context);
+    final spacing = AppSpacing.of(context);
     final activeId = ref.watch(activeWorkspaceIdProvider);
     final workspaces = ref.watch(workspaceManagerProvider);
     final active = workspaces
@@ -35,87 +37,121 @@ class StatusBar extends ConsumerWidget {
     final statusAsync = ref.watch(repoStatusProvider(repo));
     final inProgressAsync = ref.watch(repoStateProvider(repo));
     final ops = ref.watch(operationsProvider);
-    final running =
-        ops.where((o) => o.status == OperationStatus.running).length;
+    final running = ops
+        .where((o) => o.status == OperationStatus.running)
+        .length;
 
     return Container(
       height: 22,
       color: p.bg3,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(children: [
-        branchesAsync.when(
-          // Keep the branch name during background reloads (auto-refresh on
-          // fetch / focus regain) instead of flashing 'loading...'.
-          skipLoadingOnReload: true,
-          loading: () => Text(
-            'loading...',
-            style: t.caption.copyWith(color: p.fg2),
-          ),
-          // The explicit parameter types document the AsyncValue.when error
-          // signature; the closure-parameter-type lint is not useful here.
-          // ignore: avoid_types_on_closure_parameters
-          error: (Object e, StackTrace s) => const SizedBox.shrink(),
-          data: (branches) {
-            if (branches.isEmpty) return const SizedBox.shrink();
-            final cur = branches.firstWhere(
-              (b) => b.isCurrent,
-              orElse: () => branches.first,
-            );
-            return Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.fork_right, size: 11, color: p.accentCurrent),
-              const SizedBox(width: 4),
-              Text(cur.name, style: t.caption.copyWith(color: p.fg0)),
-              // ahead/behind for the current branch comes from RepoStatus
-              // (cheap, single `git status` call), NOT from for-each-ref's
-              // `upstream:track` atom which becomes O(N×commits) on repos
-              // with many local branches that diverge a lot from upstream.
-              if ((statusAsync.value?.ahead ?? 0) > 0)
-                Text(' ↑${statusAsync.value!.ahead}',
-                    style: t.caption.copyWith(color: p.accentCurrent)),
-              if ((statusAsync.value?.behind ?? 0) > 0)
-                Text(' ↓${statusAsync.value!.behind}',
-                    style: t.caption.copyWith(color: p.accentTag)),
-            ]);
-          },
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: InkWell(
-            onTap: () => Clipboard.setData(ClipboardData(text: repo.path)),
-            child: Text(
-              repo.path,
-              overflow: TextOverflow.ellipsis,
+      child: Row(
+        children: [
+          branchesAsync.when(
+            // Keep the branch name during background reloads (auto-refresh on
+            // fetch / focus regain) instead of flashing 'Loading…'.
+            skipLoadingOnReload: true,
+            loading: () => Text(
+              'Loading…',
               style: t.caption.copyWith(color: p.fg2),
             ),
+            // The explicit parameter types document the AsyncValue.when error
+            // signature; the closure-parameter-type lint is not useful here.
+            // ignore: avoid_types_on_closure_parameters
+            error: (Object e, StackTrace s) => const SizedBox.shrink(),
+            data: (branches) {
+              if (branches.isEmpty) return const SizedBox.shrink();
+              final cur = branches.firstWhere(
+                (b) => b.isCurrent,
+                orElse: () => branches.first,
+              );
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.fork_right,
+                    size: spacing.statusIconSize,
+                    color: p.accentCurrent,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(cur.name, style: t.caption.copyWith(color: p.fg0)),
+                  // ahead/behind for the current branch comes from RepoStatus
+                  // (cheap, single `git status` call), NOT from for-each-ref's
+                  // `upstream:track` atom which becomes O(N×commits) on repos
+                  // with many local branches that diverge a lot from upstream.
+                  if ((statusAsync.value?.ahead ?? 0) > 0)
+                    Text(
+                      ' ↑${statusAsync.value!.ahead}',
+                      style: t.caption.copyWith(color: p.accentCurrent),
+                    ),
+                  if ((statusAsync.value?.behind ?? 0) > 0)
+                    Text(
+                      ' ↓${statusAsync.value!.behind}',
+                      style: t.caption.copyWith(color: p.accentTag),
+                    ),
+                ],
+              );
+            },
           ),
-        ),
-        if (inProgressAsync.value != null &&
-            inProgressAsync.value != InProgressOp.none) ...[
-          Icon(Icons.warning_amber, size: 12, color: p.accentTag),
-          const SizedBox(width: 4),
-          Text(
-            inProgressAsync.value!.name,
-            style: t.caption.copyWith(color: p.accentTag),
+          const SizedBox(width: 16),
+          Expanded(
+            child: AppInteractiveSurface(
+              onTap: () => Clipboard.setData(ClipboardData(text: repo.path)),
+              tooltip: 'Copy repository path',
+              semanticLabel: 'Copy repository path',
+              foregroundColor: p.fg2,
+              height: 22,
+              alignment: Alignment.centerLeft,
+              child: (context, visual) => Text(
+                repo.path,
+                overflow: TextOverflow.ellipsis,
+                style: t.caption.copyWith(color: visual.foreground),
+              ),
+            ),
           ),
-          const SizedBox(width: 12),
-        ],
-        _ActiveAccountChip(repo: repo),
-        const SizedBox(width: 12),
-        InkWell(
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (_) => const ActivityPanel(),
-          ),
-          child: Row(children: [
-            Icon(Icons.workspaces_outline, size: 11, color: p.fg2),
+          if (inProgressAsync.value != null &&
+              inProgressAsync.value != InProgressOp.none) ...[
+            Icon(
+              Icons.warning_amber,
+              size: spacing.statusIconSize,
+              color: p.accentTag,
+            ),
             const SizedBox(width: 4),
             Text(
-              '$running op${running == 1 ? '' : 's'}',
-              style: t.caption.copyWith(color: p.fg2),
+              inProgressAsync.value!.name,
+              style: t.caption.copyWith(color: p.accentTag),
             ),
-          ]),
-        ),
-      ]),
+            const SizedBox(width: 12),
+          ],
+          _ActiveAccountChip(repo: repo),
+          const SizedBox(width: 12),
+          AppInteractiveSurface(
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (_) => const ActivityPanel(),
+            ),
+            tooltip: 'View activity',
+            semanticLabel: 'View activity',
+            foregroundColor: p.fg2,
+            height: 22,
+            alignment: null,
+            child: (context, visual) => Row(
+              children: [
+                Icon(
+                  Icons.workspaces_outline,
+                  size: spacing.statusIconSize,
+                  color: visual.foreground,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '$running op${running == 1 ? '' : 's'}',
+                  style: t.caption.copyWith(color: visual.foreground),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -136,17 +172,30 @@ class _ActiveAccountChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final p = AppPalette.of(context);
     final t = AppTypography.of(context);
+    final spacing = AppSpacing.of(context);
     final async = ref.watch(repoActiveProfileProvider(repo));
     final current = async.value;
     final label = current?.username ?? 'no account';
     final color = current == null ? p.fg2 : p.fg1;
-    return InkWell(
+    return AppInteractiveSurface(
       onTap: () => _switch(context, ref, current: current),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.account_circle_outlined, size: 11, color: color),
-        const SizedBox(width: 4),
-        Text(label, style: t.caption.copyWith(color: color)),
-      ]),
+      tooltip: 'Switch account',
+      semanticLabel: 'Switch account',
+      foregroundColor: color,
+      height: 22,
+      alignment: null,
+      child: (context, visual) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.account_circle_outlined,
+            size: spacing.statusIconSize,
+            color: visual.foreground,
+          ),
+          const SizedBox(width: 4),
+          Text(label, style: t.caption.copyWith(color: visual.foreground)),
+        ],
+      ),
     );
   }
 
@@ -155,9 +204,8 @@ class _ActiveAccountChip extends ConsumerWidget {
     WidgetRef ref, {
     required AuthProfile? current,
   }) async {
-    final host = await ref
-            .read(authResolverProvider)
-            .hostFromRepo(repo, 'origin') ??
+    final host =
+        await ref.read(authResolverProvider).hostFromRepo(repo, 'origin') ??
         'github.com';
     if (!context.mounted) return;
     final chosen = await AccountSwitcherDialog.show(

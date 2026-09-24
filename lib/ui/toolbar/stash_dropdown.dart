@@ -10,7 +10,9 @@ import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/toolbar/toolbar_buttons.dart';
 import 'package:gitopen/ui/toolbar/toolbar_prompt.dart';
@@ -118,7 +120,7 @@ class _StashDropdownState extends ConsumerState<StashDropdown> {
       const AppMenuAnchorDivider(),
       AppMenuButton(
         icon: Icons.list_outlined,
-        label: 'View stashes…',
+        label: 'View stashes',
         onPressed: () async {
           _menuController.close();
           if (!context.mounted) return;
@@ -183,22 +185,31 @@ class _StashDropdownState extends ConsumerState<StashDropdown> {
     ctl.dispose();
     if (!mounted || choice == null) return;
     if (choice.stagedOnly) {
-      final result = await ref
-          .read(gitActionsServiceProvider)
-          .stashSave(
-            repo,
-            choice.message,
-            stagedOnly: true,
+      final run = await ref
+          .read(actionRunnerProvider)
+          .runAndRefresh(
+            key: 'stash-save',
+            repo: repo,
+            scopes: const {
+              RefreshScope.sidebar,
+              RefreshScope.status,
+              RefreshScope.workingCopy,
+            },
+            action: () => ref
+                .read(gitActionsServiceProvider)
+                .stashSave(
+                  repo,
+                  choice.message,
+                  stagedOnly: true,
+                ),
+            failed: (result) => result.outcome == ActionOutcome.failed,
           );
-      if (!mounted) return;
-      if (result.outcome == ActionOutcome.success) {
+      if (run.status == ActionRunStatus.failed) {
         ref
-          ..invalidate(repoStatusProvider(repo))
-          ..invalidate(workingCopyStatusProvider(repo));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.message ?? 'Stash failed')),
-        );
+            .read(actionFeedbackProvider)
+            .showActionFailure(
+              run.value?.message ?? 'Stash failed.',
+            );
       }
       return;
     }
@@ -324,8 +335,10 @@ class _StashListDialogState extends ConsumerState<_StashListDialog> {
     if (stash == null) return;
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Drop stash',
-      body: 'Drop "stash@{${stash.index}}"? This cannot be undone.',
+      title: 'Drop stash?',
+      body:
+          '"stash@{${stash.index}}" will be dropped. This cannot be '
+          'undone.',
       confirmLabel: 'Drop',
       dangerous: true,
     );
@@ -340,9 +353,19 @@ class _StashListDialogState extends ConsumerState<_StashListDialog> {
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final stash = _selectedStash;
+    final busy = ref.watch(busyProvider);
+    final pending =
+        stash != null &&
+        (busy.isRunning(
+              '${widget.repo.id.value}/stash-restore:${stash.index}',
+            ) ||
+            busy.isRunning(
+              '${widget.repo.id.value}/stash-drop:${stash.index}',
+            ));
     return AppDialog(
       title: 'Stashes',
       width: 820,
+      busy: pending,
       contentPadding: const EdgeInsets.all(12),
       content: _stashes.isEmpty
           ? SizedBox(
@@ -383,17 +406,17 @@ class _StashListDialogState extends ConsumerState<_StashListDialog> {
         AppButton.secondary(
           label: 'Apply',
           icon: Icons.file_download_outlined,
-          onPressed: stash == null ? null : _apply,
+          onPressed: stash == null || pending ? null : _apply,
         ),
         AppButton.secondary(
           label: 'Pop',
           icon: Icons.eject_outlined,
-          onPressed: stash == null ? null : _pop,
+          onPressed: stash == null || pending ? null : _pop,
         ),
         AppButton.danger(
           label: 'Drop',
           icon: Icons.delete_outline,
-          onPressed: stash == null ? null : _drop,
+          onPressed: stash == null || pending ? null : _drop,
         ),
         AppButton.secondary(
           label: 'Close',

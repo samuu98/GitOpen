@@ -14,6 +14,8 @@ import 'package:gitopen/domain/diff/file_diff.dart';
 import 'package:gitopen/domain/files/file_revision.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/diff_syntax.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/common/diff_line_row.dart';
 import 'package:gitopen/ui/common/diff_prefs.dart';
 import 'package:gitopen/ui/common/file_kind_badge.dart';
@@ -123,11 +125,25 @@ class _DiffViewState extends ConsumerState<DiffView> {
     return async.when(
       // Keep the current diff visible during background reloads.
       skipLoadingOnReload: true,
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
+      loading: () => const AppLoadingState.detail(),
+      error: (e, _) => AppErrorState(
+        message: 'Failed to load changes',
+        detail: '$e',
+        onRetry: () => ref.invalidate(
+          commitDiffProvider((
+            repo: widget.repo,
+            sha: widget.sha,
+            ignoreWhitespace: ignoreWhitespace,
+          )),
+        ),
       ),
       data: (d) {
+        if (d.files.isEmpty) {
+          return const AppEmptyState(
+            icon: Icons.difference_outlined,
+            title: 'No changes in this commit',
+          );
+        }
         // Handle a pending reveal only once the files (and their keys) exist.
         if (reveal != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -322,35 +338,35 @@ class _FileDiffBlockState extends ConsumerState<_FileDiffBlock> {
         key: ValueKey('collapse-${file.path}'),
         onTap: () => setState(() => _collapsed = !_collapsed),
         child: Container(
-      decoration: BoxDecoration(
-        color: palette.bg3,
-        border: Border(bottom: BorderSide(color: palette.border)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          Icon(
-            _collapsed ? Icons.chevron_right : Icons.expand_more,
-            size: 16,
-            color: palette.fg3,
+          decoration: BoxDecoration(
+            color: palette.bg3,
+            border: Border(bottom: BorderSide(color: palette.border)),
           ),
-          const SizedBox(width: 6),
-          FileKindBadge(kind: file.changeKind),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              pathLabel,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: palette.fg0, fontSize: 12),
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            children: [
+              Icon(
+                _collapsed ? Icons.chevron_right : Icons.expand_more,
+                size: 16,
+                color: palette.fg3,
+              ),
+              const SizedBox(width: 6),
+              FileKindBadge(kind: file.changeKind),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  pathLabel,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.fg0, fontSize: 12),
+                ),
+              ),
+              Text(
+                '+${file.linesAdded} -${file.linesDeleted}',
+                style: TextStyle(color: palette.fg2, fontSize: 11),
+              ),
+            ],
           ),
-          Text(
-            '+${file.linesAdded} -${file.linesDeleted}',
-            style: TextStyle(color: palette.fg2, fontSize: 11),
-          ),
-        ],
-      ),
-      ),
+        ),
       ),
     );
   }

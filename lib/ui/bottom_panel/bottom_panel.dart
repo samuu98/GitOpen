@@ -7,6 +7,7 @@ import 'package:gitopen/ui/bottom_panel/commit_details_view.dart';
 import 'package:gitopen/ui/bottom_panel/diff_view.dart';
 import 'package:gitopen/ui/bottom_panel/file_tree_view.dart';
 import 'package:gitopen/ui/common/app_empty_state.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -88,7 +89,7 @@ class _TabsBar extends StatelessWidget {
             onSelect: onSelect,
           ),
           _Tab(
-            label: 'File Tree',
+            label: 'File tree',
             value: 'files',
             active: active,
             onSelect: onSelect,
@@ -115,32 +116,34 @@ class _Tab extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final spacing = AppSpacing.of(context);
-    final motion = AppMotion.of(context);
     final isActive = active == value;
-    return InkWell(
+    return AppInteractiveSurface(
       onTap: () => onSelect(value),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: spacing.lg,
-          vertical: spacing.sm,
-        ),
-        child: AnimatedContainer(
-          duration: motion.fast,
-          curve: motion.curve,
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isActive ? palette.accentCurrent : Colors.transparent,
-                width: 2,
-              ),
+      selected: isActive,
+      tooltip: 'Show $label',
+      semanticLabel: 'Show $label',
+      alignment: null,
+      selectedColor: palette.bgAccent,
+      padding: EdgeInsets.symmetric(
+        horizontal: spacing.lg,
+        vertical: spacing.sm,
+      ),
+      child: (context, visual) => DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isActive ? palette.accentCurrent : Colors.transparent,
+              width: 2,
             ),
           ),
+        ),
+        child: Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Text(
             label,
             style: AppTypography.of(context).body.copyWith(
-                  color: isActive ? palette.fg0 : palette.fg1,
-                ),
+              color: isActive ? palette.fg0 : palette.fg1,
+            ),
           ),
         ),
       ),

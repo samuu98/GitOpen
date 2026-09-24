@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
-/// Plain toolbar action button (icon + label).
+/// A toolbar action with the shared pointer and keyboard states.
 class ToolbarButton extends StatelessWidget {
   const ToolbarButton({
     required this.icon,
@@ -13,65 +14,26 @@ class ToolbarButton extends StatelessWidget {
     this.tooltip,
     this.compact = false,
   });
+
   final IconData icon;
   final String label;
   final bool enabled;
   final VoidCallback onTap;
-
-  /// Hover hint — used to surface the action's keyboard shortcut. Also
-  /// becomes the button's semantics label for screen readers.
   final String? tooltip;
   final bool compact;
 
   @override
-  Widget build(BuildContext context) {
-    final tip = tooltip;
-    if (tip != null) {
-      return Tooltip(
-        message: tip,
-        waitDuration: const Duration(milliseconds: 500),
-        child: _body(context),
-      );
-    }
-    return _body(context);
-  }
-
-  Widget _body(BuildContext context) {
-    final palette = AppPalette.of(context);
-    final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
-    final typography = AppTypography.of(context);
-    return Opacity(
-      opacity: enabled ? 1.0 : 0.4,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: radii.controlRadius,
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? spacing.sm : spacing.md - 2,
-            vertical: spacing.xs,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: palette.fg1),
-              if (!compact) ...[
-                const SizedBox(width: 5),
-                Text(
-                  label,
-                  style: typography.body.copyWith(color: palette.fg0),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _ToolbarSurface(
+    icon: icon,
+    label: label,
+    tooltip: tooltip ?? label,
+    enabled: enabled,
+    onTap: onTap,
+    compact: compact,
+  );
 }
 
-/// Dropdown trigger button — same visual style as [ToolbarButton] but includes
-/// a small chevron to signal it opens a menu.
+/// Toolbar action that opens a menu.
 class ToolbarDropdownButton extends StatelessWidget {
   const ToolbarDropdownButton({
     required this.icon,
@@ -81,6 +43,7 @@ class ToolbarDropdownButton extends StatelessWidget {
     super.key,
     this.compact = false,
   });
+
   final IconData icon;
   final String label;
   final bool enabled;
@@ -88,40 +51,70 @@ class ToolbarDropdownButton extends StatelessWidget {
   final bool compact;
 
   @override
+  Widget build(BuildContext context) => _ToolbarSurface(
+    icon: icon,
+    label: label,
+    tooltip: label,
+    enabled: enabled,
+    onTap: onTap,
+    compact: compact,
+    dropdown: true,
+  );
+}
+
+class _ToolbarSurface extends StatelessWidget {
+  const _ToolbarSurface({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.enabled,
+    required this.onTap,
+    required this.compact,
+    this.dropdown = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final bool enabled;
+  final VoidCallback onTap;
+  final bool compact;
+  final bool dropdown;
+
+  @override
   Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
     final spacing = AppSpacing.of(context);
-    final radii = AppRadii.of(context);
     final typography = AppTypography.of(context);
-    return Tooltip(
-      message: label,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.4,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: radii.controlRadius,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: compact ? spacing.sm : spacing.md - 2,
-              vertical: spacing.xs,
+    final palette = AppPalette.of(context);
+    return AppInteractiveSurface(
+      onTap: enabled ? onTap : null,
+      tooltip: tooltip,
+      semanticLabel: label,
+      height: spacing.regularControlHeight,
+      alignment: null,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? spacing.sm : spacing.md,
+      ),
+      child: (context, visual) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: spacing.regularIconSize, color: visual.foreground),
+          if (!compact) ...[
+            SizedBox(width: spacing.xs),
+            Text(
+              label,
+              style: typography.body.copyWith(color: visual.foreground),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 14, color: palette.fg1),
-                if (!compact) ...[
-                  const SizedBox(width: 5),
-                  Text(
-                    label,
-                    style: typography.body.copyWith(color: palette.fg0),
-                  ),
-                ],
-                const SizedBox(width: 3),
-                Icon(Icons.expand_more, size: 12, color: palette.fg2),
-              ],
+          ],
+          if (dropdown) ...[
+            SizedBox(width: spacing.xxs),
+            Icon(
+              Icons.expand_more,
+              size: spacing.compactIconSize,
+              color: enabled ? palette.fg2 : visual.foreground,
             ),
-          ),
-        ),
+          ],
+        ],
       ),
     );
   }

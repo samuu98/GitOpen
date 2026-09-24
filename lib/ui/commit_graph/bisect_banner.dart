@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gitopen/application/git/bisect_state.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 enum BisectAction { good, bad, skip, reset }
@@ -27,6 +28,7 @@ class _BisectBannerState extends State<BisectBanner> {
   String? _error;
 
   Future<void> _run(BisectAction action) async {
+    if (_busy) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -64,7 +66,8 @@ class _BisectBannerState extends State<BisectBanner> {
               Text(
                 found == null
                     ? 'Bisect candidate ${state.candidate.short()} — '
-                          '${state.subject} · ${state.stepsLeft} steps left'
+                          '${state.subject} · ${state.stepsLeft} '
+                          '${state.stepsLeft == 1 ? 'step' : 'steps'} left'
                     : 'First bad commit ${found.short()} — ${state.subject}',
                 style: TextStyle(color: palette.fg0, fontSize: 12.5),
               ),
@@ -75,26 +78,31 @@ class _BisectBannerState extends State<BisectBanner> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               if (found == null) ...[
-                TextButton(
+                AppButton.secondary(
+                  compact: true,
+                  label: 'Good',
                   onPressed: _busy ? null : () => _run(BisectAction.good),
-                  child: const Text('Good'),
                 ),
-                TextButton(
+                AppButton.secondary(
+                  compact: true,
+                  label: 'Bad',
                   onPressed: _busy ? null : () => _run(BisectAction.bad),
-                  child: const Text('Bad'),
                 ),
-                TextButton(
+                AppButton.secondary(
+                  compact: true,
+                  label: 'Skip',
                   onPressed: _busy ? null : () => _run(BisectAction.skip),
-                  child: const Text('Skip'),
                 ),
               ] else
-                TextButton(
+                AppButton.secondary(
+                  compact: true,
+                  label: 'Select in graph',
                   onPressed: _busy ? null : () => widget.onSelect(found),
-                  child: const Text('Select in graph'),
                 ),
-              TextButton(
+              AppButton.secondary(
+                compact: true,
+                label: 'Reset',
                 onPressed: _busy ? null : () => _run(BisectAction.reset),
-                child: const Text('Reset'),
               ),
             ],
           ),

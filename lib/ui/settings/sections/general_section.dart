@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/settings/app_settings.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/settings/settings_widgets.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -38,7 +39,8 @@ class GeneralSection extends ConsumerWidget {
                     style: ButtonStyle(
                       visualDensity: VisualDensity.compact,
                       textStyle: WidgetStateProperty.all(
-                          const TextStyle(fontSize: 12)),
+                        const TextStyle(fontSize: 12),
+                      ),
                     ),
                     segments: const [
                       ButtonSegment(value: AppTheme.dark, label: Text('Dark')),
@@ -95,18 +97,19 @@ class GeneralSection extends ConsumerWidget {
                         label: '',
                         hint: 'Path to executable',
                       ),
-                      onFieldSubmitted: (v) => notifier
-                          .setExternalEditorPath(v.isEmpty ? null : v),
+                      onFieldSubmitted: (v) =>
+                          notifier.setExternalEditorPath(v.isEmpty ? null : v),
                     ),
                   ),
                   const SizedBox(width: 6),
-                  IconButton(
-                    icon: Icon(Icons.folder_open,
-                        size: 18, color: palette.fg1),
+                  AppIconButton(
+                    icon: Icons.folder_open,
                     tooltip: 'Browse…',
                     onPressed: () async {
                       const group = XTypeGroup(
-                          label: 'Executable', extensions: ['exe']);
+                        label: 'Executable',
+                        extensions: ['exe'],
+                      );
                       final f = await openFile(acceptedTypeGroups: [group]);
                       if (f != null) {
                         await notifier.setExternalEditorPath(f.path);
@@ -132,14 +135,17 @@ class GeneralSection extends ConsumerWidget {
                     style: TextStyle(color: palette.fg0, fontSize: 12.5),
                     items: const [
                       DropdownMenuItem(
-                          value: DefaultPullStrategy.merge,
-                          child: Text('Merge')),
+                        value: DefaultPullStrategy.merge,
+                        child: Text('Merge'),
+                      ),
                       DropdownMenuItem(
-                          value: DefaultPullStrategy.rebase,
-                          child: Text('Rebase')),
+                        value: DefaultPullStrategy.rebase,
+                        child: Text('Rebase'),
+                      ),
                       DropdownMenuItem(
-                          value: DefaultPullStrategy.ffOnly,
-                          child: Text('Fast-forward only')),
+                        value: DefaultPullStrategy.ffOnly,
+                        child: Text('Fast-forward only'),
+                      ),
                     ],
                     onChanged: (v) {
                       if (v != null) {
@@ -174,7 +180,8 @@ class GeneralSection extends ConsumerWidget {
                 ),
                 SettingsRow(
                   label: 'Auto-refresh',
-                  description: 'Watch the repository for outside changes '
+                  description:
+                      'Watch the repository for outside changes '
                       '(commits, checkouts, fetches from a terminal) and '
                       'refresh automatically. Also refreshes when the window '
                       'regains focus.',
@@ -188,7 +195,8 @@ class GeneralSection extends ConsumerWidget {
                 ),
                 SettingsRow(
                   label: 'Confirm before pull/push',
-                  description: 'Ask for confirmation before pulling from or '
+                  description:
+                      'Ask for confirmation before pulling from or '
                       'pushing to the remote from the toolbar.',
                   divider: false,
                   child: Align(

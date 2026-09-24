@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
-import 'package:gitopen/ui/common/skeleton.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/dialogs/add_worktree_dialog.dart';
+import 'package:gitopen/ui/dialogs/tag_create_dialog.dart';
+import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/sidebar/branch_tree.dart';
 import 'package:gitopen/ui/sidebar/branch_tree_view.dart';
 import 'package:gitopen/ui/sidebar/remotes_section.dart';
@@ -37,34 +41,30 @@ class Sidebar extends ConsumerWidget {
     return ColoredBox(
       color: palette.bg2,
       child: activeWs == null
-          ? Center(
-              child: Text(
-                'No repository selected',
-                style: TextStyle(
-                    color: palette.fg2, fontStyle: FontStyle.italic),
-              ),
+          ? const AppEmptyState(
+              icon: Icons.folder_open_outlined,
+              title: 'No repository selected',
             )
-          : Consumer(builder: (context, ref, _) {
-              final repo = activeWs.location;
-              final async = ref.watch(sidebarDataProvider(repo));
-              return async.when(
-                // Keep the current branches/refs on screen while an
-                // auto-refresh (fetch / focus regain) reloads in the
-                // background — otherwise the whole panel flickers to a
-                // spinner. Mirrors the commit graph panel.
-                skipLoadingOnReload: true,
-                data: (data) => _SidebarContent(data: data, repo: repo),
-                loading: () => const SkeletonList(rows: 10),
-                error: (e, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text('Error: $e',
-                        style:
-                            TextStyle(color: palette.accentErr)),
+          : Consumer(
+              builder: (context, ref, _) {
+                final repo = activeWs.location;
+                final async = ref.watch(sidebarDataProvider(repo));
+                return async.when(
+                  // Keep the current branches/refs on screen while an
+                  // auto-refresh (fetch / focus regain) reloads in the
+                  // background — otherwise the whole panel flickers to a
+                  // spinner. Mirrors the commit graph panel.
+                  skipLoadingOnReload: true,
+                  data: (data) => _SidebarContent(data: data, repo: repo),
+                  loading: () => const AppLoadingState.list(rows: 10),
+                  error: (e, _) => AppErrorState(
+                    message: 'Could not load sidebar',
+                    detail: '$e',
+                    onRetry: () => ref.invalidate(sidebarDataProvider(repo)),
                   ),
-                ),
-              );
-            }),
+                );
+              },
+            ),
     );
   }
 }
@@ -94,11 +94,13 @@ class _SidebarContent extends ConsumerWidget {
             .toList();
     final localTree = BranchTree.build(localBranches);
     final pinnedSet = ref.watch(
-      appSettingsProvider
-          .select((s) => s.pinnedBranches[repo.id.value] ?? const <String>[]),
+      appSettingsProvider.select(
+        (s) => s.pinnedBranches[repo.id.value] ?? const <String>[],
+      ),
     );
-    final pinnedBranches =
-        localBranches.where((b) => pinnedSet.contains(b.fullName)).toList();
+    final pinnedBranches = localBranches
+        .where((b) => pinnedSet.contains(b.fullName))
+        .toList();
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
@@ -126,10 +128,14 @@ class _SidebarContent extends ConsumerWidget {
         _Section(
           title: 'REMOTES',
           trailing: AddRemoteIconButton(
-              repo: repo, onChanged: () => _refreshSidebar(ref)),
+            repo: repo,
+            onChanged: () => _refreshSidebar(ref),
+          ),
           child: data.remotes.isEmpty
               ? AddRemoteEmptyState(
-                  repo: repo, onChanged: () => _refreshSidebar(ref))
+                  repo: repo,
+                  onChanged: () => _refreshSidebar(ref),
+                )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -144,6 +150,7 @@ class _SidebarContent extends ConsumerWidget {
         ),
         _Section(
           title: 'TAGS',
+          trailing: _AddTagIconButton(repo: repo),
           child: data.tags.isEmpty
               ? const _EmptyHint('No tags')
               : Column(
@@ -193,7 +200,9 @@ class _SidebarContent extends ConsumerWidget {
         _Section(
           title: 'WORKTREES',
           trailing: _AddWorktreeIconButton(
-              repo: repo, onChanged: () => _refreshSidebar(ref)),
+            repo: repo,
+            onChanged: () => _refreshSidebar(ref),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -218,20 +227,61 @@ class _AddWorktreeIconButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Semantics(
-      button: true,
-      label: 'Add worktree',
-      child: InkWell(
-        onTap: () async {
-          final created = await AddWorktreeDialog.show(context, repo);
-          if (created) onChanged();
-        },
-        borderRadius: BorderRadius.circular(2),
-        child: Padding(
-          padding: const EdgeInsets.all(2),
-          child: Icon(Icons.add, size: 14, color: AppPalette.of(context).fg2),
+    return AppIconButton(
+      icon: Icons.add,
+      tooltip: 'Add worktree…',
+      size: AppSpacing.of(context).compactControlHeight,
+      onPressed: () async {
+        final created = await AddWorktreeDialog.show(context, repo);
+        if (created) onChanged();
+      },
+    );
+  }
+}
+
+class _AddTagIconButton extends ConsumerWidget {
+  const _AddTagIconButton({required this.repo});
+  final RepoLocation repo;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref
+        .watch(busyProvider)
+        .actions
+        .any(
+          (action) =>
+              action.running &&
+              action.key.startsWith('${repo.id.value}/tag-create:'),
+        );
+    if (pending) {
+      return SizedBox(
+        width: AppSpacing.of(context).compactControlHeight,
+        height: AppSpacing.of(context).compactControlHeight,
+        child: Center(
+          child: SizedBox(
+            width: AppSpacing.of(context).compactIconSize,
+            height: AppSpacing.of(context).compactIconSize,
+            child: const CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
-      ),
+      );
+    }
+    return AppIconButton(
+      icon: Icons.add,
+      tooltip: 'Create tag…',
+      size: AppSpacing.of(context).compactControlHeight,
+      onPressed: () async {
+        final request = await TagCreateDialog.show(context);
+        if (request == null || !context.mounted) return;
+        await ref
+            .read(gitActionsControllerProvider)
+            .createTag(
+              context,
+              repo,
+              request.name,
+              message: request.message,
+            );
+      },
     );
   }
 }
@@ -261,39 +311,40 @@ class _SectionState extends State<_Section> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InkWell(
+        SidebarRowSurface(
           onTap: () => setState(() => _open = !_open),
           child: Padding(
             padding: const EdgeInsets.only(
-              left: kSidebarChevronIndent,
+              left: kSidebarChevronIndent - 1,
               right: 14,
-              top: 6,
-              bottom: 6,
             ),
-            child: Row(children: [
-              Icon(
-                _open ? Icons.expand_more : Icons.chevron_right,
-                size: kSidebarGlyphColumnWidth,
-                color: palette.fg3,
-              ),
-              const SizedBox(width: kSidebarGlyphGap),
-              Expanded(
-                child: Text(
-                  widget.title,
-                  style: AppTypography.of(context).caption.copyWith(
-                        color: palette.fg2,
-                        letterSpacing: 0.5,
-                      ),
+            child: Row(
+              children: [
+                Icon(
+                  _open ? Icons.expand_more : Icons.chevron_right,
+                  size: AppSpacing.of(context).regularIconSize,
+                  color: palette.fg3,
                 ),
-              ),
-              if (widget.trailing != null) widget.trailing!,
-            ]),
+                const SizedBox(width: kSidebarGlyphGap),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    style: AppTypography.of(context).caption.copyWith(
+                      color: palette.fg2,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                if (widget.trailing != null) widget.trailing!,
+              ],
+            ),
           ),
         ),
         if (_open)
           Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: widget.child),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: widget.child,
+          ),
       ],
     );
   }
@@ -305,16 +356,18 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(
-          left: kSidebarRowIndent,
-          right: 14,
-          top: 4,
-          bottom: 4,
-        ),
-        child: Text(text,
-            style: AppTypography.of(context).caption.copyWith(
-                  color: AppPalette.of(context).fg3,
-                  fontStyle: FontStyle.italic,
-                )),
-      );
+    padding: const EdgeInsets.only(
+      left: kSidebarRowIndent,
+      right: 14,
+      top: 4,
+      bottom: 4,
+    ),
+    child: Text(
+      text,
+      style: AppTypography.of(context).caption.copyWith(
+        color: AppPalette.of(context).fg3,
+        fontStyle: FontStyle.italic,
+      ),
+    ),
+  );
 }

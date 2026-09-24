@@ -20,14 +20,17 @@ import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_search_field.dart';
 import 'package:gitopen/ui/commit_graph/commit_row.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
-import 'package:gitopen/ui/common/skeleton.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/dialogs/branch_create_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/dialogs/interactive_rebase_dialog.dart';
 import 'package:gitopen/ui/dialogs/merge_dialog.dart';
 import 'package:gitopen/ui/dialogs/tag_create_dialog.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 class CommitGraphPanel extends ConsumerStatefulWidget {
@@ -134,13 +137,11 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
               skipLoadingOnReload: true,
               data: (data) {
                 if (data.nodes.isEmpty) {
-                  return Center(
-                    child: Text(
-                      searchActive
-                          ? 'No commits match the search.'
-                          : 'No commits in this repository.',
-                      style: TextStyle(color: palette.fg2),
-                    ),
+                  return AppEmptyState(
+                    icon: Icons.account_tree_outlined,
+                    title: searchActive
+                        ? 'No commits match the search'
+                        : 'No commits in this repository',
                   );
                 }
                 final selected = ref.watch(selectedCommitShaProvider);
@@ -150,7 +151,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                     Expanded(
                       child: ListView.builder(
                         controller: _controller,
-                        itemExtent: 26,
+                        itemExtent: AppSpacing.of(context).graphRowHeight,
                         itemCount: data.nodes.length + (data.hasMore ? 1 : 0),
                         itemBuilder: (context, i) {
                           if (i >= data.nodes.length) {
@@ -167,10 +168,23 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                           final node = data.nodes[i];
                           final refs =
                               data.refsBySha[node.commit.sha.value] ?? const [];
+                          final bisect = bisectAsync.value;
+                          final sha = node.commit.sha;
                           return CommitRow(
                             node: node,
                             maxLane: data.maxLane,
                             refs: refs,
+                            bisectMarkers: bisect == null
+                                ? const []
+                                : [
+                                    if (bisect.candidate == sha)
+                                      BisectMarker.candidate,
+                                    if (bisect.good.contains(sha))
+                                      BisectMarker.good,
+                                    if (bisect.bad == sha) BisectMarker.bad,
+                                    if (bisect.firstBad == sha)
+                                      BisectMarker.firstBad,
+                                  ],
                             isSelected: selected == node.commit.sha,
                             onTap: () {
                               ref
@@ -211,15 +225,11 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                 );
               },
               loading: () =>
-                  const SkeletonList(rows: 18, rowHeight: 11, gap: 15),
-              error: (e, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'Failed to load graph: $e',
-                    style: TextStyle(color: palette.accentErr),
-                  ),
-                ),
+                  const AppLoadingState.list(rows: 18, rowHeight: 11, gap: 15),
+              error: (e, _) => AppErrorState(
+                message: 'Failed to load graph',
+                detail: '$e',
+                onRetry: () => ref.invalidate(commitGraphDataProvider(repo)),
               ),
             ),
           ),
@@ -266,7 +276,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         ),
         const AppMenuItem(
           value: 'edit_commit',
-          label: 'Edit (amend) here…',
+          label: 'Edit (amend) here',
           icon: Icons.build_outlined,
         ),
         AppMenuItem(
@@ -312,7 +322,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (canUndoLastCommit) ...const [
           AppMenuItem(
             value: 'undo_last_commit',
-            label: 'Undo last commit (soft reset)…',
+            label: 'Undo last commit (soft reset)',
             icon: Icons.undo_outlined,
           ),
           AppMenuDivider(),
@@ -329,7 +339,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         ),
         const AppMenuItem(
           value: 'reset_hard',
-          label: 'Reset (hard)…',
+          label: 'Reset (hard)',
           icon: Icons.restore,
           danger: true,
         ),
@@ -360,10 +370,10 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (!context.mounted) return;
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Rebase current branch',
+          title: 'Rebase current branch?',
           body:
-              'Rebase the current branch onto ${sha.short()}? '
-              'This rewrites commits on the current branch.',
+              'This rewrites commits on the current branch onto '
+              '${sha.short()}.',
           confirmLabel: 'Rebase',
         );
         if (!confirmed || !context.mounted) return;
@@ -406,9 +416,9 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (!context.mounted) return;
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Edit commit',
+          title: 'Edit commit?',
           body:
-              'Pause a rebase at ${sha.short()} so you can amend it? '
+              'This pauses a rebase at ${sha.short()} so you can amend it. '
               'Commits after it will be replayed when you continue. '
               'This rewrites history.',
           confirmLabel: 'Pause here',
@@ -461,24 +471,46 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
   Future<String?> _runBisectAction(BisectAction action) async {
     final service = ref.read(gitActionsServiceProvider);
     final repo = widget.repo;
-    final result = await switch (action) {
-      BisectAction.good => service.bisectGood(repo),
-      BisectAction.bad => service.bisectBad(repo),
-      BisectAction.skip => service.bisectSkip(repo),
-      BisectAction.reset => service.bisectReset(repo),
-    };
-    _refreshBisect();
-    return result.outcome == ActionOutcome.failed ? result.message : null;
+    final run = await _refreshBisect(
+      action.name,
+      () => switch (action) {
+        BisectAction.good => service.bisectGood(repo),
+        BisectAction.bad => service.bisectBad(repo),
+        BisectAction.skip => service.bisectSkip(repo),
+        BisectAction.reset => service.bisectReset(repo),
+      },
+    );
+    return run.status == ActionRunStatus.failed ? run.value?.message : null;
   }
 
-  void _refreshBisect() {
+  Future<ActionRun<ActionResult>> _refreshBisect(
+    String key,
+    Future<ActionResult> Function() action,
+  ) async {
     final repo = widget.repo;
-    ref
-      ..invalidate(bisectStateProvider(repo))
-      ..invalidate(repoStateProvider(repo))
-      ..invalidate(gitReadOperationsProvider)
-      ..invalidate(repoStatusProvider(repo))
-      ..invalidate(commitGraphDataProvider(repo));
+    final run = await ref
+        .read(actionRunnerProvider)
+        .runAndRefresh(
+          key: 'bisect:$key',
+          repo: repo,
+          scopes: const {
+            RefreshScope.repoState,
+            RefreshScope.graph,
+            RefreshScope.status,
+          },
+          action: () async {
+            final result = await action();
+            if (result.outcome == ActionOutcome.success) {
+              ref.invalidate(bisectStateProvider(repo));
+              await ref.read(bisectStateProvider(repo).future);
+            }
+            return result;
+          },
+          failed: (result) => result.outcome == ActionOutcome.failed,
+        );
+    // Both callers show a git failure inline (banner / start dialog), so no
+    // toast here; a refresh failure is toasted by the runner.
+    return run;
   }
 
   Future<void> _startBisect(BuildContext context, CommitSha bad) async {
@@ -535,18 +567,21 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
                             busy = true;
                             error = null;
                           });
-                          final result = await ref
-                              .read(gitActionsServiceProvider)
-                              .bisectStart(widget.repo, bad.value, good);
-                          _refreshBisect();
+                          final run = await _refreshBisect(
+                            'start',
+                            () => ref
+                                .read(gitActionsServiceProvider)
+                                .bisectStart(widget.repo, bad.value, good),
+                          );
                           if (!ctx.mounted) return;
-                          if (result.outcome == ActionOutcome.success) {
+                          if (run.status == ActionRunStatus.succeeded) {
                             Navigator.pop(ctx);
                           } else {
                             setDialogState(() {
                               busy = false;
                               error =
-                                  result.message ?? 'Could not start bisect.';
+                                  run.value?.message ??
+                                  'Could not start bisect.';
                             });
                           }
                         },
@@ -583,11 +618,11 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     final parent = commit.parentShas.first;
     final confirmed = await ConfirmDialog.show(
       context,
-      title: 'Undo last commit',
+      title: 'Undo last commit?',
       body:
-          'Soft reset HEAD from ${commit.sha.short()} to ${parent.short()}? '
-          'The commit will be removed from the current branch, with its '
-          'changes kept staged.',
+          'This soft-resets HEAD from ${commit.sha.short()} to '
+          '${parent.short()}. The commit will be removed from the current '
+          'branch, with its changes kept staged.',
       confirmLabel: 'Undo commit',
     );
     if (!confirmed || !context.mounted) return;
@@ -606,10 +641,8 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
       if (!context.mounted) return;
       final confirmed = await ConfirmDialog.show(
         context,
-        title: 'Hard reset',
-        body:
-            'This will discard all uncommitted changes and rewrite '
-            'history. Are you sure?',
+        title: 'Hard reset branch?',
+        body: 'This discards all uncommitted changes and rewrites history.',
         confirmLabel: 'Reset',
         dangerous: true,
       );

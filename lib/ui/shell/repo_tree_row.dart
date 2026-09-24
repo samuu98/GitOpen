@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/folder.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// Left padding for a row at [depth] in the tree.
@@ -134,14 +135,10 @@ class _DeleteButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return IconButton(
-      icon: Icon(Icons.delete_outline, size: 16, color: palette.fg2),
+    return AppIconButton(
+      icon: Icons.delete_outline,
       tooltip: tooltip,
-      splashRadius: 16,
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      size: 28,
       onPressed: () => unawaited(onRemove()),
     );
   }

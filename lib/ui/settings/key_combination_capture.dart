@@ -104,12 +104,12 @@ class _State extends State<KeyCombinationCapture> {
         ),
       ),
       actions: [
-        TextButton(onPressed: widget.onCancel, child: const Text('Cancel')),
-        ElevatedButton(
+        AppButton.secondary(label: 'Cancel', onPressed: widget.onCancel),
+        AppButton.primary(
+          label: 'Save',
           onPressed: _captured == null
               ? null
               : () => widget.onCaptured(_captured!),
-          child: const Text('Save'),
         ),
       ],
     );

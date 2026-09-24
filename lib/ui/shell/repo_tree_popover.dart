@@ -11,6 +11,7 @@ import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/dialogs/clone_dialog.dart';
 import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/shell/repo_tree_drag.dart';
 import 'package:gitopen/ui/shell/repo_tree_row.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -258,14 +259,14 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
       _action(palette, Icons.create_new_folder, 'New folder', () {
         setState(() => _addingFolder = !_addingFolder);
       }),
-      _action(palette, Icons.folder_open, 'Open repository...', _openRepo),
+      _action(palette, Icons.folder_open, 'Open repository…', _openRepo),
       _action(
         palette,
         Icons.folder_copy,
-        'Open folder of repos...',
+        'Open folder of repos…',
         _openReposFolder,
       ),
-      _action(palette, Icons.download, 'Clone repository...', _clone),
+      _action(palette, Icons.download, 'Clone repository…', _clone),
     ],
   );
 
@@ -310,10 +311,10 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
   Future<void> _removeRepo(RepoId id, String name) async {
     final ok = await ConfirmDialog.show(
       context,
-      title: 'Remove repository',
+      title: 'Remove repository?',
       body:
-          "Remove '$name' from GitOpen? This only takes it off the list — "
-          'your files on disk are not touched.',
+          "'$name' will be removed from GitOpen's list. Your files on disk "
+          'are not touched.',
       confirmLabel: 'Remove',
       dangerous: true,
     );
@@ -332,10 +333,11 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
   Future<void> _removeFolder(FolderId id, String name) async {
     final ok = await ConfirmDialog.show(
       context,
-      title: 'Remove folder',
+      title: 'Remove folder?',
       body:
-          "Remove the folder '$name'? Repositories and folders inside it "
-          'move up to the level above. Nothing is deleted from disk.',
+          "The folder '$name' will be removed. Repositories and folders "
+          'inside it move up to the level above; nothing is deleted from '
+          'disk.',
       confirmLabel: 'Remove',
       dangerous: true,
     );
@@ -377,15 +379,13 @@ class _RepoTreePopoverState extends ConsumerState<RepoTreePopover> {
     final activeNotifier = ref.read(activeWorkspaceIdProvider.notifier);
     // The messenger is an ancestor State that outlives this popover, so it is
     // safe to use after the dismiss below.
-    final messenger = ScaffoldMessenger.of(context);
+    final feedback = ref.read(actionFeedbackProvider);
     widget.onDismiss();
     final parent = await picker.pickFolder('Open folder of repositories');
     if (parent == null) return;
     final paths = await scanner.findRepositories(parent);
     if (paths.isEmpty) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('No git repositories found in $parent')),
-      );
+      feedback.showActionFailure('No git repositories found in $parent');
       return;
     }
     RepoId? firstId;

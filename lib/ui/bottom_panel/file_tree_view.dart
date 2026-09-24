@@ -6,7 +6,9 @@ import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/files/file_tree_entry.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/bottom_panel/file_history_dialog.dart';
+import 'package:gitopen/ui/common/app_empty_state.dart';
 import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/common/file_list_mode_toggle.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -36,7 +38,6 @@ class _FileTreeViewWidgetState extends ConsumerState<FileTreeViewWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
     final spacing = AppSpacing.of(context);
     final asTree = ref.watch(
       appSettingsProvider.select((s) => s.fileListsAsTree),
@@ -45,11 +46,21 @@ class _FileTreeViewWidgetState extends ConsumerState<FileTreeViewWidget> {
       _fileTreeProvider((repo: widget.repo, sha: widget.sha)),
     );
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Text('Error: $e', style: TextStyle(color: palette.accentErr)),
+      loading: () => const AppLoadingState.detail(),
+      error: (e, _) => AppErrorState(
+        message: 'Failed to load file tree',
+        detail: '$e',
+        onRetry: () => ref.invalidate(
+          _fileTreeProvider((repo: widget.repo, sha: widget.sha)),
+        ),
       ),
       data: (entries) {
+        if (entries.isEmpty) {
+          return const AppEmptyState(
+            icon: Icons.folder_outlined,
+            title: 'No files in this commit',
+          );
+        }
         final children = <Widget>[
           const Padding(
             padding: EdgeInsets.only(bottom: 4),

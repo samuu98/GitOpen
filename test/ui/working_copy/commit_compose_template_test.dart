@@ -83,9 +83,12 @@ void main() {
       );
       await tester.tap(find.text('Commit'));
       await tester.pump();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CommitCompose)),
+      );
       expect(
-        find.text('Edit the commit template before committing.'),
-        findsOneWidget,
+        container.read(operationsProvider).last.errorMessage,
+        'Edit the commit template before committing.',
       );
       expect(write.commitCalls, 0);
     } finally {

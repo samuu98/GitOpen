@@ -84,8 +84,9 @@ void main() {
   });
 
   group('RepoTreePopover drag', () {
-    testWidgets('dragging a repo onto another records a moveRepo',
-        (tester) async {
+    testWidgets('dragging a repo onto another records a moveRepo', (
+      tester,
+    ) async {
       final store = _RecordingStore(const [
         PlacedRepo(
           location: RepoLocation(RepoId('a'), '/tmp/a', 'alpha'),
@@ -122,9 +123,12 @@ void main() {
 
       expect(find.text('alpha'), findsOneWidget);
       expect(find.byType(DragTreeRow), findsNWidgets(2));
-
       // Drag 'alpha' down onto 'beta'.
-      await tester.drag(find.text('alpha'), const Offset(0, 80));
+      await tester.drag(
+        find.text('alpha'),
+        tester.getCenter(find.text('beta')) -
+            tester.getCenter(find.text('alpha')),
+      );
       await tester.pumpAndSettle();
 
       expect(store.repoMoves, isNotEmpty);

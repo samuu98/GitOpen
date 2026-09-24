@@ -30,6 +30,7 @@ class RunningOperation extends Equatable {
     this.stderrTail = const [],
     this.finishedAt,
     this.onCancel,
+    this.onRetry,
     this.errorMessage,
   });
   final String id;
@@ -46,6 +47,10 @@ class RunningOperation extends Equatable {
   /// Aborts the underlying work when the user cancels the operation (e.g.
   /// kills the spawned process). Null for operations that can't be cancelled.
   final void Function()? onCancel;
+
+  /// Re-runs the part that failed (typically the view refresh after a git
+  /// command that itself succeeded). Null when there is nothing to retry.
+  final void Function()? onRetry;
   final String? errorMessage;
 
   RunningOperation copyWith({
@@ -55,6 +60,7 @@ class RunningOperation extends Equatable {
     List<String>? stderrTail,
     DateTime? finishedAt,
     void Function()? onCancel,
+    void Function()? onRetry,
     String? errorMessage,
   }) {
     return RunningOperation(
@@ -65,6 +71,7 @@ class RunningOperation extends Equatable {
       stderrTail: stderrTail ?? this.stderrTail,
       finishedAt: finishedAt ?? this.finishedAt,
       onCancel: onCancel ?? this.onCancel,
+      onRetry: onRetry ?? this.onRetry,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

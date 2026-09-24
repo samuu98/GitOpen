@@ -264,7 +264,7 @@ class _NavItemState extends State<_NavItem> {
   (IconData, String) _meta(SettingsSectionId s) {
     return switch (s) {
       SettingsSectionId.general => (Icons.tune, 'General'),
-      SettingsSectionId.gitIdentity => (Icons.fingerprint, 'Git Identity'),
+      SettingsSectionId.gitIdentity => (Icons.fingerprint, 'Git identity'),
       SettingsSectionId.authentication => (
         Icons.key_outlined,
         'Authentication',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/refs/stash.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
@@ -22,26 +23,37 @@ class StashRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Semantics(
-      button: true,
-      label: 'Stash ${stash.index}: ${stash.message}',
-      child: GestureDetector(
-        onSecondaryTapDown: (details) =>
-            _showContextMenu(context, ref, details.globalPosition),
-        child: InkWell(
-          onTap: () => revealCommit(ref, stash.sha),
-          child: Padding(
-            padding: const EdgeInsets.only(
-                left: kSidebarRowIndent, right: 26, top: 3, bottom: 3),
-            child: Text(
-              'stash@{${stash.index}} — ${stash.message}',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: AppPalette.of(context).fg1,
-                fontSize: 12.5,
+    final busy = ref.watch(busyProvider);
+    final pending =
+        busy.isRunning('${repo.id.value}/stash-restore:${stash.index}') ||
+        busy.isRunning('${repo.id.value}/stash-drop:${stash.index}');
+    return SidebarRowSurface(
+      semanticLabel: 'Stash ${stash.index}: ${stash.message}',
+      onSecondaryTapDown: pending
+          ? null
+          : (details) => _showContextMenu(context, ref, details.globalPosition),
+      onTap: pending ? null : () => revealCommit(ref, stash.sha),
+      child: Padding(
+        padding: const EdgeInsets.only(left: kSidebarRowIndent - 1, right: 26),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'stash@{${stash.index}} — ${stash.message}',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppPalette.of(context).fg1,
+                  fontSize: 12.5,
+                ),
               ),
             ),
-          ),
+            if (pending)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+          ],
         ),
       ),
     );
@@ -78,24 +90,23 @@ class StashRow extends ConsumerWidget {
     switch (selected) {
       case 'apply':
         await actions.stashApply(context, repo, stash.index);
-        onRefresh();
 
       case 'pop':
         await actions.stashPop(context, repo, stash.index);
-        onRefresh();
 
       case 'drop':
         if (!context.mounted) return;
         final confirmed = await ConfirmDialog.show(
           context,
-          title: 'Drop stash',
-          body: 'Drop "stash@{${stash.index}}"? This cannot be undone.',
+          title: 'Drop stash?',
+          body:
+              '"stash@{${stash.index}}" will be dropped. This cannot be '
+              'undone.',
           confirmLabel: 'Drop',
           dangerous: true,
         );
         if (!confirmed || !context.mounted) return;
         await actions.stashDrop(context, repo, stash.index);
-        onRefresh();
     }
   }
 }

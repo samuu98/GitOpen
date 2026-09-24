@@ -1,5 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/toolbar/toolbar_buttons.dart';
@@ -17,6 +21,70 @@ Widget _host(Widget child) => MaterialApp(
 );
 
 void main() {
+  testWidgets(
+    'toolbar states and shortcut tooltip use the shared surface',
+    (tester) async {
+      await tester.pumpWidget(
+        _host(
+          ToolbarButton(
+            icon: Icons.cloud_download_outlined,
+            label: 'Fetch',
+            tooltip: 'Fetch (F5)',
+            enabled: false,
+            onTap: () {},
+          ),
+        ),
+      );
+      var surface = tester.widget<AppInteractiveSurface>(
+        find.byType(AppInteractiveSurface),
+      );
+      expect(surface.onTap, isNull);
+      expect(surface.height, 38);
+      expect(find.byTooltip('Fetch (F5)'), findsOneWidget);
+
+      await tester.pumpWidget(
+        _host(
+          ToolbarButton(
+            icon: Icons.cloud_download_outlined,
+            label: 'Fetch',
+            tooltip: 'Fetch (F5)',
+            enabled: true,
+            onTap: () {},
+          ),
+        ),
+      );
+      surface = tester.widget<AppInteractiveSurface>(
+        find.byType(AppInteractiveSurface),
+      );
+      expect(surface.onTap, isNotNull);
+      await tester.ensureVisible(find.text('Fetch'));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer();
+      await gesture.moveTo(tester.getCenter(find.text('Fetch')));
+      await tester.pumpAndSettle();
+      final hovered = tester.widget<AnimatedContainer>(
+        find.byType(AnimatedContainer),
+      );
+      expect(
+        (hovered.decoration! as BoxDecoration).color,
+        AppPalette.dark().interactionHover,
+      );
+      expect(
+        tester.widget<InkWell>(find.byType(InkWell)).hoverColor,
+        Colors.transparent,
+      );
+      await gesture.removePointer();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      final focused = tester.widget<AnimatedContainer>(
+        find.byType(AnimatedContainer),
+      );
+      expect(
+        (focused.decoration! as BoxDecoration).border!.top.color,
+        AppPalette.dark().interactionFocusRing,
+      );
+    },
+  );
   testWidgets('compact toolbar action keeps its tooltip and hides its label', (
     tester,
   ) async {

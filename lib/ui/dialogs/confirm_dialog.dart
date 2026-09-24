@@ -47,11 +47,12 @@ class ConfirmDialog extends StatelessWidget {
         AppButton.secondary(
           label: 'Cancel',
           onPressed: () => Navigator.pop(context, false),
+          // Destructive confirmations default focus to the safe choice.
+          autofocus: dangerous,
         ),
         if (dangerous) AppButton.danger(
                 label: confirmLabel ?? 'OK',
                 onPressed: () => Navigator.pop(context, true),
-                autofocus: true,
               ) else AppButton.primary(
                 label: confirmLabel ?? 'OK',
                 onPressed: () => Navigator.pop(context, true),

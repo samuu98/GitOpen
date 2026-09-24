@@ -7,8 +7,12 @@ import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/git/git_progress.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
+import 'package:gitopen/ui/welcome/workspace_ready.dart';
 
 class CloneDialog extends ConsumerStatefulWidget {
   const CloneDialog({super.key});
@@ -28,6 +32,8 @@ class _State extends ConsumerState<CloneDialog> {
   String? _operationId;
   StreamSubscription<GitProgress>? _subscription;
   String? _error;
+  String? _loadError;
+  RepoLocation? _readyRepo;
 
   @override
   void dispose() {
@@ -74,10 +80,10 @@ class _State extends ConsumerState<CloneDialog> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                IconButton(
-                  icon: Icon(Icons.folder_open, color: palette.fg1, size: 18),
+                AppIconButton(
+                  icon: Icons.folder_open,
                   tooltip: 'Browse…',
-                  onPressed: _pickDest,
+                  onPressed: _busy ? null : _pickDest,
                 ),
               ],
             ),
@@ -114,6 +120,14 @@ class _State extends ConsumerState<CloneDialog> {
                 ],
               ),
             ],
+            if (_loadError != null) ...[
+              const SizedBox(height: 12),
+              AppErrorState(
+                message: 'Could not load repository',
+                detail: _loadError,
+                onRetry: _retryReady,
+              ),
+            ],
           ],
         ),
         actions: [
@@ -123,7 +137,7 @@ class _State extends ConsumerState<CloneDialog> {
           ),
           AppButton.primary(
             label: _error == null ? 'Clone' : 'Retry',
-            onPressed: _busy ? null : _clone,
+            onPressed: _busy || _loadError != null ? null : _clone,
           ),
         ],
       ),
@@ -138,7 +152,9 @@ class _State extends ConsumerState<CloneDialog> {
     if (_cancelled) return;
     _cancelled = true;
     final id = _operationId;
-    if (id != null) {
+    if (id == null) {
+      _close();
+    } else {
       ref.read(operationsProvider.notifier).cancel(id);
     }
   }
@@ -165,6 +181,8 @@ class _State extends ConsumerState<CloneDialog> {
       _busy = true;
       _cancelled = false;
       _error = null;
+      _loadError = null;
+      _readyRepo = null;
     });
     final ops = ref.read(operationsProvider.notifier);
     final done = Completer<void>();
@@ -214,33 +232,69 @@ class _State extends ConsumerState<CloneDialog> {
         _close();
         return;
       }
-      ops.finishSuccess(id);
       cloneFinished = true;
-      _operationId = null;
-      if (mounted) setState(() => _busy = false);
       if (_openAfter && mounted) {
         final manager = ref.read(workspaceManagerProvider.notifier);
         final active = ref.read(activeWorkspaceIdProvider.notifier);
         final ws = await manager.open(dest);
-        if (!mounted) return;
+        if (!mounted || _cancelled) {
+          if (_cancelled) _close();
+          return;
+        }
+        _readyRepo = ws.location;
+        await ref.read(workspaceReadyProvider(ws.location).future);
+        if (!mounted || _cancelled) {
+          if (_cancelled) _close();
+          return;
+        }
         active.state = ws.location.id;
       }
+      ops.finishSuccess(id);
       _close();
     } on Object catch (e) {
       final message = errorText(e);
-      if (!_cancelled && !cloneFinished) ops.finishFailure(id, message);
+      if (!_cancelled) ops.finishFailure(id, message);
       // Inline error + retry: the dialog stays open with the inputs intact
       // so the user can fix the URL/destination and try again.
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = message;
+          if (cloneFinished && _readyRepo != null) {
+            _loadError = message;
+          } else {
+            _error = message;
+          }
         });
       }
     } finally {
       await _subscription?.cancel();
       _subscription = null;
       _operationId = null;
+    }
+  }
+
+  Future<void> _retryReady() async {
+    final repo = _readyRepo;
+    if (_busy || repo == null) return;
+    setState(() {
+      _busy = true;
+      _loadError = null;
+    });
+    try {
+      await retryWorkspaceReady(
+        ProviderScope.containerOf(context, listen: false),
+        repo,
+      );
+      if (!mounted) return;
+      ref.read(activeWorkspaceIdProvider.notifier).state = repo.id;
+      _close();
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _loadError = ref.read(gitErrorTextProvider)(error);
+        });
+      }
     }
   }
 }

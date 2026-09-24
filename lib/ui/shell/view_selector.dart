@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/main_view_provider.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -28,7 +29,7 @@ class ViewSelector extends ConsumerWidget {
     final changedCount =
         ref.watch(repoStatusProvider(repo)).value?.entries.length ?? 0;
     return Container(
-      height: 30,
+      height: AppSpacing.of(context).listRowHeight,
       color: palette.bg2,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
@@ -96,37 +97,40 @@ class _SegmentButton extends StatelessWidget {
     final palette = AppPalette.of(context);
     final radii = AppRadii.of(context);
     final typography = AppTypography.of(context);
-    // fg0 is the adaptive on-surface ink — near-white in dark, near-black in
-    // light. Using it (instead of a hardcoded Colors.white) keeps the selected
-    // label readable on bgAccent in BOTH themes: light bgAccent is a pale blue
-    // that white text was effectively invisible against.
-    final fg = selected ? palette.fg0 : palette.fg1;
-    return Material(
-      color: selected ? palette.bgAccent : palette.bg3,
+    final spacing = AppSpacing.of(context);
+    return AppInteractiveSurface(
+      onTap: onTap,
+      selected: selected,
+      tooltip: label,
+      semanticLabel: label,
+      alignment: null,
+      baseColor: palette.bg3,
+      selectedColor: palette.bgAccent,
       borderRadius: radii.controlRadius,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: radii.controlRadius,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-          child: Row(
-            children: [
-              Icon(icon, size: 13, color: fg),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: typography.caption.copyWith(
-                  color: fg,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                ),
-              ),
-              if (badgeCount > 0) ...[
-                const SizedBox(width: 6),
-                _CountBadge(count: badgeCount, selected: selected),
-              ],
-            ],
+      padding: EdgeInsets.symmetric(
+        horizontal: spacing.md - 2,
+        vertical: spacing.xxs - 1,
+      ),
+      child: (context, visual) => Row(
+        children: [
+          Icon(
+            icon,
+            size: spacing.compactIconSize,
+            color: selected ? palette.fg0 : visual.foreground,
           ),
-        ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: typography.caption.copyWith(
+              color: selected ? palette.fg0 : visual.foreground,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+          if (badgeCount > 0) ...[
+            const SizedBox(width: 6),
+            _CountBadge(count: badgeCount, selected: selected),
+          ],
+        ],
       ),
     );
   }

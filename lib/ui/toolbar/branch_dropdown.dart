@@ -5,7 +5,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/branch_create_dialog.dart';
-import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/dialogs/delete_branch_dialog.dart';
 import 'package:gitopen/ui/dialogs/reflog_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/toolbar/branch_picker_dialog.dart';
@@ -55,7 +55,7 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
     return [
       AppMenuButton(
         icon: Icons.add,
-        label: 'New branch from HEAD',
+        label: 'New branch from HEAD…',
         onPressed: () async {
           _menuController.close();
           if (!mounted) return;
@@ -83,7 +83,7 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
       const AppMenuAnchorDivider(),
       AppMenuButton(
         icon: Icons.history,
-        label: 'View reflog…',
+        label: 'View reflog',
         onPressed: () async {
           _menuController.close();
           if (!mounted) return;
@@ -95,11 +95,16 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
         icon: Icons.delete_outline,
         label: 'Delete branch…',
         danger: true,
-        onPressed: () async {
-          _menuController.close();
-          if (!mounted) return;
-          await _deleteBranch(repo);
-        },
+        onPressed:
+            ref
+                .watch(busyProvider)
+                .isRunning('${repo.id.value}/branch-delete-batch')
+            ? null
+            : () async {
+                _menuController.close();
+                if (!mounted) return;
+                await _deleteBranch(repo);
+              },
       ),
     ];
   }
@@ -154,17 +159,16 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
       branches: locals.map((b) => b.name).toList(),
     );
     if (selected == null || !mounted) return;
-    final confirmed = await ConfirmDialog.show(
+    final branch = branches
+        .where((b) => b.name == selected && !b.isRemote)
+        .firstOrNull;
+    if (branch == null) return;
+    await DeleteBranchesDialog.show(
       context,
-      title: 'Delete branch',
-      body: 'Delete "$selected"? This cannot be undone.',
-      confirmLabel: 'Delete',
-      dangerous: true,
+      repo: repo,
+      branches: [branch],
+      allBranches: branches,
     );
-    if (!confirmed || !mounted) return;
-    await ref
-        .read(gitActionsControllerProvider)
-        .deleteBranch(context, repo, selected, force: true);
   }
 
   Future<String?> _showBranchPickerDialog(

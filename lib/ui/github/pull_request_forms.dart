@@ -119,13 +119,13 @@ class _CreatePullRequestDialogState extends State<_CreatePullRequestDialog> {
         ],
       ),
       actions: [
-        TextButton(
+        AppButton.secondary(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          label: 'Cancel',
         ),
-        FilledButton(
+        AppButton.primary(
           onPressed: _submit,
-          child: const Text('Create'),
+          label: 'Create',
         ),
       ],
     );
@@ -208,13 +208,13 @@ class _EditPullRequestDialogState extends State<_EditPullRequestDialog> {
         ],
       ),
       actions: [
-        TextButton(
+        AppButton.secondary(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          label: 'Cancel',
         ),
-        FilledButton(
+        AppButton.primary(
           onPressed: _submit,
-          child: const Text('Save'),
+          label: 'Save',
         ),
       ],
     );
@@ -304,11 +304,11 @@ class _MergePullRequestDialogState extends State<_MergePullRequestDialog> {
         ],
       ),
       actions: [
-        TextButton(
+        AppButton.secondary(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          label: 'Cancel',
         ),
-        FilledButton(
+        AppButton.primary(
           onPressed: () => Navigator.of(context).pop(
             PullRequestMergeFormResult(
               MergePullRequestRequest(
@@ -318,7 +318,7 @@ class _MergePullRequestDialogState extends State<_MergePullRequestDialog> {
               ),
             ),
           ),
-          child: const Text('Confirm merge'),
+          label: 'Confirm merge',
         ),
       ],
     );

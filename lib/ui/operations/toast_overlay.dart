@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/operations/running_operation.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/operations/activity_panel.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -99,11 +100,11 @@ class _ToastItem extends ConsumerWidget {
           color: isError ? palette.accentErr : palette.borderStrong,
         ),
         borderRadius: radii.panelRadius,
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x80000000),
+            color: palette.shadow,
             blurRadius: 12,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -174,6 +175,19 @@ class _ToastItem extends ConsumerWidget {
                   child: Text(
                     op.errorMessage!,
                     style: TextStyle(color: palette.accentErr, fontSize: 11),
+                  ),
+                ),
+              if (isError && op.onRetry != null)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: AppButton.secondary(
+                    label: 'Retry',
+                    icon: Icons.refresh,
+                    compact: true,
+                    onPressed: () {
+                      onDismiss();
+                      op.onRetry!();
+                    },
                   ),
                 ),
             ],

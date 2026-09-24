@@ -24,6 +24,15 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     required this.accentWarn,
     required this.accentErr,
     required this.onAccentErr,
+    required this.interactionHover,
+    required this.interactionPressed,
+    required this.interactionFocusRing,
+    required this.interactionDisabledForeground,
+    required this.interactionDisabledOpacity,
+    required this.interactionSelected,
+    required this.interactionSelectedHover,
+    required this.scrim,
+    required this.shadow,
     required this.lanePalette,
   });
 
@@ -49,6 +58,15 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     accentWarn: Color(0xFFDFA172),
     accentErr: Color(0xFFFF8B7D),
     onAccentErr: Color(0xFF191A1D),
+    interactionHover: Color(0xFF2D2E34),
+    interactionPressed: Color(0xFF42434D),
+    interactionFocusRing: Color(0xFF6CAEE8),
+    interactionDisabledForeground: Color(0xFF808895),
+    interactionDisabledOpacity: 0.45,
+    interactionSelected: Color(0xFF0B5A84),
+    interactionSelectedHover: Color(0xFF17688F),
+    scrim: Color(0x66000000),
+    shadow: Color(0x80000000),
     lanePalette: [
       Color(0xFF55D6BE),
       Color(0xFFE0C46F),
@@ -83,6 +101,15 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     accentWarn: Color(0xFF8B4B20),
     accentErr: Color(0xFFA52424),
     onAccentErr: Color(0xFFFFFFFF),
+    interactionHover: Color(0xFFE8EAEE),
+    interactionPressed: Color(0xFFD0D6DF),
+    interactionFocusRing: Color(0xFF1F5F9E),
+    interactionDisabledForeground: Color(0xFF6B7483),
+    interactionDisabledOpacity: 0.45,
+    interactionSelected: Color(0xFFCBE7FF),
+    interactionSelectedHover: Color(0xFFB8DDFB),
+    scrim: Color(0x4D1F2328),
+    shadow: Color(0x331F2328),
     lanePalette: [
       Color(0xFF0A7E68),
       Color(0xFF81600D),
@@ -115,6 +142,19 @@ final class AppPalette extends ThemeExtension<AppPalette> {
   final Color accentWarn;
   final Color accentErr;
   final Color onAccentErr;
+  final Color interactionHover;
+  final Color interactionPressed;
+  final Color interactionFocusRing;
+  final Color interactionDisabledForeground;
+  final double interactionDisabledOpacity;
+  final Color interactionSelected;
+  final Color interactionSelectedHover;
+
+  /// Dim laid over the app behind a modal/blocking surface.
+  final Color scrim;
+
+  /// Drop shadow for surfaces that float above the shell (toasts, menus).
+  final Color shadow;
   final List<Color> lanePalette;
 
   @override
@@ -140,6 +180,15 @@ final class AppPalette extends ThemeExtension<AppPalette> {
     Color? accentWarn,
     Color? accentErr,
     Color? onAccentErr,
+    Color? interactionHover,
+    Color? interactionPressed,
+    Color? interactionFocusRing,
+    Color? interactionDisabledForeground,
+    double? interactionDisabledOpacity,
+    Color? interactionSelected,
+    Color? interactionSelectedHover,
+    Color? scrim,
+    Color? shadow,
     List<Color>? lanePalette,
   }) {
     return AppPalette(
@@ -164,6 +213,18 @@ final class AppPalette extends ThemeExtension<AppPalette> {
       accentWarn: accentWarn ?? this.accentWarn,
       accentErr: accentErr ?? this.accentErr,
       onAccentErr: onAccentErr ?? this.onAccentErr,
+      interactionHover: interactionHover ?? this.interactionHover,
+      interactionPressed: interactionPressed ?? this.interactionPressed,
+      interactionFocusRing: interactionFocusRing ?? this.interactionFocusRing,
+      interactionDisabledForeground:
+          interactionDisabledForeground ?? this.interactionDisabledForeground,
+      interactionDisabledOpacity:
+          interactionDisabledOpacity ?? this.interactionDisabledOpacity,
+      interactionSelected: interactionSelected ?? this.interactionSelected,
+      interactionSelectedHover:
+          interactionSelectedHover ?? this.interactionSelectedHover,
+      scrim: scrim ?? this.scrim,
+      shadow: shadow ?? this.shadow,
       lanePalette: lanePalette ?? this.lanePalette,
     );
   }
@@ -197,6 +258,41 @@ final class AppPalette extends ThemeExtension<AppPalette> {
       accentWarn: Color.lerp(accentWarn, other.accentWarn, t)!,
       accentErr: Color.lerp(accentErr, other.accentErr, t)!,
       onAccentErr: Color.lerp(onAccentErr, other.onAccentErr, t)!,
+      interactionHover: Color.lerp(
+        interactionHover,
+        other.interactionHover,
+        t,
+      )!,
+      interactionPressed: Color.lerp(
+        interactionPressed,
+        other.interactionPressed,
+        t,
+      )!,
+      interactionFocusRing: Color.lerp(
+        interactionFocusRing,
+        other.interactionFocusRing,
+        t,
+      )!,
+      interactionDisabledForeground: Color.lerp(
+        interactionDisabledForeground,
+        other.interactionDisabledForeground,
+        t,
+      )!,
+      interactionDisabledOpacity:
+          interactionDisabledOpacity +
+          (other.interactionDisabledOpacity - interactionDisabledOpacity) * t,
+      interactionSelected: Color.lerp(
+        interactionSelected,
+        other.interactionSelected,
+        t,
+      )!,
+      interactionSelectedHover: Color.lerp(
+        interactionSelectedHover,
+        other.interactionSelectedHover,
+        t,
+      )!,
+      scrim: Color.lerp(scrim, other.scrim, t)!,
+      shadow: Color.lerp(shadow, other.shadow, t)!,
       lanePalette: lanePalette, // not lerped — palette swap is discrete
     );
   }

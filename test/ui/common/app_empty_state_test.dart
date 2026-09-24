@@ -44,4 +44,17 @@ void main() {
     await tester.tap(find.text('Refresh'));
     expect(taps, 1);
   });
+
+  testWidgets('message is an optional hint', (tester) async {
+    await tester.pumpWidget(
+      _host(
+        const AppEmptyState(
+          icon: Icons.inbox_outlined,
+          title: 'No open pull requests',
+        ),
+      ),
+    );
+
+    expect(find.text('No open pull requests'), findsOneWidget);
+  });
 }

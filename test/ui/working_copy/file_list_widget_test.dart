@@ -12,6 +12,7 @@ import 'package:gitopen/application/settings/settings_store.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/working_file_entry.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/file_list.dart';
 import 'package:gitopen/ui/working_copy/file_row.dart';
@@ -74,14 +75,20 @@ void main() {
     await tester.pump();
     expect(
       tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Stage all'))
+          .widget<AppButton>(find.widgetWithText(AppButton, 'Stage all'))
           .onPressed,
       isNull,
     );
     expect(write.calls, 1);
     write.finish();
     await tester.pump();
-    expect(find.text('Stage failed: locked index'), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.text('Stage all')),
+    );
+    expect(
+      container.read(operationsProvider).last.errorMessage,
+      'Stage failed: locked index',
+    );
     expect(write.calls, 1);
   });
 

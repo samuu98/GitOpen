@@ -10,6 +10,16 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
     required this.lg,
     required this.xl,
     required this.xxl,
+    this.compactControlHeight = 28,
+    this.regularControlHeight = 38,
+    this.graphRowHeight = 26,
+    this.listRowHeight = 30,
+    this.menuRowHeight = 30,
+    this.statusIconSize = 11,
+    this.compactIconSize = 13,
+    this.regularIconSize = 14,
+    this.panelIconSize = 34,
+    this.detailIndicatorSize = 20,
   });
 
   const factory AppSpacing.desktop() = AppSpacing._desktop;
@@ -21,7 +31,17 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
       md = 12,
       lg = 16,
       xl = 24,
-      xxl = 32;
+      xxl = 32,
+      compactControlHeight = 28,
+      regularControlHeight = 38,
+      graphRowHeight = 26,
+      listRowHeight = 30,
+      menuRowHeight = 30,
+      statusIconSize = 11,
+      compactIconSize = 13,
+      regularIconSize = 14,
+      panelIconSize = 34,
+      detailIndicatorSize = 20;
 
   final double xxs;
   final double xs;
@@ -30,6 +50,16 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
   final double lg;
   final double xl;
   final double xxl;
+  final double compactControlHeight;
+  final double regularControlHeight;
+  final double graphRowHeight;
+  final double listRowHeight;
+  final double menuRowHeight;
+  final double statusIconSize;
+  final double compactIconSize;
+  final double regularIconSize;
+  final double panelIconSize;
+  final double detailIndicatorSize;
 
   EdgeInsets get panel => EdgeInsets.all(md);
   EdgeInsets get row => EdgeInsets.symmetric(horizontal: md, vertical: sm);
@@ -47,6 +77,16 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
     double? lg,
     double? xl,
     double? xxl,
+    double? compactControlHeight,
+    double? regularControlHeight,
+    double? graphRowHeight,
+    double? listRowHeight,
+    double? menuRowHeight,
+    double? statusIconSize,
+    double? compactIconSize,
+    double? regularIconSize,
+    double? panelIconSize,
+    double? detailIndicatorSize,
   }) {
     return AppSpacing(
       xxs: xxs ?? this.xxs,
@@ -56,6 +96,16 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
       lg: lg ?? this.lg,
       xl: xl ?? this.xl,
       xxl: xxl ?? this.xxl,
+      compactControlHeight: compactControlHeight ?? this.compactControlHeight,
+      regularControlHeight: regularControlHeight ?? this.regularControlHeight,
+      graphRowHeight: graphRowHeight ?? this.graphRowHeight,
+      listRowHeight: listRowHeight ?? this.listRowHeight,
+      menuRowHeight: menuRowHeight ?? this.menuRowHeight,
+      statusIconSize: statusIconSize ?? this.statusIconSize,
+      compactIconSize: compactIconSize ?? this.compactIconSize,
+      regularIconSize: regularIconSize ?? this.regularIconSize,
+      panelIconSize: panelIconSize ?? this.panelIconSize,
+      detailIndicatorSize: detailIndicatorSize ?? this.detailIndicatorSize,
     );
   }
 
@@ -70,6 +120,28 @@ final class AppSpacing extends ThemeExtension<AppSpacing> {
       lg: _lerpDouble(lg, other.lg, t),
       xl: _lerpDouble(xl, other.xl, t),
       xxl: _lerpDouble(xxl, other.xxl, t),
+      compactControlHeight: _lerpDouble(
+        compactControlHeight,
+        other.compactControlHeight,
+        t,
+      ),
+      regularControlHeight: _lerpDouble(
+        regularControlHeight,
+        other.regularControlHeight,
+        t,
+      ),
+      graphRowHeight: _lerpDouble(graphRowHeight, other.graphRowHeight, t),
+      listRowHeight: _lerpDouble(listRowHeight, other.listRowHeight, t),
+      menuRowHeight: _lerpDouble(menuRowHeight, other.menuRowHeight, t),
+      statusIconSize: _lerpDouble(statusIconSize, other.statusIconSize, t),
+      compactIconSize: _lerpDouble(compactIconSize, other.compactIconSize, t),
+      regularIconSize: _lerpDouble(regularIconSize, other.regularIconSize, t),
+      panelIconSize: _lerpDouble(panelIconSize, other.panelIconSize, t),
+      detailIndicatorSize: _lerpDouble(
+        detailIndicatorSize,
+        other.detailIndicatorSize,
+        t,
+      ),
     );
   }
 
@@ -224,6 +296,8 @@ final class AppMotion extends ThemeExtension<AppMotion> {
     required this.normal,
     required this.slow,
     required this.curve,
+    required this.indicatorDelay,
+    required this.indicatorMinimum,
   });
 
   const factory AppMotion.standard() = AppMotion._standard;
@@ -232,12 +306,22 @@ final class AppMotion extends ThemeExtension<AppMotion> {
     : fast = const Duration(milliseconds: 120),
       normal = const Duration(milliseconds: 160),
       slow = const Duration(milliseconds: 200),
-      curve = Curves.easeOutCubic;
+      curve = Curves.easeOutCubic,
+      indicatorDelay = const Duration(milliseconds: 150),
+      indicatorMinimum = const Duration(milliseconds: 400);
 
   final Duration fast;
   final Duration normal;
   final Duration slow;
   final Curve curve;
+
+  /// How long an action may run before its pending indicator appears. Anything
+  /// that finishes sooner shows nothing at all instead of flashing a spinner.
+  final Duration indicatorDelay;
+
+  /// How long a pending indicator stays once it is shown, so a fast refresh
+  /// cannot make it blink out the frame after it appeared.
+  final Duration indicatorMinimum;
 
   @override
   AppMotion copyWith({
@@ -245,12 +329,16 @@ final class AppMotion extends ThemeExtension<AppMotion> {
     Duration? normal,
     Duration? slow,
     Curve? curve,
+    Duration? indicatorDelay,
+    Duration? indicatorMinimum,
   }) {
     return AppMotion(
       fast: fast ?? this.fast,
       normal: normal ?? this.normal,
       slow: slow ?? this.slow,
       curve: curve ?? this.curve,
+      indicatorDelay: indicatorDelay ?? this.indicatorDelay,
+      indicatorMinimum: indicatorMinimum ?? this.indicatorMinimum,
     );
   }
 
@@ -262,6 +350,16 @@ final class AppMotion extends ThemeExtension<AppMotion> {
       normal: _lerpDuration(normal, other.normal, t),
       slow: _lerpDuration(slow, other.slow, t),
       curve: t < 0.5 ? curve : other.curve,
+      indicatorDelay: _lerpDuration(
+        indicatorDelay,
+        other.indicatorDelay,
+        t,
+      ),
+      indicatorMinimum: _lerpDuration(
+        indicatorMinimum,
+        other.indicatorMinimum,
+        t,
+      ),
     );
   }
 

@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/auth/device_flow_controller.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -68,13 +70,12 @@ class _GitHubOAuthTabState extends ConsumerState<GitHubOAuthTab> {
       padding: const EdgeInsets.all(16),
       child: switch (_controller.state) {
         DeviceFlowIdle() => _buildIdle(),
-        DeviceFlowAwaitingAuthorization(:final userCode) =>
-          _buildWaiting(userCode),
+        DeviceFlowAwaitingAuthorization(:final userCode) => _buildWaiting(
+          userCode,
+        ),
         // While the code is being requested — and after success, while the
         // dialog saves the profile — show the plain spinner.
-        DeviceFlowRequestingCode() ||
-        DeviceFlowSucceeded() =>
-          _buildPolling(),
+        DeviceFlowRequestingCode() || DeviceFlowSucceeded() => _buildPolling(),
         DeviceFlowFailed(:final message) => _buildError(message),
       },
     );
@@ -82,9 +83,9 @@ class _GitHubOAuthTabState extends ConsumerState<GitHubOAuthTab> {
 
   Widget _buildIdle() {
     return Center(
-      child: ElevatedButton.icon(
-        icon: const Icon(Icons.login, size: 16),
-        label: const Text('Sign in with GitHub'),
+      child: AppButton.primary(
+        icon: Icons.login,
+        label: 'Sign in with GitHub',
         onPressed: () => unawaited(_controller.start()),
       ),
     );
@@ -114,21 +115,21 @@ class _GitHubOAuthTabState extends ConsumerState<GitHubOAuthTab> {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton(
-              icon: Icon(Icons.copy, size: 16, color: palette.fg2),
+            AppIconButton(
+              icon: Icons.copy,
               tooltip: 'Copy code',
-              onPressed: () =>
-                  Clipboard.setData(ClipboardData(text: userCode)),
+              onPressed: () => Clipboard.setData(ClipboardData(text: userCode)),
             ),
           ],
         ),
         const SizedBox(height: 10),
-        TextButton.icon(
-          icon: const Icon(Icons.open_in_browser, size: 14),
-          label: const Text('Open GitHub'),
+        AppButton.secondary(
+          icon: Icons.open_in_browser,
+          label: 'Open GitHub',
           onPressed: () {
-            if (_controller.state
-                case DeviceFlowAwaitingAuthorization(:final verificationUri)) {
+            if (_controller.state case DeviceFlowAwaitingAuthorization(
+              :final verificationUri,
+            )) {
               unawaited(_openBrowser(verificationUri));
             }
           },
@@ -178,9 +179,9 @@ class _GitHubOAuthTabState extends ConsumerState<GitHubOAuthTab> {
           style: TextStyle(color: palette.accentErr, fontSize: 12),
         ),
         const SizedBox(height: 12),
-        TextButton(
+        AppButton.secondary(
           onPressed: _controller.reset,
-          child: const Text('Try again'),
+          label: 'Try again',
         ),
       ],
     );

@@ -3,12 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_animated_row.dart';
 import 'package:gitopen/ui/common/app_empty_state.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/github/github_api_state.dart';
+import 'package:gitopen/ui/github/github_mutation.dart';
 import 'package:gitopen/ui/github/github_providers.dart';
 import 'package:gitopen/ui/github/pull_request_detail_view.dart';
 import 'package:gitopen/ui/github/pull_request_forms.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -30,6 +37,7 @@ class PullRequestsTab extends ConsumerStatefulWidget {
 
 class _PullRequestsTabState extends ConsumerState<PullRequestsTab> {
   int? _selectedNumber;
+  bool _creating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +45,7 @@ class _PullRequestsTabState extends ConsumerState<PullRequestsTab> {
     final key = (slug: widget.slug, token: widget.token);
     final async = ref.watch(githubPullRequestsProvider(key));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const AppLoadingState.list(),
       error: (e, _) => GitHubApiErrorView(
         error: e,
         onRetry: () => ref.invalidate(githubPullRequestsProvider(key)),
@@ -56,7 +64,10 @@ class _PullRequestsTabState extends ConsumerState<PullRequestsTab> {
         final selected = _selectedNumber;
         return Column(
           children: [
-            _PullRequestsToolbar(onCreate: _createPullRequest),
+            _PullRequestsToolbar(
+              onCreate: _creating ? null : _createPullRequest,
+              pending: _creating,
+            ),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -103,36 +114,49 @@ class _PullRequestsTabState extends ConsumerState<PullRequestsTab> {
   }
 
   Future<void> _createPullRequest() async {
+    if (_creating) return;
     final result = await showCreatePullRequestDialog(context);
     if (result == null || !mounted) return;
+    setState(() => _creating = true);
     try {
-      final created = await ref
-          .read(gitHubApiProvider)
-          .createPullRequest(widget.slug, result.request, token: widget.token);
-      if (!mounted) return;
-      ref.invalidate(
-        githubPullRequestsProvider((slug: widget.slug, token: widget.token)),
+      final outcome = await runGitHubMutation<PullRequestDetail>(
+        ref,
+        repo: widget.repo,
+        key: 'pr/create',
+        slug: widget.slug,
+        token: widget.token,
+        createdNumber: (created) => created.number,
+        successMessage: 'Pull request created.',
+        action: () => ref
+            .read(gitHubApiProvider)
+            .createPullRequest(
+              widget.slug,
+              result.request,
+              token: widget.token,
+            ),
       );
-      setState(() => _selectedNumber = created.number);
+      if (mounted && outcome.value != null) {
+        setState(() => _selectedNumber = outcome.value!.number);
+      }
     } on Object catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('$e')));
+      ref.read(actionFeedbackProvider).showActionFailure('$e');
+    } finally {
+      if (mounted) setState(() => _creating = false);
     }
   }
 }
 
 class _PullRequestsToolbar extends StatelessWidget {
-  const _PullRequestsToolbar({required this.onCreate});
+  const _PullRequestsToolbar({required this.onCreate, required this.pending});
 
-  final VoidCallback onCreate;
+  final VoidCallback? onCreate;
+  final bool pending;
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     return Container(
-      height: 38,
+      height: AppSpacing.of(context).regularControlHeight,
       decoration: BoxDecoration(
         color: palette.bg2,
         border: Border(bottom: BorderSide(color: palette.border)),
@@ -140,10 +164,11 @@ class _PullRequestsToolbar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: Row(
         children: [
-          FilledButton.icon(
+          AppButton.primary(
             onPressed: onCreate,
-            icon: const Icon(Icons.add, size: 14),
-            label: const Text('Create PR'),
+            icon: Icons.add,
+            label: pending ? 'Creating…' : 'Create PR',
+            compact: true,
           ),
           const Spacer(),
         ],
@@ -225,109 +250,82 @@ class _PullRequestRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
-    return Material(
-      color: selected ? palette.bgAccent : palette.bg1,
-      borderRadius: BorderRadius.circular(5),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(5),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: AppAnimatedRow(
+        selected: selected,
         onTap: onSelect,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: selected ? palette.borderStrong : palette.border,
-            ),
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Row(
-            children: [
-              Text(
-                '#${pr.number}',
-                style: TextStyle(
-                  color: palette.accentRemote,
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                ),
+        height: AppSpacing.of(context).regularControlHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          children: [
+            Text(
+              '#${pr.number}',
+              style: TextStyle(
+                color: palette.accentRemote,
+                fontFamily: 'monospace',
+                fontSize: 12,
               ),
-              const SizedBox(width: 10),
-              if (pr.isDraft) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: palette.fg3.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    'DRAFT',
-                    style: TextStyle(
-                      color: palette.fg2,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+            ),
+            const SizedBox(width: 10),
+            if (pr.isDraft) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 1,
                 ),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      pr.title,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: palette.fg0, fontSize: 12.5),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      pr.author,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: palette.fg3, fontSize: 11),
-                    ),
-                  ],
+                decoration: BoxDecoration(
+                  color: palette.fg3.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  'DRAFT',
+                  style: TextStyle(
+                    color: palette.fg2,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
-              _CheckChip(slug: slug, token: token, sha: pr.headSha),
-              const SizedBox(width: 4),
-              Tooltip(
-                message: 'Checkout PR as pr/${pr.number}',
-                waitDuration: const Duration(milliseconds: 400),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(3),
-                  onTap: () => ref
-                      .read(gitActionsControllerProvider)
-                      .checkoutPullRequest(context, repo, pr.number),
-                  child: Padding(
-                    padding: const EdgeInsets.all(3),
-                    child: Icon(Icons.call_split, size: 15, color: palette.fg1),
-                  ),
-                ),
-              ),
-              Tooltip(
-                message: 'Open on GitHub',
-                waitDuration: const Duration(milliseconds: 400),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(3),
-                  onTap: () => launchUrl(
-                    Uri.parse(pr.htmlUrl),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(3),
-                    child: Icon(
-                      Icons.open_in_new,
-                      size: 14,
-                      color: palette.fg1,
-                    ),
-                  ),
-                ),
-              ),
             ],
-          ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    pr.title,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: palette.fg0, fontSize: 12.5),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    pr.author,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: palette.fg3, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _CheckChip(slug: slug, token: token, sha: pr.headSha),
+            const SizedBox(width: 4),
+            AppIconButton(
+              icon: Icons.call_split,
+              tooltip: 'Checkout PR as pr/${pr.number}',
+              onPressed: () => ref
+                  .read(gitActionsControllerProvider)
+                  .checkoutPullRequest(context, repo, pr.number),
+            ),
+            AppIconButton(
+              icon: Icons.open_in_new,
+              tooltip: 'Open on GitHub',
+              onPressed: () => launchUrl(
+                Uri.parse(pr.htmlUrl),
+                mode: LaunchMode.externalApplication,
+              ),
+            ),
+          ],
         ),
       ),
     );

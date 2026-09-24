@@ -162,7 +162,10 @@ void main() {
     expect(result.invalidate, contains(RepoDataScope.reads));
     expect(prompt.calls, 0);
     expect(write.calls, 1);
-    expect(progress.events.any((e) => e.startsWith('success')), isTrue);
+    // The operation stays open on purpose: the UI adapter finishes it only
+    // once the affected views have reloaded.
+    expect(progress.events.any((e) => e.startsWith('success')), isFalse);
+    expect(result.operationId, isNotNull);
   });
 
   test('registers the operation before resolving the auth profile', () async {

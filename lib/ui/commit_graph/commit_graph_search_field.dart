@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/commit_search_provider.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -69,9 +70,8 @@ class _CommitGraphSearchFieldState
                   minHeight: 30,
                 ),
                 suffixIcon: hasText
-                    ? IconButton(
-                        icon: Icon(Icons.close, size: 16, color: palette.fg2),
-                        splashRadius: 14,
+                    ? AppIconButton(
+                        icon: Icons.close,
                         tooltip: 'Clear search',
                         onPressed: () {
                           _searchDebounce?.cancel();

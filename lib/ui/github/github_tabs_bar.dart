@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -21,7 +22,7 @@ class GitHubTabsBar extends StatelessWidget {
       child: Row(
         children: [
           _Tab(
-            label: 'Pull Requests',
+            label: 'Pull requests',
             value: 'prs',
             active: active,
             onSelect: onSelect,
@@ -55,32 +56,26 @@ class _Tab extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final spacing = AppSpacing.of(context);
-    final motion = AppMotion.of(context);
     final isActive = active == value;
-    return InkWell(
+    return AppInteractiveSurface(
       onTap: () => onSelect(value),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: spacing.lg,
-          vertical: spacing.sm,
-        ),
-        child: AnimatedContainer(
-          duration: motion.fast,
-          curve: motion.curve,
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isActive ? palette.accentCurrent : Colors.transparent,
-                width: 2,
-              ),
+      selected: isActive,
+      height: spacing.regularControlHeight,
+      padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+      child: (context, visual) => Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isActive ? palette.accentCurrent : Colors.transparent,
+              width: 2,
             ),
           ),
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(
-            label,
-            style: AppTypography.of(context).body.copyWith(
-                  color: isActive ? palette.fg0 : palette.fg1,
-                ),
+        ),
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text(
+          label,
+          style: AppTypography.of(context).body.copyWith(
+            color: visual.foreground,
           ),
         ),
       ),

@@ -1,26 +1,41 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gitopen/application/auth/auth_profile.dart';
 import 'package:gitopen/application/auth/auth_spec.dart';
 import 'package:gitopen/application/github/github_api.dart';
 import 'package:gitopen/application/github/github_models.dart';
+import 'package:gitopen/application/operations/operations_notifier.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/domain/status/repo_status.dart';
+import 'package:gitopen/ui/common/app_animated_row.dart';
 import 'package:gitopen/ui/github/github_panel.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
+
+import '../../_helpers/operations.dart';
+import '../../_helpers/screenshot.dart';
 
 final class _FakeApi implements GitHubApi {
   _FakeApi({
     this.error,
     this.detailDraft = true,
     this.detailMergeStateStatus = 'clean',
+    this.runStatus = 'completed',
+    this.updateError,
+    this.emptyPr = false,
   });
   final GitHubApiException? error;
   final bool detailDraft;
   final String detailMergeStateStatus;
+  final String runStatus;
+  final Error? updateError;
+  final bool emptyPr;
   CreatePullRequestRequest? createdRequest;
   UpdatePullRequestRequest? updatedRequest;
   MergePullRequestRequest? mergedRequest;
@@ -34,20 +49,29 @@ final class _FakeApi implements GitHubApi {
   int? rerunFailedRunId;
   int? cancelRunId;
   int? loggedJobId;
+  Completer<void>? detailGate;
+  int detailCalls = 0;
+  int updateCalls = 0;
+  int readyCalls = 0;
+  Completer<void>? initialPrGate;
+  Completer<void>? runsGate;
+  int runsCalls = 0;
 
   @override
   Future<List<PullRequestInfo>> listPullRequests(
     RepoSlug slug, {
     required String token,
   }) async {
+    await initialPrGate?.future;
     final err = error;
     if (err != null) throw err;
+    if (emptyPr) return [];
     return [
       PullRequestInfo(
         number: 12,
         title: 'Improve the widget',
         author: 'ada',
-        isDraft: true,
+        isDraft: detailDraft && !markedReady,
         headRef: 'feat/widget',
         headSha: 'a' * 40,
         htmlUrl: 'https://github.com/o/r/pull/12',
@@ -62,13 +86,15 @@ final class _FakeApi implements GitHubApi {
     required String token,
     String? branch,
   }) async {
+    runsCalls++;
+    if (runsCalls > 1) await runsGate?.future;
     return [
       WorkflowRunInfo(
         id: 9,
         name: 'CI GitOpen',
         headBranch: branch ?? 'main',
-        status: 'completed',
-        conclusion: 'success',
+        status: runStatus,
+        conclusion: runStatus == 'completed' ? 'success' : null,
         htmlUrl: 'https://github.com/o/r/actions/runs/9',
         createdAt: DateTime.utc(2026, 6, 11, 10),
         updatedAt: DateTime.utc(2026, 6, 11, 10, 3, 30),
@@ -126,23 +152,27 @@ final class _FakeApi implements GitHubApi {
     RepoSlug slug,
     int number, {
     required String token,
-  }) async => PullRequestDetail(
-    number: number,
-    nodeId: 'PR_kwDOExample',
-    title: 'Improve the widget',
-    body: 'Detailed body',
-    author: 'ada',
-    state: 'open',
-    isDraft: detailDraft,
-    mergeable: true,
-    mergeStateStatus: detailMergeStateStatus,
-    baseRef: 'main',
-    headRef: 'feat/widget',
-    headSha: 'a' * 40,
-    htmlUrl: 'https://github.com/o/r/pull/$number',
-    createdAt: DateTime.utc(2026, 6, 10),
-    updatedAt: DateTime.utc(2026, 6, 11),
-  );
+  }) async {
+    detailCalls++;
+    if (detailCalls > 1) await detailGate?.future;
+    return PullRequestDetail(
+      number: number,
+      nodeId: 'PR_kwDOExample',
+      title: 'Improve the widget',
+      body: 'Detailed body',
+      author: 'ada',
+      state: updatedRequest?.state ?? 'open',
+      isDraft: detailDraft && !markedReady,
+      mergeable: true,
+      mergeStateStatus: detailMergeStateStatus,
+      baseRef: 'main',
+      headRef: 'feat/widget',
+      headSha: 'a' * 40,
+      htmlUrl: 'https://github.com/o/r/pull/$number',
+      createdAt: DateTime.utc(2026, 6, 10),
+      updatedAt: DateTime.utc(2026, 6, 11),
+    );
+  }
 
   @override
   Future<List<PullRequestFile>> listPullRequestFiles(
@@ -198,6 +228,9 @@ final class _FakeApi implements GitHubApi {
     UpdatePullRequestRequest request, {
     required String token,
   }) async {
+    final error = updateError;
+    if (error != null) throw error;
+    updateCalls++;
     updatedRequest = request;
     return getPullRequest(slug, number, token: token);
   }
@@ -208,6 +241,7 @@ final class _FakeApi implements GitHubApi {
     int number, {
     required String token,
   }) async {
+    readyCalls++;
     markedReady = true;
     return getPullRequest(slug, number, token: token);
   }
@@ -288,11 +322,16 @@ Future<void> _pump(
   required RepoLocation repo,
   required GitHubApi api,
   AuthProfile? profile,
+  AppPalette? palette,
+  bool settle = true,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         gitHubApiProvider.overrideWithValue(api),
+        operationsProvider.overrideWith(
+          (ref) => OperationsNotifier(InMemoryActivityLog()),
+        ),
         githubSlugProvider.overrideWith(
           (ref, repo) async => (owner: 'o', repo: 'r'),
         ),
@@ -306,22 +345,26 @@ Future<void> _pump(
           ),
         ),
       ],
-      child: MaterialApp(
-        theme: ThemeData(extensions: [AppPalette.dark()]),
-        home: Scaffold(
-          body: SizedBox(
-            width: 800,
-            height: 500,
-            child: GitHubPanel(repo: repo),
+      child: RepaintBoundary(
+        key: const Key('shot'),
+        child: MaterialApp(
+          theme: ThemeData(extensions: [palette ?? AppPalette.dark()]),
+          home: Scaffold(
+            backgroundColor: (palette ?? AppPalette.dark()).bg0,
+            body: ColoredBox(
+              color: (palette ?? AppPalette.dark()).bg0,
+              child: GitHubPanel(key: ValueKey(api), repo: repo),
+            ),
           ),
         ),
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) await tester.pumpAndSettle();
 }
 
 void main() {
+  setUpAll(loadAppFonts);
   final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
   const profile = AuthProfile(
     id: 'p1',
@@ -520,8 +563,91 @@ void main() {
 
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
+    expect(find.text('Close pull request?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(api.updatedRequest, isNull);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Close').last);
+    await tester.pumpAndSettle();
 
     expect(api.updatedRequest?.state, 'closed');
+  });
+
+  testWidgets('PR mutation remains pending until refreshed detail resolves', (
+    tester,
+  ) async {
+    final api = _FakeApi()..detailGate = Completer<void>();
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Improve the widget'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ready'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Working…'), findsOneWidget);
+    await tester.tap(find.text('Working…'));
+    expect(api.markedReady, isTrue);
+    expect(api.readyCalls, 1);
+    expect(api.detailCalls, 2);
+    api.detailGate!.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Ready'), findsNothing);
+  });
+
+  testWidgets('PR mutation error stays inline without a snackbar', (
+    tester,
+  ) async {
+    final api = _FakeApi(updateError: StateError('Could not update'));
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Improve the widget'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Close').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Could not update'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('Cancel workflow run confirmation leaves API untouched', (
+    tester,
+  ) async {
+    final api = _FakeApi(runStatus: 'in_progress');
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Actions'));
+    for (
+      var i = 0;
+      i < 10 && find.byTooltip('Cancel run').evaluate().isEmpty;
+      i++
+    ) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byTooltip('Cancel run'), findsOneWidget);
+    await tester.tap(find.byTooltip('Cancel run'));
+    await tester.pump();
+    expect(find.text('Cancel workflow run?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    expect(api.cancelRunId, isNull);
+  });
+
+  testWidgets('Rerun stays pending through runs reload and ignores repeat', (
+    tester,
+  ) async {
+    final api = _FakeApi();
+    await _pump(tester, repo: repo, api: api, profile: profile);
+    await tester.tap(find.text('Actions'));
+    await tester.pumpAndSettle();
+    api.runsGate = Completer<void>();
+    final before = api.runsCalls;
+    await tester.tap(find.byTooltip('Re-run all jobs'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.tap(find.byTooltip('Re-run all jobs'));
+    expect(api.rerunRunId, 9);
+    expect(api.runsCalls, before + 1);
+    api.runsGate!.complete();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('queues a line comment and submits review', (tester) async {
@@ -530,7 +656,7 @@ void main() {
     await tester.tap(find.text('Improve the widget'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Comment on line 2'));
+    await tester.tap(find.byTooltip('Comment on line 2').first);
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('review-line-comment-body')),
@@ -584,4 +710,143 @@ void main() {
     expect(find.textContaining('GitHub API returned 500'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
   });
+
+  for (final (name, palette) in [
+    ('dark', AppPalette.dark()),
+    ('light', AppPalette.light()),
+  ]) {
+    testWidgets('GitHub visual states $name', (tester) async {
+      final previous = goldenFileComparator;
+      final shots = PipelineScreenshotComparator('ux-l8-github');
+      goldenFileComparator = shots;
+      addTearDown(() => goldenFileComparator = previous);
+
+      Future<void> capture(String state) async {
+        final file = 'github_${state}_$name.png';
+        await expectLater(
+          find.byKey(const Key('shot')),
+          matchesGoldenFile(file),
+        );
+        expect(shots.fileFor(file).existsSync(), isTrue);
+      }
+
+      final api = _FakeApi();
+      await _pump(
+        tester,
+        repo: repo,
+        api: api,
+        profile: profile,
+        palette: palette,
+      );
+      await capture('pr_list');
+      expect(
+        tester
+            .widget<AppAnimatedRow>(find.byType(AppAnimatedRow).first)
+            .selected,
+        isFalse,
+      );
+      await tester.tap(find.text('Improve the widget'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<AppAnimatedRow>(find.byType(AppAnimatedRow).first)
+            .selected,
+        isTrue,
+      );
+      api.detailGate = Completer<void>();
+      await tester.tap(find.text('Ready'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await capture('pr_pending');
+      api.detailGate!.complete();
+      await tester.pumpAndSettle();
+      await capture('pr_reloaded');
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      await capture('close_confirmation');
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer();
+      await mouse.moveTo(tester.getCenter(find.text('Actions')));
+      await tester.pump(const Duration(milliseconds: 250));
+      await capture('tabs_hover');
+      await mouse.removePointer();
+      for (var i = 0; i < 20; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        if (Focus.of(tester.element(find.text('Actions'))).hasFocus) break;
+      }
+      expect(Focus.of(tester.element(find.text('Actions'))).hasFocus, isTrue);
+      await tester.pump(const Duration(milliseconds: 250));
+      await capture('tabs_focus');
+      await tester.tap(find.text('Actions'));
+      await tester.pumpAndSettle();
+      api.runsGate = Completer<void>();
+      await tester.tap(find.byTooltip('Re-run all jobs'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await capture('actions_pending');
+      api.runsGate!.complete();
+      await tester.pumpAndSettle();
+
+      final running = _FakeApi(runStatus: 'in_progress');
+      await _pump(
+        tester,
+        repo: repo,
+        api: running,
+        profile: profile,
+        palette: palette,
+      );
+      await tester.tap(find.text('Actions'));
+      for (
+        var i = 0;
+        i < 10 && find.byTooltip('Cancel run').evaluate().isEmpty;
+        i++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(find.byTooltip('Cancel run'));
+      await tester.pumpAndSettle();
+      expect(find.text('Cancel workflow run?'), findsOneWidget);
+      await capture('cancel_confirmation');
+      await tester.tap(find.text('Cancel'));
+
+      final loading = _FakeApi()..initialPrGate = Completer<void>();
+      await _pump(
+        tester,
+        repo: repo,
+        api: loading,
+        profile: profile,
+        palette: palette,
+        settle: false,
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await capture('loading');
+      loading.initialPrGate!.complete();
+
+      await _pump(tester, repo: repo, api: _FakeApi(), palette: palette);
+      await capture('sign_in');
+      await _pump(
+        tester,
+        repo: repo,
+        api: _FakeApi(emptyPr: true),
+        profile: profile,
+        palette: palette,
+      );
+      await capture('empty');
+      await _pump(
+        tester,
+        repo: repo,
+        api: _FakeApi(
+          error: const GitHubApiException(
+            GitHubApiErrorKind.network,
+            'GitHub API returned 500.',
+          ),
+        ),
+        profile: profile,
+        palette: palette,
+      );
+      await capture('error');
+    });
+  }
 }

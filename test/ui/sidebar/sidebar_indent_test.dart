@@ -13,19 +13,11 @@ import 'package:gitopen/ui/sidebar/tag_row.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 Widget _host(Widget child) => ProviderScope(
-      child: MaterialApp(
-        theme: ThemeData(extensions: [AppPalette.dark()]),
-        home: Scaffold(body: SizedBox(width: 360, height: 320, child: child)),
-      ),
-    );
-
-double _leftOf(WidgetTester tester, Finder text, Type boxType) {
-  final box = tester.widget(
-    find.ancestor(of: text, matching: find.byType(boxType)).first,
-  );
-  final padding = (box as dynamic).padding as EdgeInsets;
-  return padding.left;
-}
+  child: MaterialApp(
+    theme: ThemeData(extensions: [AppPalette.dark()]),
+    home: Scaffold(body: SizedBox(width: 360, height: 320, child: child)),
+  ),
+);
 
 void main() {
   group('sidebar indentation hierarchy', () {
@@ -35,8 +27,9 @@ void main() {
       expect(kSidebarChevronIndent, lessThanOrEqualTo(kSidebarRowIndent));
     });
 
-    testWidgets('a remote group aligns its chevron with the section column',
-        (tester) async {
+    testWidgets('a remote group aligns its chevron with the section column', (
+      tester,
+    ) async {
       final repo = RepoLocation(RepoId.newId(), 'unused', 'repo');
       const remote = Remote(
         name: 'origin',
@@ -52,7 +45,7 @@ void main() {
       // inside the REMOTES header, NOT level with it and not further left
       // (it had regressed to 6px, left of the section header at 14px).
       expect(
-        _leftOf(tester, find.text('origin'), Container),
+        tester.getTopLeft(find.byIcon(Icons.expand_more).first).dx,
         kSidebarRowGlyphIndent,
       );
     });
@@ -73,7 +66,7 @@ void main() {
       // Empty hints ("No tags") share this same constant, so locking it here
       // keeps the hint aligned with real rows.
       expect(
-        _leftOf(tester, find.text('v1.0.0'), Padding),
+        tester.getTopLeft(find.text('v1.0.0')).dx,
         kSidebarRowIndent,
       );
     });
@@ -85,7 +78,8 @@ void main() {
       expect(
         kSidebarRowIndent,
         kSidebarLabelIndent,
-        reason: 'a glyph-less row must start where a glyph-led row label '
+        reason:
+            'a glyph-less row must start where a glyph-led row label '
             'starts, not where its glyph starts',
       );
       expect(

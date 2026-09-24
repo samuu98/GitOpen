@@ -9,6 +9,7 @@ import 'package:gitopen/application/watch/repo_change.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
 
 /// Invisible host for a repo's auto-refresh. Subscribes to the
@@ -35,6 +36,10 @@ class RepoAutoRefreshScope extends ConsumerStatefulWidget {
 class _RepoAutoRefreshScopeState extends ConsumerState<RepoAutoRefreshScope> {
   StreamSubscription<RepoChange>? _sub;
   final Set<RepoChange> _pending = {};
+
+  /// True while watcher events are waiting on an action's refresh, so a burst
+  /// of events joins it once instead of queueing one wait each.
+  bool _joining = false;
   late final Debouncer _debouncer =
       Debouncer(const Duration(milliseconds: 400), _flushWatcher);
   late final AppLifecycleListener _lifecycle;
@@ -85,11 +90,35 @@ class _RepoAutoRefreshScopeState extends ConsumerState<RepoAutoRefreshScope> {
   }
 
   /// Invalidates the scopes the coalesced watcher events affect.
+  ///
+  /// A git action the user just ran fires these same events. Rather than
+  /// reload a second time on top of the action's own refresh (or push the
+  /// debounce out indefinitely while it runs), the events wait for that
+  /// refresh and then only cover what it did not.
   void _flushWatcher() {
     if (!mounted || _pending.isEmpty) return;
+    final active = ref.read(actionRunnerProvider).activeRefresh;
+    if (active != null) {
+      unawaited(_joinActionRefresh(active));
+      return;
+    }
     final kinds = Set<RepoChange>.of(_pending);
     _pending.clear();
     _invalidate(scopesForChange(kinds));
+  }
+
+  Future<void> _joinActionRefresh(
+    ({Future<void> done, Set<RepoRefreshScope> covered}) active,
+  ) async {
+    if (_joining) return;
+    _joining = true;
+    await active.done;
+    _joining = false;
+    if (!mounted || _pending.isEmpty) return;
+    final kinds = Set<RepoChange>.of(_pending);
+    _pending.clear();
+    final remaining = scopesForChange(kinds).difference(active.covered);
+    if (remaining.isNotEmpty) _invalidate(remaining);
   }
 
   void _onResume() {

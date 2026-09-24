@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/main_view_provider.dart';
@@ -11,6 +12,8 @@ import 'package:gitopen/domain/refs/submodule.dart';
 import 'package:gitopen/domain/refs/tag.dart';
 import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_interactive_surface.dart';
+import 'package:gitopen/ui/theme/app_design_tokens.dart';
 
 /// Left-indent scheme for the sidebar tree, centralized so section headers,
 /// tree nodes, flat rows and empty hints stay aligned. These literals used to
@@ -46,6 +49,40 @@ const double kSidebarLabelIndent =
     kSidebarRowGlyphIndent + kSidebarGlyphColumnWidth + kSidebarGlyphGap;
 const double kSidebarRowIndent = kSidebarLabelIndent;
 
+/// Shared density and interaction for section headers and sidebar rows.
+class SidebarRowSurface extends StatelessWidget {
+  const SidebarRowSurface({
+    required this.child,
+    required this.onTap,
+    super.key,
+    this.onSecondaryTapDown,
+    this.tooltip,
+    this.semanticLabel,
+    this.selected = false,
+    this.padding,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final GestureTapDownCallback? onSecondaryTapDown;
+  final String? tooltip;
+  final String? semanticLabel;
+  final bool selected;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) => AppInteractiveSurface(
+    onTap: onTap,
+    onSecondaryTapDown: onSecondaryTapDown,
+    tooltip: tooltip,
+    semanticLabel: semanticLabel,
+    selected: selected,
+    height: AppSpacing.of(context).listRowHeight,
+    padding: padding,
+    child: (context, visual) => child,
+  );
+}
+
 /// Selects [sha] in the graph and asks the graph panel to scroll it into
 /// view. Also switches the main view back to the graph if the user is
 /// currently looking at the working-copy changes.
@@ -74,8 +111,10 @@ class SidebarData {
   final List<Worktree> worktrees;
 }
 
-final sidebarDataProvider =
-    FutureProvider.family<SidebarData, RepoLocation>((ref, repo) async {
+final sidebarDataProvider = FutureProvider.family<SidebarData, RepoLocation>((
+  ref,
+  repo,
+) async {
   final logger = ref.read(loggerProvider);
   final git = ref.watch(gitReadOperationsProvider);
   logger.i('sidebar: loading all sections for ${repo.displayName}');
@@ -89,8 +128,10 @@ final sidebarDataProvider =
     git.getSubmodules(repo),
     git.getWorktrees(repo),
   ).wait;
-  logger.i('sidebar: ${branches.length} branches, ${tags.length} tags, '
-      '${remotes.length} remotes, ${stashes.length} stashes, '
-      '${submodules.length} submodules, ${worktrees.length} worktrees');
+  logger.i(
+    'sidebar: ${branches.length} branches, ${tags.length} tags, '
+    '${remotes.length} remotes, ${stashes.length} stashes, '
+    '${submodules.length} submodules, ${worktrees.length} worktrees',
+  );
   return SidebarData(branches, tags, remotes, stashes, submodules, worktrees);
 });

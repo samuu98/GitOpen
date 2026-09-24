@@ -9,6 +9,7 @@ import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/commits/commit_info.dart';
 import 'package:gitopen/domain/commits/commit_sha.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
@@ -367,17 +368,15 @@ class _PlanRowTile extends StatelessWidget {
                   ),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.keyboard_arrow_up, size: 18),
-                color: palette.fg2,
-                splashRadius: 14,
+              AppIconButton(
+                icon: Icons.keyboard_arrow_up,
+                iconSize: 18,
                 tooltip: 'Move up',
                 onPressed: isFirst ? null : onUp,
               ),
-              IconButton(
-                icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-                color: palette.fg2,
-                splashRadius: 14,
+              AppIconButton(
+                icon: Icons.keyboard_arrow_down,
+                iconSize: 18,
                 tooltip: 'Move down',
                 onPressed: isLast ? null : onDown,
               ),
