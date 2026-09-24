@@ -5,6 +5,43 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.14.0] — 2026-09-24
+
+### Added
+- **Delete several branches at once.** Select branches with Shift or
+  Ctrl, or pick a folder such as `task/`, and delete them from one
+  dialog. It checks each branch, can force unmerged ones, and can include
+  their remote branches.
+- **Remove a linked worktree while deleting its branch**, from the same
+  dialog. The worktree you have open is protected.
+- **Remove worktree dialog.** Removing a worktree from the sidebar now
+  asks first and shows its progress.
+- **Bisect bounds in the graph.** The current candidate and the good and
+  bad commits are marked in the commit graph while bisecting.
+- **Create tag** from the TAGS section header.
+
+### Changed
+- **Uniform hover, pressed, focus and disabled states.** Toolbar buttons
+  and dropdowns, sidebar headers and rows, graph pills, the bottom panel,
+  the status bar, dialogs, settings and the GitHub panels share one
+  interaction style, with tooltips and keyboard focus everywhere.
+- **Loading ends when the view is up to date.** Fetch, pull, push,
+  checkout, branch, tag, stash, remote, submodule, worktree, LFS, bisect,
+  commit and staging actions stay busy until the graph, sidebar and status
+  show the result. Opening, cloning or initializing a repository waits
+  for the workspace to load.
+- **Consistent feedback.** Success and failure messages use the same
+  toasts and inline errors across the app, a failed refresh offers Retry,
+  and destructive actions ask for confirmation with consistent wording.
+- **Shared loading, empty and error states** in every panel.
+
+### Fixed
+- **Stash apply over local edits.** Applying or popping a stash whose
+  files you have also changed lists those files instead of showing git's
+  raw refusal. If you confirm, your edits are stashed, the stash is
+  applied, and then your edits are restored. On a conflict both stashes
+  are kept.
+
 ## [1.13.0] — 2026-09-23
 
 ### Added
