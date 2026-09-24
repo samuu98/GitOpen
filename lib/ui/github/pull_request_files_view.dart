@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/github/github_pr_diff.dart';
+import 'package:gitopen/ui/common/app_icon_button.dart';
 import 'package:gitopen/ui/github/github_api_state.dart';
 import 'package:gitopen/ui/github/github_providers.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
@@ -185,14 +186,9 @@ class _PatchView extends StatelessWidget {
                 ),
               ),
               if (lineTwoCommentLine != null && lineTwoSide != null)
-                IconButton(
+                AppIconButton(
                   tooltip: 'Comment on line 2',
-                  icon: const Icon(Icons.add_comment_outlined, size: 14),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 28,
-                    height: 24,
-                  ),
+                  icon: Icons.add_comment_outlined,
                   onPressed: () => onLineCommentRequested(
                     file.filename,
                     lineTwoCommentLine,
@@ -289,14 +285,9 @@ class _PatchLineRow extends StatelessWidget {
             ),
           ),
           if (line.isCommentable && line.commentLine != null)
-            IconButton(
+            AppIconButton(
               tooltip: 'Comment on line ${line.commentLine}',
-              icon: const Icon(Icons.add_comment_outlined, size: 14),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(
-                width: 28,
-                height: 24,
-              ),
+              icon: Icons.add_comment_outlined,
               onPressed: () => onLineCommentRequested(
                 file.filename,
                 line.commentLine!,

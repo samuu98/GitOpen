@@ -4,9 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_icon_button.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
+import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
 import 'package:gitopen/ui/github/github_api_state.dart';
+import 'package:gitopen/ui/github/github_mutation.dart';
 import 'package:gitopen/ui/github/github_providers.dart';
+import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -33,6 +38,8 @@ String _fmtDuration(Duration d) => '${d.inMinutes}m ${d.inSeconds % 60}s';
 /// logs. Auto-refreshes while any job is still running.
 class WorkflowRunDetailView extends ConsumerStatefulWidget {
   const WorkflowRunDetailView({
+    required this.repo,
+    required this.branch,
     required this.slug,
     required this.token,
     required this.run,
@@ -40,6 +47,8 @@ class WorkflowRunDetailView extends ConsumerStatefulWidget {
     super.key,
   });
 
+  final RepoLocation repo;
+  final String? branch;
   final RepoSlug slug;
   final String token;
   final WorkflowRunInfo run;
@@ -73,15 +82,36 @@ class _WorkflowRunDetailViewState extends ConsumerState<WorkflowRunDetailView> {
     });
   }
 
-  Future<void> _act(Future<void> Function() op) async {
-    try {
-      await op();
-      ref.invalidate(githubWorkflowJobsProvider(_key));
-    } on Object catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
+  Future<void> _act(
+    Future<void> Function() op,
+    String successMessage, {
+    bool cancel = false,
+  }) async {
+    if (githubMutationPending(ref, widget.repo, 'run/${widget.run.id}')) return;
+    if (cancel) {
+      final confirmed = await ConfirmDialog.show(
         context,
-      ).showSnackBar(SnackBar(content: Text('$e')));
+        title: 'Cancel workflow run?',
+        body: 'The workflow run "${widget.run.name}" will be cancelled.',
+        confirmLabel: 'Cancel run',
+        dangerous: true,
+      );
+      if (!confirmed || !mounted) return;
+    }
+    try {
+      await runGitHubMutation<void>(
+        ref,
+        repo: widget.repo,
+        key: 'run/${widget.run.id}',
+        slug: widget.slug,
+        token: widget.token,
+        runId: widget.run.id,
+        branch: widget.branch,
+        successMessage: successMessage,
+        action: op,
+      );
+    } on Object catch (e) {
+      ref.read(actionFeedbackProvider).showActionFailure('$e');
     }
   }
 
@@ -101,7 +131,7 @@ class _WorkflowRunDetailViewState extends ConsumerState<WorkflowRunDetailView> {
         Expanded(
           child: async.when(
             skipLoadingOnReload: true,
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const AppLoadingState.detail(),
             error: (e, _) => GitHubApiErrorView(
               error: e,
               onRetry: () => ref.invalidate(githubWorkflowJobsProvider(_key)),
@@ -128,6 +158,7 @@ class _WorkflowRunDetailViewState extends ConsumerState<WorkflowRunDetailView> {
       palette,
     );
     final failed = run.conclusion == 'failure';
+    final pending = githubMutationPending(ref, widget.repo, 'run/${run.id}');
     return Container(
       decoration: BoxDecoration(
         color: palette.bg2,
@@ -143,6 +174,14 @@ class _WorkflowRunDetailViewState extends ConsumerState<WorkflowRunDetailView> {
           ),
           const SizedBox(width: 4),
           Icon(icon, size: 15, color: color),
+          if (pending) ...[
+            const SizedBox(width: 6),
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -160,34 +199,52 @@ class _WorkflowRunDetailViewState extends ConsumerState<WorkflowRunDetailView> {
             AppIconButton(
               icon: Icons.cancel_outlined,
               tooltip: 'Cancel run',
-              onPressed: () => _act(
-                () => ref
-                    .read(gitHubApiProvider)
-                    .cancelWorkflowRun(
-                      widget.slug,
-                      run.id,
-                      token: widget.token,
+              onPressed: pending
+                  ? null
+                  : () => _act(
+                      () => ref
+                          .read(gitHubApiProvider)
+                          .cancelWorkflowRun(
+                            widget.slug,
+                            run.id,
+                            token: widget.token,
+                          ),
+                      'Workflow run cancelled.',
+                      cancel: true,
                     ),
-              ),
             ),
           if (failed)
             AppIconButton(
               icon: Icons.replay_circle_filled_outlined,
               tooltip: 'Re-run failed jobs',
-              onPressed: () => _act(
-                () => ref
-                    .read(gitHubApiProvider)
-                    .rerunFailedJobs(widget.slug, run.id, token: widget.token),
-              ),
+              onPressed: pending
+                  ? null
+                  : () => _act(
+                      () => ref
+                          .read(gitHubApiProvider)
+                          .rerunFailedJobs(
+                            widget.slug,
+                            run.id,
+                            token: widget.token,
+                          ),
+                      'Failed jobs started again.',
+                    ),
             ),
           AppIconButton(
             icon: Icons.refresh,
             tooltip: 'Re-run all jobs',
-            onPressed: () => _act(
-              () => ref
-                  .read(gitHubApiProvider)
-                  .rerunWorkflowRun(widget.slug, run.id, token: widget.token),
-            ),
+            onPressed: pending
+                ? null
+                : () => _act(
+                    () => ref
+                        .read(gitHubApiProvider)
+                        .rerunWorkflowRun(
+                          widget.slug,
+                          run.id,
+                          token: widget.token,
+                        ),
+                    'Workflow run started again.',
+                  ),
           ),
           AppIconButton(
             icon: Icons.open_in_new,

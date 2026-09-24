@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/providers.dart';
+import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/dialogs/app_dialog.dart';
-import 'package:gitopen/ui/github/github_providers.dart';
+import 'package:gitopen/ui/github/github_mutation.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 
 final class QueuedReviewComment {
@@ -29,6 +30,7 @@ final class QueuedReviewComment {
 
 class PullRequestReviewDrawer extends ConsumerStatefulWidget {
   const PullRequestReviewDrawer({
+    required this.repo,
     required this.slug,
     required this.token,
     required this.number,
@@ -37,6 +39,7 @@ class PullRequestReviewDrawer extends ConsumerStatefulWidget {
     super.key,
   });
 
+  final RepoLocation repo;
   final RepoSlug slug;
   final String token;
   final int number;
@@ -53,6 +56,7 @@ class _PullRequestReviewDrawerState
   final _summary = TextEditingController();
   final _issueComment = TextEditingController();
   String? _error;
+  bool _pending = false;
 
   @override
   void dispose() {
@@ -65,7 +69,7 @@ class _PullRequestReviewDrawerState
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     return Container(
-      width: 220,
+      width: 250,
       decoration: BoxDecoration(
         color: palette.bg1,
         border: Border(left: BorderSide(color: palette.border)),
@@ -104,17 +108,19 @@ class _PullRequestReviewDrawerState
               spacing: 6,
               runSpacing: 6,
               children: [
-                FilledButton(
-                  onPressed: () => _submitReview('COMMENT'),
-                  child: const Text('Comment'),
+                AppButton.primary(
+                  onPressed: _pending ? null : () => _submitReview('COMMENT'),
+                  label: _pending ? 'Submitting…' : 'Comment',
                 ),
-                OutlinedButton(
-                  onPressed: () => _submitReview('APPROVE'),
-                  child: const Text('Approve'),
+                AppButton.secondary(
+                  onPressed: _pending ? null : () => _submitReview('APPROVE'),
+                  label: 'Approve',
                 ),
-                OutlinedButton(
-                  onPressed: () => _submitReview('REQUEST_CHANGES'),
-                  child: const Text('Request changes'),
+                AppButton.secondary(
+                  onPressed: _pending
+                      ? null
+                      : () => _submitReview('REQUEST_CHANGES'),
+                  label: 'Request changes',
                 ),
               ],
             ),
@@ -141,9 +147,9 @@ class _PullRequestReviewDrawerState
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
-              child: FilledButton(
-                onPressed: _addIssueComment,
-                child: const Text('Add comment'),
+              child: AppButton.primary(
+                onPressed: _pending ? null : _addIssueComment,
+                label: 'Add comment',
               ),
             ),
             if (_error != null) ...[
@@ -160,63 +166,81 @@ class _PullRequestReviewDrawerState
   }
 
   Future<void> _submitReview(String event) async {
-    setState(() => _error = null);
+    if (_pending) return;
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
     try {
-      await ref
-          .read(gitHubApiProvider)
-          .createReview(
-            widget.slug,
-            widget.number,
-            SubmitReviewRequest(
-              event: event,
-              body: _summary.text.trim(),
-              comments: [
-                for (final comment in widget.queuedComments)
-                  comment.toRequest(),
-              ],
+      await runGitHubMutation<PullRequestReview>(
+        ref,
+        repo: widget.repo,
+        key: 'pr/${widget.number}/review',
+        slug: widget.slug,
+        token: widget.token,
+        pullRequest: widget.number,
+        reviewData: true,
+        successMessage: 'Review submitted.',
+        action: () => ref
+            .read(gitHubApiProvider)
+            .createReview(
+              widget.slug,
+              widget.number,
+              SubmitReviewRequest(
+                event: event,
+                body: _summary.text.trim(),
+                comments: [
+                  for (final comment in widget.queuedComments)
+                    comment.toRequest(),
+                ],
+              ),
+              token: widget.token,
             ),
-            token: widget.token,
-          );
+      );
       if (!mounted) return;
       _summary.clear();
       widget.onClearQueuedComments();
-      _invalidateReviewData();
     } on Object catch (e) {
       if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _pending = false);
     }
   }
 
   Future<void> _addIssueComment() async {
+    if (_pending) return;
     final body = _issueComment.text.trim();
     if (body.isEmpty) return;
-    setState(() => _error = null);
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
     try {
-      await ref
-          .read(gitHubApiProvider)
-          .createIssueComment(
-            widget.slug,
-            widget.number,
-            body,
-            token: widget.token,
-          );
+      await runGitHubMutation<IssueCommentInfo>(
+        ref,
+        repo: widget.repo,
+        key: 'pr/${widget.number}/comment',
+        slug: widget.slug,
+        token: widget.token,
+        pullRequest: widget.number,
+        reviewData: true,
+        successMessage: 'Comment added.',
+        action: () => ref
+            .read(gitHubApiProvider)
+            .createIssueComment(
+              widget.slug,
+              widget.number,
+              body,
+              token: widget.token,
+            ),
+      );
       if (!mounted) return;
       _issueComment.clear();
-      _invalidateReviewData();
     } on Object catch (e) {
       if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _pending = false);
     }
-  }
-
-  void _invalidateReviewData() {
-    final key = (
-      slug: widget.slug,
-      token: widget.token,
-      number: widget.number,
-    );
-    ref
-      ..invalidate(githubPullRequestReviewsProvider(key))
-      ..invalidate(githubPullRequestCommentsProvider(key))
-      ..invalidate(githubIssueCommentsProvider(key));
   }
 }
 
@@ -270,11 +294,11 @@ class _LineCommentDialogState extends State<_LineCommentDialog> {
         decoration: const InputDecoration(labelText: 'Comment'),
       ),
       actions: [
-        TextButton(
+        AppButton.secondary(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          label: 'Cancel',
         ),
-        FilledButton(
+        AppButton.primary(
           onPressed: () {
             final body = _controller.text.trim();
             if (body.isEmpty) return;
@@ -287,7 +311,7 @@ class _LineCommentDialogState extends State<_LineCommentDialog> {
               ),
             );
           },
-          child: const Text('Queue comment'),
+          label: 'Queue comment',
         ),
       ],
     );

@@ -3,7 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
+import 'package:gitopen/ui/common/app_panel_state.dart';
+import 'package:gitopen/ui/dialogs/app_dialog.dart';
+import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/github/github_api_state.dart';
+import 'package:gitopen/ui/github/github_mutation.dart';
 import 'package:gitopen/ui/github/github_providers.dart';
 import 'package:gitopen/ui/github/pull_request_files_view.dart';
 import 'package:gitopen/ui/github/pull_request_forms.dart';
@@ -31,6 +36,7 @@ class PullRequestDetailView extends ConsumerStatefulWidget {
 
 class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
   String? _error;
+  bool _pending = false;
   final List<QueuedReviewComment> _queuedComments = [];
 
   @override
@@ -42,7 +48,8 @@ class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
     );
     final detailAsync = ref.watch(githubPullRequestDetailProvider(key));
     return detailAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      skipLoadingOnReload: true,
+      loading: () => const AppLoadingState.detail(),
       error: (e, _) => GitHubApiErrorView(
         error: e,
         onRetry: () => ref.invalidate(githubPullRequestDetailProvider(key)),
@@ -53,11 +60,9 @@ class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
           _PullRequestHeader(
             detail: detail,
             error: _error,
+            pending: _pending,
             onEdit: () => _edit(detail),
-            onClose: () => _update(
-              const UpdatePullRequestRequest(state: 'closed'),
-              successMessage: 'Pull request closed.',
-            ),
+            onClose: _close,
             onReopen: () => _update(
               const UpdatePullRequestRequest(state: 'open'),
               successMessage: 'Pull request reopened.',
@@ -75,6 +80,7 @@ class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
                   onLineCommentRequested: _queueLineComment,
                 );
                 final drawer = PullRequestReviewDrawer(
+                  repo: widget.repo,
                   slug: widget.slug,
                   token: widget.token,
                   number: widget.number,
@@ -103,17 +109,21 @@ class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
     );
   }
 
-  void _invalidate() {
-    final detailKey = (
-      slug: widget.slug,
-      token: widget.token,
-      number: widget.number,
+  Future<void> _close() async {
+    if (_pending) return;
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: 'Close pull request?',
+      body:
+          'Pull request #${widget.number} will be closed. It can be reopened.',
+      confirmLabel: 'Close',
+      dangerous: true,
     );
-    ref
-      ..invalidate(githubPullRequestDetailProvider(detailKey))
-      ..invalidate(
-        githubPullRequestsProvider((slug: widget.slug, token: widget.token)),
-      );
+    if (!confirmed || !mounted) return;
+    await _update(
+      const UpdatePullRequestRequest(state: 'closed'),
+      successMessage: 'Pull request closed.',
+    );
   }
 
   Future<void> _edit(PullRequestDetail detail) async {
@@ -135,9 +145,7 @@ class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
             request,
             token: widget.token,
           );
-      if (mounted) _invalidate();
-      return successMessage;
-    });
+    }, successMessage: successMessage);
   }
 
   Future<void> _ready(PullRequestDetail detail) async {
@@ -149,39 +157,55 @@ class _PullRequestDetailViewState extends ConsumerState<PullRequestDetailView> {
             detail.number,
             token: widget.token,
           );
-      if (mounted) _invalidate();
-      return 'Pull request marked ready.';
-    });
+    }, successMessage: 'Pull request marked ready.');
   }
 
   Future<void> _merge(PullRequestDetail detail) async {
     final result = await showMergePullRequestDialog(context);
     if (result == null || !mounted) return;
-    await _runMutation(() async {
-      await ref
-          .read(gitHubApiProvider)
-          .mergePullRequest(
-            widget.slug,
-            detail.number,
-            result.request,
-            token: widget.token,
-          );
-      if (mounted) _invalidate();
-      return 'Pull request merged.';
-    });
+    await _runMutation(
+      () async {
+        await ref
+            .read(gitHubApiProvider)
+            .mergePullRequest(
+              widget.slug,
+              detail.number,
+              result.request,
+              token: widget.token,
+            );
+      },
+      successMessage: 'Pull request merged.',
+      merge: true,
+    );
   }
 
-  Future<void> _runMutation(Future<String> Function() op) async {
-    setState(() => _error = null);
+  Future<void> _runMutation(
+    Future<void> Function() op, {
+    required String successMessage,
+    bool merge = false,
+  }) async {
+    if (_pending) return;
+    setState(() {
+      _pending = true;
+      _error = null;
+    });
     try {
-      final message = await op();
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      await runGitHubMutation<void>(
+        ref,
+        repo: widget.repo,
+        key: 'pr/${widget.number}',
+        slug: widget.slug,
+        token: widget.token,
+        pullRequest: widget.number,
+        scopes: merge ? {RefreshScope.graph, RefreshScope.sidebar} : const {},
+        successMessage: successMessage,
+        action: op,
+      );
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _pending = false);
     }
   }
 
@@ -201,6 +225,7 @@ class _PullRequestHeader extends StatelessWidget {
   const _PullRequestHeader({
     required this.detail,
     required this.error,
+    required this.pending,
     required this.onEdit,
     required this.onClose,
     required this.onReopen,
@@ -210,6 +235,7 @@ class _PullRequestHeader extends StatelessWidget {
 
   final PullRequestDetail detail;
   final String? error;
+  final bool pending;
   final VoidCallback onEdit;
   final VoidCallback onClose;
   final VoidCallback onReopen;
@@ -282,39 +308,60 @@ class _PullRequestHeader extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.edit_outlined, size: 14),
-                label: const Text('Edit'),
-                onPressed: onEdit,
+              AppButton.secondary(
+                icon: Icons.edit_outlined,
+                label: 'Edit',
+                onPressed: pending ? null : onEdit,
               ),
               if (detail.isOpen)
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.block, size: 14),
-                  label: const Text('Close'),
-                  onPressed: onClose,
+                AppButton.secondary(
+                  icon: Icons.block,
+                  label: 'Close',
+                  onPressed: pending ? null : onClose,
                 )
               else
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.refresh, size: 14),
-                  label: const Text('Reopen'),
-                  onPressed: onReopen,
+                AppButton.secondary(
+                  icon: Icons.refresh,
+                  label: 'Reopen',
+                  onPressed: pending ? null : onReopen,
                 ),
               if (onReady != null)
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.publish_outlined, size: 14),
-                  label: const Text('Ready'),
-                  onPressed: onReady,
+                AppButton.secondary(
+                  icon: Icons.publish_outlined,
+                  label: pending ? 'Working…' : 'Ready',
+                  onPressed: pending ? null : onReady,
                 ),
               Tooltip(
                 message: _mergeTooltip(detail.mergeBlock),
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.merge_type, size: 14),
-                  label: const Text('Merge'),
-                  onPressed: detail.canMerge ? onMerge : null,
+                child: AppButton.primary(
+                  icon: Icons.merge_type,
+                  label: 'Merge',
+                  onPressed: detail.canMerge && !pending ? onMerge : null,
                 ),
               ),
             ],
           ),
+          if (pending) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(palette.accentCurrent),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Updating pull request…',
+                  style: TextStyle(color: palette.fg2, fontSize: 12),
+                ),
+              ],
+            ),
+          ],
           if (error != null) ...[
             const SizedBox(height: 8),
             Text(
