@@ -5,7 +5,7 @@ import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/checkout/safe_checkout.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
 import 'package:gitopen/ui/dialogs/branch_create_dialog.dart';
-import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/dialogs/delete_branch_dialog.dart';
 import 'package:gitopen/ui/dialogs/reflog_dialog.dart';
 import 'package:gitopen/ui/git/git_actions_controller.dart';
 import 'package:gitopen/ui/toolbar/branch_picker_dialog.dart';
@@ -95,11 +95,13 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
         icon: Icons.delete_outline,
         label: 'Delete branch…',
         danger: true,
-        onPressed: () async {
-          _menuController.close();
-          if (!mounted) return;
-          await _deleteBranch(repo);
-        },
+        onPressed: ref.watch(busyProvider).isBusy
+            ? null
+            : () async {
+                _menuController.close();
+                if (!mounted) return;
+                await _deleteBranch(repo);
+              },
       ),
     ];
   }
@@ -154,17 +156,16 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
       branches: locals.map((b) => b.name).toList(),
     );
     if (selected == null || !mounted) return;
-    final confirmed = await ConfirmDialog.show(
+    final branch = branches
+        .where((b) => b.name == selected && !b.isRemote)
+        .firstOrNull;
+    if (branch == null) return;
+    await DeleteBranchesDialog.show(
       context,
-      title: 'Delete branch?',
-      body: '"$selected" will be deleted. This cannot be undone.',
-      confirmLabel: 'Delete',
-      dangerous: true,
+      repo: repo,
+      branches: [branch],
+      allBranches: branches,
     );
-    if (!confirmed || !mounted) return;
-    await ref
-        .read(gitActionsControllerProvider)
-        .deleteBranch(context, repo, selected, force: true);
   }
 
   Future<String?> _showBranchPickerDialog(

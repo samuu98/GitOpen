@@ -6,6 +6,7 @@ import 'package:gitopen/application/auth/auth_profile_store.dart';
 import 'package:gitopen/application/auth/auth_resolver.dart';
 import 'package:gitopen/application/auth/credential_tester.dart';
 import 'package:gitopen/application/auth/device_flow_controller.dart';
+import 'package:gitopen/application/git/branch_deletion_flow.dart';
 import 'package:gitopen/application/git/git_action_ports.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_dir_probe.dart';
@@ -43,6 +44,7 @@ import 'package:gitopen/infrastructure/auth/github_credential_tester.dart';
 import 'package:gitopen/infrastructure/auth/github_device_flow.dart';
 import 'package:gitopen/infrastructure/auth/github_user_service.dart';
 import 'package:gitopen/infrastructure/auth/secure_auth_profile_store.dart';
+import 'package:gitopen/infrastructure/git/git_cli_branch_deletion_inspector.dart';
 import 'package:gitopen/infrastructure/git/git_cli_commit_template_reader.dart';
 import 'package:gitopen/infrastructure/git/git_cli_read_operations.dart';
 import 'package:gitopen/infrastructure/git/git_cli_stash_safety_operations.dart';
@@ -79,6 +81,15 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
 
 final gitProcessRunnerProvider = Provider<GitProcessRunner>((ref) {
   return GitProcessRunner();
+});
+
+final branchDeletionFlowProvider = Provider<BranchDeletionFlow>((ref) {
+  return BranchDeletionFlow(
+    inspector: GitCliBranchDeletionInspector(
+      runner: ref.watch(gitProcessRunnerProvider),
+    ),
+    write: ref.watch(gitWriteOperationsProvider),
+  );
 });
 
 final stashSafetyOperationsProvider = Provider<StashSafetyOperations>((ref) {
@@ -188,23 +199,22 @@ final gitLfsServiceProvider = Provider<GitLfsService>((ref) {
 
 final gitLfsStatusProvider = FutureProvider.autoDispose
     .family<GitLfsStatus, RepoLocation>((
-  ref,
-  repo,
-) {
-  return ref.watch(gitLfsOperationsProvider).status(repo);
-});
+      ref,
+      repo,
+    ) {
+      return ref.watch(gitLfsOperationsProvider).status(repo);
+    });
 
-final gitLfsTrackedPatternsProvider =
-    FutureProvider.autoDispose
-        .family<List<GitLfsTrackedPattern>, RepoLocation>((
+final gitLfsTrackedPatternsProvider = FutureProvider.autoDispose
+    .family<List<GitLfsTrackedPattern>, RepoLocation>((
       ref,
       repo,
     ) {
       return ref.watch(gitLfsOperationsProvider).trackedPatterns(repo);
     });
 
-final gitLfsFilesProvider =
-    FutureProvider.autoDispose.family<List<GitLfsFile>, RepoLocation>((
+final gitLfsFilesProvider = FutureProvider.autoDispose
+    .family<List<GitLfsFile>, RepoLocation>((
       ref,
       repo,
     ) {
@@ -287,27 +297,26 @@ final authResolverProvider = Provider<AuthResolver>((ref) {
 /// `git status` of their own.
 final repoStatusProvider = FutureProvider.autoDispose
     .family<RepoStatus, RepoLocation>((
-  ref,
-  repo,
-) {
-  return ref.watch(gitReadOperationsProvider).getStatus(repo);
-});
+      ref,
+      repo,
+    ) {
+      return ref.watch(gitReadOperationsProvider).getStatus(repo);
+    });
 
 /// Local branches only — always fast.  This is what the UI awaits on
 /// initial repo load so the graph and sidebar render immediately.
 final localBranchesProvider = FutureProvider.autoDispose
     .family<List<Branch>, RepoLocation>(
-  (ref, repo) {
-    appLog.i('branches: loading locals for ${repo.displayName}');
-    return ref.watch(gitReadOperationsProvider).getLocalBranches(repo);
-  },
-);
+      (ref, repo) {
+        appLog.i('branches: loading locals for ${repo.displayName}');
+        return ref.watch(gitReadOperationsProvider).getLocalBranches(repo);
+      },
+    );
 
 /// Ahead/behind per local branch — loaded in parallel so it never blocks the
 /// initial branch render; the sidebar badges fill in when it resolves.
-final branchDivergenceProvider =
-    FutureProvider.autoDispose
-        .family<Map<String, ({int ahead, int behind})>, RepoLocation>(
+final branchDivergenceProvider = FutureProvider.autoDispose
+    .family<Map<String, ({int ahead, int behind})>, RepoLocation>(
       (ref, repo) {
         return ref.watch(gitReadOperationsProvider).localBranchDivergence(repo);
       },
@@ -316,8 +325,8 @@ final branchDivergenceProvider =
 /// Remote tracking branches — may take seconds (or time out at 3s on
 /// huge monorepos).  Loaded in parallel and consumed without `await` by
 /// UI that wants to render incrementally.
-final remoteBranchesProvider =
-    FutureProvider.autoDispose.family<List<Branch>, RepoLocation>((ref, repo) {
+final remoteBranchesProvider = FutureProvider.autoDispose
+    .family<List<Branch>, RepoLocation>((ref, repo) {
       appLog.i('branches: loading remotes for ${repo.displayName}');
       return ref.watch(gitReadOperationsProvider).getRemoteBranches(repo);
     });
@@ -333,24 +342,24 @@ final remoteBranchesProvider =
 /// and blocking the UI on big repos.  Always await both `.future`s here.
 final branchesProvider = FutureProvider.autoDispose
     .family<List<Branch>, RepoLocation>((
-  ref,
-  repo,
-) async {
-  final localsFuture = ref.watch(localBranchesProvider(repo).future);
-  final remotesFuture = ref.watch(remoteBranchesProvider(repo).future);
-  final locals = await localsFuture;
-  final remotes = await remotesFuture;
-  return [...locals, ...remotes];
-});
+      ref,
+      repo,
+    ) async {
+      final localsFuture = ref.watch(localBranchesProvider(repo).future);
+      final remotesFuture = ref.watch(remoteBranchesProvider(repo).future);
+      final locals = await localsFuture;
+      final remotes = await remotesFuture;
+      return [...locals, ...remotes];
+    });
 
 /// Submodules registered in the superproject (`git submodule status`).
 /// Family-keyed by [RepoLocation] like the other ref providers.
 final submodulesProvider = FutureProvider.autoDispose
     .family<List<Submodule>, RepoLocation>(
-  (ref, repo) {
-    return ref.watch(gitReadOperationsProvider).getSubmodules(repo);
-  },
-);
+      (ref, repo) {
+        return ref.watch(gitReadOperationsProvider).getSubmodules(repo);
+      },
+    );
 
 final repoActiveProfileProvider = FutureProvider.autoDispose
     .family<AuthProfile?, RepoLocation>((ref, repo) async {
@@ -413,20 +422,20 @@ typedef RepoInfo = ({
 
 final repoInfoProvider = FutureProvider.autoDispose
     .family<RepoInfo, RepoLocation>((
-  ref,
-  repo,
-) async {
-  final remoteReader = ref.watch(remoteUrlReaderProvider);
-  final identityService = ref.watch(gitIdentityServiceProvider);
-  final originUrl = await remoteReader.remoteUrl(repo, 'origin');
-  final id = await identityService.readEffective(repo);
-  return (
-    path: repo.path,
-    originUrl: originUrl,
-    userName: id.name,
-    userEmail: id.email,
-  );
-});
+      ref,
+      repo,
+    ) async {
+      final remoteReader = ref.watch(remoteUrlReaderProvider);
+      final identityService = ref.watch(gitIdentityServiceProvider);
+      final originUrl = await remoteReader.remoteUrl(repo, 'origin');
+      final id = await identityService.readEffective(repo);
+      return (
+        path: repo.path,
+        originUrl: originUrl,
+        userName: id.name,
+        userEmail: id.email,
+      );
+    });
 
 final repoLauncherProvider = Provider<RepoLauncher>((ref) {
   return SystemRepoLauncher();

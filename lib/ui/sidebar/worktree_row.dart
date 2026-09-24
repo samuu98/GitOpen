@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
-import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/common/app_context_menu.dart';
-import 'package:gitopen/ui/dialogs/confirm_dialog.dart';
+import 'package:gitopen/ui/dialogs/remove_worktree_dialog.dart';
 import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:path/path.dart' as p;
@@ -24,13 +23,13 @@ class WorktreeRow extends ConsumerWidget {
   final RepoLocation repo;
   final VoidCallback onRefresh;
 
-  bool get _isThisCheckout =>
-      p.equals(worktree.path, repo.path);
+  bool get _isThisCheckout => p.equals(worktree.path, repo.path);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = AppPalette.of(context);
-    final label = worktree.branch ??
+    final label =
+        worktree.branch ??
         (worktree.isDetached
             ? (worktree.headSha?.short() ?? 'detached')
             : 'bare');
@@ -46,7 +45,11 @@ class WorktreeRow extends ConsumerWidget {
             // Glyph-led row (like a branch leaf): pad to the glyph column and
             // let the marker box carry the label out to the label column.
             padding: const EdgeInsets.only(
-                left: kSidebarRowGlyphIndent, right: 26, top: 3, bottom: 3),
+              left: kSidebarRowGlyphIndent,
+              right: 26,
+              top: 3,
+              bottom: 3,
+            ),
             child: Row(
               children: [
                 SizedBox(
@@ -111,6 +114,7 @@ class WorktreeRow extends ConsumerWidget {
     WidgetRef ref,
     Offset globalPos,
   ) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
     final selected = await AppContextMenu.show<String>(
       context,
       globalPosition: globalPos,
@@ -129,33 +133,18 @@ class WorktreeRow extends ConsumerWidget {
           ),
       ],
     );
-    if (selected == null || !context.mounted) return;
+    if (selected == null || !navigator.mounted) return;
 
     switch (selected) {
       case 'open':
         await _open(ref);
 
       case 'remove':
-        final confirmed = await ConfirmDialog.show(
-          context,
-          title: 'Remove worktree?',
-          body: 'The worktree at "${worktree.path}" will be removed. '
-              'Uncommitted changes in it will block the removal.',
-          confirmLabel: 'Remove',
-          dangerous: true,
+        await RemoveWorktreeDialog.show(
+          navigator.context,
+          repo: repo,
+          worktree: worktree,
         );
-        if (!confirmed || !context.mounted) return;
-        final result = await ref
-            .read(gitWriteOperationsProvider)
-            .removeWorktree(repo, worktree.path);
-        onRefresh();
-        if (!context.mounted) return;
-        if (result case GitFailure(:final message)) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Remove worktree failed: $message'),
-            backgroundColor: AppPalette.of(context).accentErr,
-          ));
-        }
     }
   }
 }

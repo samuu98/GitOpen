@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/git/branch_deletion.dart';
+import 'package:gitopen/application/git/branch_deletion_flow.dart';
 import 'package:gitopen/application/git/git_action_ports.dart';
 import 'package:gitopen/application/git/git_actions_service.dart';
 import 'package:gitopen/application/git/git_result.dart';
@@ -377,6 +378,74 @@ class GitActionsController {
     return (localNeedsForce: localNeedsForce);
   }
 
+  /// One pending lifecycle and one sidebar/graph reload for a whole batch.
+  /// Server-side deletes keep the push auth path (saved account, prompt on an
+  /// auth failure); their progress records finish once the views reloaded.
+  Future<ActionRun<List<BranchDeleteResult>>> deleteBranches(
+    BuildContext context,
+    RepoLocation repo,
+    List<BranchDeleteRequest> requests, {
+    void Function(int done, int total)? onProgress,
+  }) async {
+    final prompt = DialogAuthPrompt(context, _ref);
+    final pushed = <String>[];
+    final run = await _ref
+        .read(actionRunnerProvider)
+        .runAndRefresh(
+          key: 'branch-delete-batch',
+          repo: repo,
+          scopes: _refScopes,
+          label: 'Deleting branches…',
+          action: () => _ref
+              .read(branchDeletionFlowProvider)
+              .deleteMany(
+                repo,
+                requests,
+                onProgress: onProgress,
+                deleteRemote: (remoteRef) async {
+                  final result = await _ref
+                      .read(gitActionsServiceProvider)
+                      .deleteRemoteBranch(
+                        repo,
+                        remoteRef,
+                        prompt: prompt,
+                        progress: OperationsProgressSink(_ref),
+                      );
+                  if (result.operationId case final id?) pushed.add(id);
+                  return result.outcome == ActionOutcome.failed
+                      ? 'Could not delete the branch on the server.'
+                      : null;
+                },
+              ),
+        );
+    pushed.forEach(_ref.read(operationsProvider.notifier).finishSuccess);
+    return run;
+  }
+
+  Future<ActionRun<BranchDeleteResult>> removeWorktreeWithBranch(
+    RepoLocation repo,
+    String path, {
+    bool force = false,
+    bool deleteBranch = false,
+    bool forceBranch = false,
+  }) => _ref
+      .read(actionRunnerProvider)
+      .runAndRefresh(
+        key: 'worktree-remove:$path',
+        repo: repo,
+        scopes: _refScopes,
+        label: 'Removing worktree…',
+        action: () => _ref
+            .read(branchDeletionFlowProvider)
+            .removeWorktree(
+              repo,
+              path,
+              force: force,
+              deleteBranch: deleteBranch,
+              forceBranch: forceBranch,
+            ),
+      );
+
   /// `git branch --set-upstream-to=<upstream> <branch>`.
   Future<ActionResult> setUpstream(
     BuildContext context,
@@ -513,33 +582,37 @@ class GitActionsController {
     if (confirmed != true || !context.mounted) {
       return const ActionResult(ActionOutcome.failed);
     }
-    return _runLocal(repo, key: 'stash-restore:$index',
-        scopes: _stashScopes, () async {
-      final result = await safety.applyPreservingLocal(repo, index, pop: pop);
-      return switch (result) {
-        GitSuccess<StashRestoreResult>(:final value) when value.hasConflict =>
-          ActionResult(
-            ActionOutcome.conflict,
+    return _runLocal(
+      repo,
+      key: 'stash-restore:$index',
+      scopes: _stashScopes,
+      () async {
+        final result = await safety.applyPreservingLocal(repo, index, pop: pop);
+        return switch (result) {
+          GitSuccess<StashRestoreResult>(:final value) when value.hasConflict =>
+            ActionResult(
+              ActionOutcome.conflict,
+              invalidate: const {RepoDataScope.reads, RepoDataScope.repoState},
+              message:
+                  'Local edits conflicted while restoring. Resolve in the '
+                  'conflicts panel. Your local edits remain in '
+                  '${value.localStash}. '
+                  'The target stash was kept.',
+              severity: MessageSeverity.error,
+            ),
+          GitSuccess<StashRestoreResult>() => const ActionResult(
+            ActionOutcome.success,
+            invalidate: {RepoDataScope.reads, RepoDataScope.repoState},
+          ),
+          GitFailure<StashRestoreResult>(:final message) => ActionResult(
+            ActionOutcome.failed,
             invalidate: const {RepoDataScope.reads, RepoDataScope.repoState},
-            message:
-                'Local edits conflicted while restoring. Resolve in the '
-                'conflicts panel. Your local edits remain in '
-                '${value.localStash}. '
-                'The target stash was kept.',
+            message: 'Stash apply failed: $message',
             severity: MessageSeverity.error,
           ),
-        GitSuccess<StashRestoreResult>() => const ActionResult(
-          ActionOutcome.success,
-          invalidate: {RepoDataScope.reads, RepoDataScope.repoState},
-        ),
-        GitFailure<StashRestoreResult>(:final message) => ActionResult(
-          ActionOutcome.failed,
-          invalidate: const {RepoDataScope.reads, RepoDataScope.repoState},
-          message: 'Stash apply failed: $message',
-          severity: MessageSeverity.error,
-        ),
-      };
-    });
+        };
+      },
+    );
   }
 
   /// `git stash drop stash@{index}`.
@@ -675,17 +748,19 @@ class GitActionsController {
     required Set<RefreshScope> scopes,
   }) async {
     return _finish(
-      await _ref.read(actionRunnerProvider).runAndRefresh<ActionResult>(
-        key: key,
-        repo: repo,
-        scopes: scopes,
-        action: () => op(
-          DialogAuthPrompt(context, _ref),
-          OperationsProgressSink(_ref),
-        ),
-        failed: (result) => result.outcome == ActionOutcome.failed,
-        operationId: (result) => result.operationId,
-      ),
+      await _ref
+          .read(actionRunnerProvider)
+          .runAndRefresh<ActionResult>(
+            key: key,
+            repo: repo,
+            scopes: scopes,
+            action: () => op(
+              DialogAuthPrompt(context, _ref),
+              OperationsProgressSink(_ref),
+            ),
+            failed: (result) => result.outcome == ActionOutcome.failed,
+            operationId: (result) => result.operationId,
+          ),
     );
   }
 
@@ -700,14 +775,16 @@ class GitActionsController {
     String? busyLabel,
   }) async {
     return _finish(
-      await _ref.read(actionRunnerProvider).runAndRefresh<ActionResult>(
-        key: key,
-        repo: repo,
-        scopes: scopes,
-        label: busyLabel,
-        action: op,
-        failed: (result) => result.outcome == ActionOutcome.failed,
-      ),
+      await _ref
+          .read(actionRunnerProvider)
+          .runAndRefresh<ActionResult>(
+            key: key,
+            repo: repo,
+            scopes: scopes,
+            label: busyLabel,
+            action: op,
+            failed: (result) => result.outcome == ActionOutcome.failed,
+          ),
     );
   }
 
