@@ -74,9 +74,21 @@ class _Inspector implements BranchDeletionInspector {
 }
 
 class _Write implements GitWriteOperations {
+  _Write({this.refuse = false});
+
+  /// Answers an unforced delete the way git answers a branch that is not
+  /// merged into its upstream.
+  final bool refuse;
   final first = Completer<GitResult<void>>();
   final second = Completer<GitResult<void>>();
   int calls = 0;
+
+  @override
+  Future<GitResult<void>> removeWorktree(
+    RepoLocation repo,
+    String path, {
+    bool force = false,
+  }) async => const GitSuccess(null);
 
   @override
   Future<GitResult<void>> deleteBranch(
@@ -86,6 +98,14 @@ class _Write implements GitWriteOperations {
     bool remote = false,
   }) {
     calls++;
+    if (refuse && !force) {
+      return Future.value(
+        const GitFailure(
+          GitErrorKind.other,
+          "error: the branch 'linked' is not fully merged",
+        ),
+      );
+    }
     return calls == 1 ? first.future : second.future;
   }
 
@@ -272,5 +292,77 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Also delete the branch'), findsOneWidget);
     await capture(tester, 'remove_worktree.png');
+  });
+
+  testWidgets('branch refused after its worktree went screenshot', (
+    tester,
+  ) async {
+    final previous = goldenFileComparator;
+    goldenFileComparator = shots;
+    addTearDown(() => goldenFileComparator = previous);
+    await host(
+      tester,
+      Builder(
+        builder: (context) => Center(
+          child: ElevatedButton(
+            onPressed: () => DeleteBranchesDialog.show(
+              context,
+              repo: _repo,
+              branches: const [_linked],
+              allBranches: const [_linked],
+            ),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+      _Write(refuse: true),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Also remove the worktree'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Enable force delete'), findsWidgets);
+    expect(find.text('Force delete unmerged branches'), findsOneWidget);
+    await capture(tester, 'branch_delete_force_offer.png');
+  });
+
+  testWidgets('worktree removal leaving a refused branch screenshot', (
+    tester,
+  ) async {
+    final previous = goldenFileComparator;
+    goldenFileComparator = shots;
+    addTearDown(() => goldenFileComparator = previous);
+    await host(
+      tester,
+      Builder(
+        builder: (context) => Center(
+          child: ElevatedButton(
+            onPressed: () => RemoveWorktreeDialog.show(
+              context,
+              repo: _repo,
+              worktree: const Worktree(
+                path: 'C:/projects/linked',
+                branch: 'linked',
+              ),
+            ),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+      _Write(refuse: true),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Also delete the branch'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove worktree'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Force remove'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Enable force delete'), findsOneWidget);
+    expect(find.text('Delete branch'), findsOneWidget);
+    await capture(tester, 'remove_worktree_force_offer.png');
   });
 }
