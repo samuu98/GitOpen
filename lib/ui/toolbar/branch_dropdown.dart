@@ -144,7 +144,7 @@ class _BranchDropdownState extends ConsumerState<BranchDropdown> {
     if (newName == null || newName.trim().isEmpty || !mounted) return;
     await ref
         .read(gitActionsControllerProvider)
-        .renameBranch(context, repo, current.name, newName.trim());
+        .renameBranch(repo, current.name, newName.trim());
   }
 
   Future<void> _deleteBranch(RepoLocation repo) async {

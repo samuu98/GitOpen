@@ -87,7 +87,6 @@ Future<bool> safeCheckout({
     case CheckoutAction.stash:
       if (!context.mounted) return false;
       final stashRes = await controller.stashSave(
-        context,
         repo,
         'Auto-stash before checkout to $targetRef',
         includeUntracked: true,
@@ -100,7 +99,7 @@ Future<bool> safeCheckout({
 
   if (!context.mounted) return false;
   final result = trackRemote
-      ? await controller.checkoutTrack(context, repo, targetRef)
-      : await controller.checkout(context, repo, targetRef);
+      ? await controller.checkoutTrack(repo, targetRef)
+      : await controller.checkout(repo, targetRef);
   return result.outcome == ActionOutcome.success;
 }

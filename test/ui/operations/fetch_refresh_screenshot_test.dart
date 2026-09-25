@@ -270,7 +270,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
+        child: screenshotApp(
           theme: ThemeData(
             extensions: [AppPalette.dark(), const AppMotion.standard()],
           ),
@@ -317,7 +317,14 @@ void main() {
     );
 
     // 1. Fetch running: progress toast plus the blocking indicator.
-    await tester.pump(const Duration(milliseconds: 200));
+    // The blocking spinner shows after its delay, later than the toast's.
+    await pumpUntilPending(
+      tester,
+      find.descendant(
+        of: find.byType(BlockingOverlay),
+        matching: find.byType(CircularProgressIndicator),
+      ),
+    );
     await shoot(tester, key, 'fetch_01_running.png');
 
     // 2. git has exited; the graph is still reloading and busy holds.

@@ -113,13 +113,13 @@ class ConflictResolutionPanel extends ConsumerWidget {
     final actions = ref.read(gitActionsControllerProvider);
     switch (op) {
       case InProgressOp.merge:
-        await actions.mergeAbort(context, repo);
+        await actions.mergeAbort(repo);
       case InProgressOp.cherryPick:
-        await actions.cherryPickAbort(context, repo);
+        await actions.cherryPickAbort(repo);
       case InProgressOp.revert:
-        await actions.revertAbort(context, repo);
+        await actions.revertAbort(repo);
       case InProgressOp.rebase:
-        await actions.rebaseAbort(context, repo);
+        await actions.rebaseAbort(repo);
       case InProgressOp.none:
       case InProgressOp.bisect:
         break;
@@ -134,13 +134,13 @@ class ConflictResolutionPanel extends ConsumerWidget {
     final actions = ref.read(gitActionsControllerProvider);
     switch (op) {
       case InProgressOp.merge:
-        await actions.mergeContinue(context, repo);
+        await actions.mergeContinue(repo);
       case InProgressOp.cherryPick:
-        await actions.cherryPickContinue(context, repo);
+        await actions.cherryPickContinue(repo);
       case InProgressOp.revert:
-        await actions.revertContinue(context, repo);
+        await actions.revertContinue(repo);
       case InProgressOp.rebase:
-        await actions.rebaseContinue(context, repo);
+        await actions.rebaseContinue(repo);
       case InProgressOp.none:
       case InProgressOp.bisect:
         break;
@@ -260,12 +260,7 @@ class _ConflictCardState extends ConsumerState<_ConflictCard> {
     setState(() => _busy = true);
     await ref
         .read(gitActionsControllerProvider)
-        .takeConflictSide(
-          context,
-          widget.repo,
-          widget.path,
-          ours: ours,
-        );
+        .takeConflictSide(widget.repo, widget.path, ours: ours);
     if (!mounted) return;
     setState(() => _busy = false);
     widget.onChanged();

@@ -17,12 +17,10 @@ class SubmoduleRow extends ConsumerWidget {
   const SubmoduleRow({
     required this.submodule,
     required this.repo,
-    required this.onRefresh,
     super.key,
   });
   final Submodule submodule;
   final RepoLocation repo;
-  final VoidCallback onRefresh;
 
   bool get _isUninitialized =>
       submodule.status == SubmoduleStatus.uninitialized;

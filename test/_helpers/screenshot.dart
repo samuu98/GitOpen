@@ -1,7 +1,35 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Shared app shell for every screenshot gallery: turns the debug banner off
+/// so it never shows up in a captured PNG (the GitHub gallery leaked it into
+/// the public verification screenshots once).
+Widget screenshotApp({required ThemeData theme, required Widget home}) =>
+    MaterialApp(debugShowCheckedModeBanner: false, theme: theme, home: home);
+
+/// Pumps until [spinner] is on screen and visibly drawn, for a pending-state
+/// capture whose spinner runs an endless animation — `pumpAndSettle` would
+/// never return for it, and a fixed-duration pump can fire before the frame
+/// that first builds the spinner lands.
+Future<void> pumpUntilPending(
+  WidgetTester tester,
+  Finder spinner, {
+  Duration step = const Duration(milliseconds: 50),
+  int maxPumps = 40,
+}) async {
+  for (var i = 0; i < maxPumps && spinner.evaluate().isEmpty; i++) {
+    await tester.pump(step);
+  }
+  if (spinner.evaluate().isEmpty) {
+    throw TestFailure('Pending spinner never painted: $spinner');
+  }
+  // An indeterminate indicator starts from a zero-length arc (a dot); let it
+  // grow so the capture shows a spinner, not a speck.
+  await tester.pump(const Duration(milliseconds: 400));
+}
 
 /// Loads Roboto and Material Icons from the Flutter SDK so screenshots show
 /// real glyphs instead of the Ahem test font. Without `FLUTTER_ROOT` (set by

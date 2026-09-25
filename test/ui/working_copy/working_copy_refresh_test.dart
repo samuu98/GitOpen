@@ -19,6 +19,7 @@ import 'package:gitopen/infrastructure/git/git_cli_commit_template_reader.dart';
 import 'package:gitopen/infrastructure/git/git_identity_service.dart';
 import 'package:gitopen/infrastructure/git/git_process_runner.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
+import 'package:gitopen/ui/git/action_runner.dart';
 import 'package:gitopen/ui/theme/app_design_tokens.dart';
 import 'package:gitopen/ui/theme/app_palette.dart';
 import 'package:gitopen/ui/working_copy/commit_compose.dart';
@@ -182,6 +183,10 @@ void main() {
           expect(write.commits, 1);
           expect(find.byType(CircularProgressIndicator), findsOneWidget);
           if (!failGraph) {
+            await pumpUntilPending(
+              tester,
+              find.byType(CircularProgressIndicator),
+            );
             await expectLater(
               find.byKey(key),
               matchesGoldenFile('compose_committing_$themeName.png'),
@@ -200,10 +205,17 @@ void main() {
           await tester.pump();
           expect(find.byType(CircularProgressIndicator), findsNothing);
           if (failGraph) {
-            expect(
-              find.text('Commit created, but the view could not refresh.'),
-              findsOneWidget,
+            // One surface only: the runner's retryable record, never a second
+            // message inline in the composer.
+            expect(find.textContaining('could not refresh'), findsNothing);
+            final ops = ProviderScope.containerOf(
+              tester.element(find.byType(CommitCompose)),
+            ).read(operationsProvider);
+            final failures = ops.where(
+              (o) => o.errorMessage == refreshFailureMessage,
             );
+            expect(failures, hasLength(1));
+            expect(failures.single.onRetry, isNotNull);
           } else {
             expect(
               tester.widget<TextField>(find.byType(TextField)).controller!.text,

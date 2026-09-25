@@ -97,7 +97,7 @@ void main() {
               (ref) async => _diff,
             ),
           ],
-          child: MaterialApp(
+          child: screenshotApp(
             theme: ThemeData(
               fontFamily: 'Roboto',
               extensions: [
@@ -173,7 +173,7 @@ void main() {
         matchesGoldenFile('hunk_focus_$name.png'),
       );
       await tester.tap(find.byIcon(Icons.check_box_outline_blank).first);
-      await tester.pump();
+      await pumpUntilPending(tester, find.byType(LinearProgressIndicator));
       expect(write.calls, 1);
       await expectLater(
         find.byKey(key),
@@ -206,7 +206,7 @@ void main() {
               (ref) async => const <WorkingFileEntry>[],
             ),
           ],
-          child: MaterialApp(
+          child: screenshotApp(
             theme: ThemeData(
               fontFamily: 'Roboto',
               extensions: [

@@ -149,7 +149,7 @@ void main() {
     );
   }
 
-  test('success: completes, no prompt, invalidates reads', () async {
+  test('success: completes, no prompt', () async {
     final write = _FakeWrite([_ok]);
     final prompt = _FakePrompt(null);
     final progress = _FakeProgress();
@@ -159,7 +159,6 @@ void main() {
     ).fetch(repo, prompt: prompt, progress: progress);
 
     expect(result.outcome, ActionOutcome.success);
-    expect(result.invalidate, contains(RepoDataScope.reads));
     expect(prompt.calls, 0);
     expect(write.calls, 1);
     // The operation stays open on purpose: the UI adapter finishes it only

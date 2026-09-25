@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:gitopen/application/git/branch_deletion_flow.dart';
+import 'package:gitopen/domain/refs/branch.dart';
 import 'package:gitopen/domain/refs/worktree.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/infrastructure/git/git_cli_read_operations.dart';
@@ -24,23 +25,16 @@ class GitCliBranchDeletionInspector implements BranchDeletionInspector {
     String branch,
   ) async {
     final branches = await _read.getLocalBranches(repo);
-    if (!branches.any((b) => b.name == branch)) {
+    final local = branches.where((b) => b.name == branch).firstOrNull;
+    if (local == null) {
       return const BranchDeleteStatus(exists: false, merged: false);
     }
     final worktrees = await _read.getWorktrees(repo);
     final match = worktrees.where((w) => w.branch == branch).firstOrNull;
-    final mergedOutput = await _runner.run(
-      repo.path,
-      ['branch', '--merged', 'HEAD', '--format=%(refname:short)'],
-    );
-    final merged = mergedOutput
-        .split('\n')
-        .map((s) => s.trim())
-        .contains(branch);
     final path = match?.path;
     return BranchDeleteStatus(
       exists: true,
-      merged: merged,
+      merged: await _merged(repo, local),
       worktreePath: path,
       isMainWorktree:
           match != null && _isProtected(repo, match.path, worktrees),
@@ -64,6 +58,39 @@ class GitCliBranchDeletionInspector implements BranchDeletionInspector {
       dirty: await _dirty(match.path),
       locked: await _locked(repo, match.path),
     );
+  }
+
+  /// `git branch -d`'s own safety valve (`branch_merged` in builtin/branch.c):
+  /// a branch is checked against its upstream when it has one that still
+  /// resolves, and against HEAD otherwise. Checking HEAD unconditionally both
+  /// refused merged branches and — worse — reported a branch as deletable that
+  /// git then refused, after the dialog had already removed its worktree.
+  Future<bool> _merged(RepoLocation repo, Branch branch) async {
+    if (branch.upstreamFullName case final upstream?) {
+      final mergedIntoUpstream = await _mergedInto(repo, branch.name, upstream);
+      if (mergedIntoUpstream != null) return mergedIntoUpstream;
+    }
+    return await _mergedInto(repo, branch.name, 'HEAD') ?? false;
+  }
+
+  /// Null when [reference] does not resolve — a deleted upstream, for which
+  /// git falls back to HEAD.
+  Future<bool?> _mergedInto(
+    RepoLocation repo,
+    String branch,
+    String reference,
+  ) async {
+    try {
+      final output = await _runner.run(repo.path, [
+        'branch',
+        '--merged',
+        reference,
+        '--format=%(refname:short)',
+      ]);
+      return output.split('\n').map((s) => s.trim()).contains(branch);
+    } on GitProcessException {
+      return null;
+    }
   }
 
   /// The main worktree and the one open in the app are never removed.

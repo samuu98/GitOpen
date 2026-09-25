@@ -215,11 +215,7 @@ class _StashDropdownState extends ConsumerState<StashDropdown> {
     }
     await ref
         .read(gitActionsControllerProvider)
-        .stashSave(
-          context,
-          repo,
-          choice.message,
-        );
+        .stashSave(repo, choice.message);
   }
 
   Future<void> _stashSelectedFile(
@@ -236,7 +232,6 @@ class _StashDropdownState extends ConsumerState<StashDropdown> {
     await ref
         .read(gitActionsControllerProvider)
         .stashSave(
-          context,
           repo,
           msg?.trim() ?? '',
           includeUntracked: includeUntracked,
@@ -345,7 +340,7 @@ class _StashListDialogState extends ConsumerState<_StashListDialog> {
     if (!confirmed || !mounted) return;
     await ref
         .read(gitActionsControllerProvider)
-        .stashDrop(context, widget.repo, stash.index);
+        .stashDrop(widget.repo, stash.index);
     await _refreshStashes();
   }
 

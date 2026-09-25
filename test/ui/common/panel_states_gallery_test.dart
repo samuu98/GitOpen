@@ -79,7 +79,7 @@ Widget _gallery(AppPalette palette, Key key, VoidCallback onRetry) {
       ),
     ),
   ];
-  return MaterialApp(
+  return screenshotApp(
     theme: ThemeData(
       fontFamily: 'Roboto',
       brightness: palette.bg0.computeLuminance() < 0.5

@@ -157,7 +157,7 @@ void main() {
       child: ElevatedButton(
         onPressed: () => ref
             .read(gitActionsControllerProvider)
-            .merge(context, repo, 'feature', MergeStrategy.defaultStrategy),
+            .merge(repo, 'feature', MergeStrategy.defaultStrategy),
         child: const Text('merge'),
       ),
     ),
@@ -216,7 +216,7 @@ void main() {
             return ElevatedButton(
               onPressed: () => ref
                   .read(gitActionsControllerProvider)
-                  .checkout(context, repo, 'feature'),
+                  .checkout(repo, 'feature'),
               child: const Text('checkout'),
             );
           },

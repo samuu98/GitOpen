@@ -160,6 +160,8 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
     _lastTapBranch = branch.fullName;
     _lastTapAt = now;
     if (doubleTap && !branch.isCurrent) {
+      // The checkout refreshes the sidebar through the runner; no extra
+      // invalidation here.
       unawaited(
         checkoutRef(
           context: context,
@@ -167,9 +169,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
           repo: widget.repo,
           name: branch.name,
           isRemote: branch.isRemote,
-        ).then((ok) {
-          if (ok && mounted) _refresh();
-        }),
+        ),
       );
     }
   }
@@ -185,10 +185,6 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
       allBranches: all,
     );
     if (mounted) setState(_selected.clear);
-  }
-
-  void _refresh() {
-    ref.invalidate(sidebarDataProvider(widget.repo));
   }
 
   Future<void> _handleContextMenu(
@@ -299,14 +295,13 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
 
     switch (selected) {
       case 'checkout':
-        final ok = await checkoutRef(
+        await checkoutRef(
           context: context,
           ref: ref,
           repo: widget.repo,
           name: branchName,
           isRemote: branch.isRemote,
         );
-        if (ok) _refresh();
 
       case 'merge':
         final current = await currentBranchName(ref, widget.repo);
@@ -320,8 +315,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         if (strategy == null || !context.mounted) return;
         await ref
             .read(gitActionsControllerProvider)
-            .merge(context, widget.repo, branchName, strategy);
-        _refresh();
+            .merge(widget.repo, branchName, strategy);
 
       case 'rebase':
         if (!context.mounted) return;
@@ -336,8 +330,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         if (!confirmed || !context.mounted) return;
         await ref
             .read(gitActionsControllerProvider)
-            .rebase(context, widget.repo, branchName);
-        _refresh();
+            .rebase(widget.repo, branchName);
 
       case 'interactive_rebase':
         final tip = branch.tipSha;
@@ -350,8 +343,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         if (plan == null || !context.mounted) return;
         await ref
             .read(gitActionsControllerProvider)
-            .interactiveRebase(context, widget.repo, tip, plan);
-        _refresh();
+            .interactiveRebase(widget.repo, tip, plan);
 
       case 'compare_current':
         final tip = branch.tipSha;
@@ -402,13 +394,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         );
         if (newName == null || newName.trim().isEmpty) return;
         if (!context.mounted) return;
-        await actions.renameBranch(
-          context,
-          widget.repo,
-          branchName,
-          newName.trim(),
-        );
-        _refresh();
+        await actions.renameBranch(widget.repo, branchName, newName.trim());
 
       case 'delete':
         await _deleteBranches(
@@ -430,13 +416,7 @@ class _BranchTreeViewState extends ConsumerState<BranchTreeView> {
         );
         if (upstream == null || upstream.trim().isEmpty) return;
         if (!context.mounted) return;
-        await actions.setUpstream(
-          context,
-          widget.repo,
-          branchName,
-          upstream.trim(),
-        );
-        _refresh();
+        await actions.setUpstream(widget.repo, branchName, upstream.trim());
     }
   }
 

@@ -45,7 +45,6 @@ void main() {
                         isAnnotated: false,
                       ),
                       repo: repo,
-                      onRefresh: () {},
                     ),
                     StashRow(
                       stash: Stash(
@@ -55,7 +54,6 @@ void main() {
                         createdAt: DateTime.utc(2026),
                       ),
                       repo: repo,
-                      onRefresh: () {},
                     ),
                   ],
                 ),

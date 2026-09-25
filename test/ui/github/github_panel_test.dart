@@ -347,7 +347,7 @@ Future<void> _pump(
       ],
       child: RepaintBoundary(
         key: const Key('shot'),
-        child: MaterialApp(
+        child: screenshotApp(
           theme: ThemeData(extensions: [palette ?? AppPalette.dark()]),
           home: Scaffold(
             backgroundColor: (palette ?? AppPalette.dark()).bg0,
@@ -755,7 +755,7 @@ void main() {
       );
       api.detailGate = Completer<void>();
       await tester.tap(find.text('Ready'));
-      await tester.pump(const Duration(milliseconds: 300));
+      await pumpUntilPending(tester, find.byType(CircularProgressIndicator));
       await capture('pr_pending');
       api.detailGate!.complete();
       await tester.pumpAndSettle();
@@ -784,7 +784,7 @@ void main() {
       await tester.pumpAndSettle();
       api.runsGate = Completer<void>();
       await tester.tap(find.byTooltip('Re-run all jobs'));
-      await tester.pump(const Duration(milliseconds: 300));
+      await pumpUntilPending(tester, find.byType(CircularProgressIndicator));
       await capture('actions_pending');
       api.runsGate!.complete();
       await tester.pumpAndSettle();

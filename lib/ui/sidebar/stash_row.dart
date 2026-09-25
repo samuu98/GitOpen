@@ -11,15 +11,9 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// One stash in the STASHES section, with apply / pop / drop context menu.
 class StashRow extends ConsumerWidget {
-  const StashRow({
-    required this.stash,
-    required this.repo,
-    required this.onRefresh,
-    super.key,
-  });
+  const StashRow({required this.stash, required this.repo, super.key});
   final Stash stash;
   final RepoLocation repo;
-  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -106,7 +100,7 @@ class StashRow extends ConsumerWidget {
           dangerous: true,
         );
         if (!confirmed || !context.mounted) return;
-        await actions.stashDrop(context, repo, stash.index);
+        await actions.stashDrop(repo, stash.index);
     }
   }
 }

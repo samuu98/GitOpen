@@ -156,12 +156,7 @@ class _SidebarContent extends ConsumerWidget {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final t in data.tags)
-                      TagRow(
-                        tag: t,
-                        repo: repo,
-                        onRefresh: () => _refreshSidebar(ref),
-                      ),
+                    for (final t in data.tags) TagRow(tag: t, repo: repo),
                   ],
                 ),
         ),
@@ -173,11 +168,7 @@ class _SidebarContent extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final s in data.stashes)
-                      StashRow(
-                        stash: s,
-                        repo: repo,
-                        onRefresh: () => _refreshSidebar(ref),
-                      ),
+                      StashRow(stash: s, repo: repo),
                   ],
                 ),
         ),
@@ -189,11 +180,7 @@ class _SidebarContent extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final s in data.submodules)
-                      SubmoduleRow(
-                        submodule: s,
-                        repo: repo,
-                        onRefresh: () => _refreshSidebar(ref),
-                      ),
+                      SubmoduleRow(submodule: s, repo: repo),
                   ],
                 ),
         ),
@@ -207,11 +194,7 @@ class _SidebarContent extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final w in data.worktrees)
-                WorktreeRow(
-                  worktree: w,
-                  repo: repo,
-                  onRefresh: () => _refreshSidebar(ref),
-                ),
+                WorktreeRow(worktree: w, repo: repo),
             ],
           ),
         ),
@@ -275,12 +258,7 @@ class _AddTagIconButton extends ConsumerWidget {
         if (request == null || !context.mounted) return;
         await ref
             .read(gitActionsControllerProvider)
-            .createTag(
-              context,
-              repo,
-              request.name,
-              message: request.message,
-            );
+            .createTag(repo, request.name, message: request.message);
       },
     );
   }

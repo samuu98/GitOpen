@@ -97,7 +97,6 @@ void main() {
                 createdAt: DateTime.utc(2026),
               ),
               repo: repo,
-              onRefresh: () {},
             ),
             Consumer(
               builder: (_, ref, _) {

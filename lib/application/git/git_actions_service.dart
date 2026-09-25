@@ -25,16 +25,6 @@ enum ActionOutcome {
   failed,
 }
 
-/// Which cached repo data an action invalidated, so the UI adapter can refresh
-/// exactly the right providers (kept declarative to keep the service pure).
-enum RepoDataScope {
-  /// The read-ops cache (`gitReadOperationsProvider`) — commits, refs, status…
-  reads,
-
-  /// The in-progress-op detection (`repoStateProvider`) — merge/rebase state.
-  repoState,
-}
-
 /// Severity of a user-facing message attached to an [ActionResult].
 enum MessageSeverity {
   /// Neutral information.
@@ -47,30 +37,18 @@ enum MessageSeverity {
   error,
 }
 
-/// The declarative result of a git action: what happened, what to invalidate,
-/// and an optional message for the UI adapter to surface.
+/// The declarative result of a git action: what happened, and an optional
+/// message for the UI adapter to surface.
 final class ActionResult {
   const ActionResult(
     this.outcome, {
-    this.invalidate = const {},
     this.message,
     this.severity,
     this.operationId,
   });
 
-  /// Convenience for a clean success that invalidated the read cache.
-  const ActionResult.reads(this.outcome)
-    : invalidate = const {RepoDataScope.reads},
-      message = null,
-      severity = null,
-      operationId = null;
-
   /// What happened.
   final ActionOutcome outcome;
-
-  /// Repo data the action changed; the UI adapter invalidates the mapped
-  /// providers.
-  final Set<RepoDataScope> invalidate;
 
   /// Optional user-facing message (the adapter shows it as a snackbar).
   final String? message;
@@ -86,7 +64,6 @@ final class ActionResult {
   /// The same result, carrying [id] as its unfinished progress record.
   ActionResult withOperation(String? id) => ActionResult(
     outcome,
-    invalidate: invalidate,
     message: message,
     severity: severity,
     operationId: id ?? operationId,
@@ -97,7 +74,7 @@ final class ActionResult {
 ///
 /// Owns the sequencing every UI call site used to duplicate: drive the op
 /// through a [ProgressSink], classify failures, run the auth-retry loop via an
-/// [AuthPrompt], and hand back a declarative [ActionResult] (what to invalidate
+/// [AuthPrompt], and hand back a declarative [ActionResult] (what happened
 /// + any message). It depends only on the application interfaces and injected
 /// ports — no Flutter, no `dart:io`, no infrastructure — so it is unit-testable
 /// with fakes. The composition root injects `errorText` (the only code that
@@ -284,12 +261,6 @@ final class GitActionsService {
   // declarative ActionResult. Conflict-bearing ops report
   // ActionOutcome.conflict so the UI surfaces the conflicts panel.
 
-  /// Invalidation set for local actions: refresh reads + in-progress state.
-  static const Set<RepoDataScope> _localScope = {
-    RepoDataScope.reads,
-    RepoDataScope.repoState,
-  };
-
   Future<ActionResult> bisectStart(
     RepoLocation repo,
     String bad,
@@ -297,22 +268,20 @@ final class GitActionsService {
   ) => _simple(
     'Start bisect',
     _write.bisectStart(repo, bad, good),
-    invalidate: _localScope,
   );
 
   Future<ActionResult> bisectGood(RepoLocation repo) =>
-      _simple('Bisect good', _write.bisectGood(repo), invalidate: _localScope);
+      _simple('Bisect good', _write.bisectGood(repo));
 
   Future<ActionResult> bisectBad(RepoLocation repo) =>
-      _simple('Bisect bad', _write.bisectBad(repo), invalidate: _localScope);
+      _simple('Bisect bad', _write.bisectBad(repo));
 
   Future<ActionResult> bisectSkip(RepoLocation repo) =>
-      _simple('Bisect skip', _write.bisectSkip(repo), invalidate: _localScope);
+      _simple('Bisect skip', _write.bisectSkip(repo));
 
   Future<ActionResult> bisectReset(RepoLocation repo) => _simple(
     'Reset bisect',
     _write.bisectReset(repo),
-    invalidate: _localScope,
   );
 
   /// `git merge <ref>` with the given [strategy].
@@ -355,7 +324,7 @@ final class GitActionsService {
     RepoLocation repo,
     CommitSha to,
     ResetMode mode,
-  ) => _simple('Reset', _write.reset(repo, to, mode), invalidate: _localScope);
+  ) => _simple('Reset', _write.reset(repo, to, mode));
 
   /// `git rebase -i` driven by a scripted [plan] (no editor). Conflict-bearing,
   /// like [rebase].
@@ -388,7 +357,6 @@ final class GitActionsService {
     return switch (result) {
       GitSuccess(value: RebaseStoppedForEdit()) => const ActionResult(
         ActionOutcome.success,
-        invalidate: _localScope,
         message:
             'Rebase paused at the commit — amend it, then Continue '
             'in the panel below.',
@@ -396,7 +364,6 @@ final class GitActionsService {
       ),
       GitSuccess(value: final RebaseConflict c) => ActionResult(
         ActionOutcome.conflict,
-        invalidate: _localScope,
         message:
             'Edit conflict in ${c.conflictedPaths.length} file(s). '
             'Resolve in the conflicts panel below.',
@@ -404,11 +371,9 @@ final class GitActionsService {
       ),
       GitSuccess() => const ActionResult(
         ActionOutcome.success,
-        invalidate: _localScope,
       ),
       GitFailure(:final message) => ActionResult(
         ActionOutcome.failed,
-        invalidate: _localScope,
         message: 'Edit failed: $message',
         severity: MessageSeverity.error,
       ),
@@ -523,7 +488,6 @@ final class GitActionsService {
   }) => _simple(
     'Resolve',
     _write.takeConflictSide(repo, path, ours: ours),
-    invalidate: _localScope,
   );
 
   /// Discards the hunks in [patch] from the working tree.
@@ -537,74 +501,59 @@ final class GitActionsService {
 
   /// `git merge --abort`.
   Future<ActionResult> mergeAbort(RepoLocation repo) =>
-      _simple('Abort merge', _write.mergeAbort(repo), invalidate: _localScope);
+      _simple('Abort merge', _write.mergeAbort(repo));
 
   /// `git merge --continue`.
   Future<ActionResult> mergeContinue(RepoLocation repo) => _simple(
     'Continue merge',
     _write.mergeContinue(repo),
-    invalidate: _localScope,
   );
 
   /// `git cherry-pick --abort`.
   Future<ActionResult> cherryPickAbort(RepoLocation repo) => _simple(
     'Abort cherry-pick',
     _write.cherryPickAbort(repo),
-    invalidate: _localScope,
   );
 
   /// `git cherry-pick --continue`.
   Future<ActionResult> cherryPickContinue(RepoLocation repo) => _simple(
     'Continue cherry-pick',
     _write.cherryPickContinue(repo),
-    invalidate: _localScope,
   );
 
   /// `git revert --abort`.
   Future<ActionResult> revertAbort(RepoLocation repo) => _simple(
     'Abort revert',
     _write.revertAbort(repo),
-    invalidate: _localScope,
   );
 
   /// `git revert --continue`.
   Future<ActionResult> revertContinue(RepoLocation repo) => _simple(
     'Continue revert',
     _write.revertContinue(repo),
-    invalidate: _localScope,
   );
 
   /// `git rebase --abort`.
   Future<ActionResult> rebaseAbort(RepoLocation repo) => _simple(
     'Abort rebase',
     _write.rebaseAbort(repo),
-    invalidate: _localScope,
   );
 
   /// `git rebase --continue`.
   Future<ActionResult> rebaseContinue(RepoLocation repo) => _simple(
     'Continue rebase',
     _write.rebaseContinue(repo),
-    invalidate: _localScope,
   );
 
-  /// Maps a plain write result to an [ActionResult]: success invalidates
-  /// [invalidate]; failure adds a '`label` failed: …' error message (so call
-  /// sites can never silently swallow a git error).
-  Future<ActionResult> _simple<T>(
-    String label,
-    Future<GitResult<T>> op, {
-    Set<RepoDataScope> invalidate = const {RepoDataScope.reads},
-  }) async {
+  /// Maps a plain write result to an [ActionResult]: failure adds a
+  /// '`label` failed: …' error message (so call sites can never silently
+  /// swallow a git error).
+  Future<ActionResult> _simple<T>(String label, Future<GitResult<T>> op) async {
     final result = await op;
     return switch (result) {
-      GitSuccess() => ActionResult(
-        ActionOutcome.success,
-        invalidate: invalidate,
-      ),
+      GitSuccess() => const ActionResult(ActionOutcome.success),
       GitFailure(:final message) => ActionResult(
         ActionOutcome.failed,
-        invalidate: invalidate,
         message: '$label failed: $message',
         severity: MessageSeverity.error,
       ),
@@ -625,12 +574,10 @@ final class GitActionsService {
         if (paths == null) {
           return const ActionResult(
             ActionOutcome.success,
-            invalidate: _localScope,
           );
         }
         return ActionResult(
           ActionOutcome.conflict,
-          invalidate: _localScope,
           message:
               '$label conflict in ${paths.length} file(s). '
               'Resolve in the conflicts panel below.',
@@ -639,7 +586,6 @@ final class GitActionsService {
       case GitFailure(:final message):
         return ActionResult(
           ActionOutcome.failed,
-          invalidate: _localScope,
           message: '$label failed: $message',
           severity: MessageSeverity.error,
         );
@@ -709,9 +655,7 @@ final class GitActionsService {
       // have not reloaded yet. The UI adapter finishes this record after its
       // refresh, so the toast cannot claim success too early.
       progress.progress(id, null, 'Updating views…');
-      return const ActionResult.reads(
-        ActionOutcome.success,
-      ).withOperation(id);
+      return const ActionResult(ActionOutcome.success).withOperation(id);
     } on Object catch (e) {
       if (cancelled) return const ActionResult(ActionOutcome.failed);
       // Classify ONLY git's stderr (via the injected extractor) — never the

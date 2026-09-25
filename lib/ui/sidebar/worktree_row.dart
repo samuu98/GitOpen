@@ -13,15 +13,9 @@ import 'package:path/path.dart' as p;
 /// One worktree in the WORKTREES section. Tapping opens it as a workspace;
 /// the context menu can also remove a linked worktree.
 class WorktreeRow extends ConsumerWidget {
-  const WorktreeRow({
-    required this.worktree,
-    required this.repo,
-    required this.onRefresh,
-    super.key,
-  });
+  const WorktreeRow({required this.worktree, required this.repo, super.key});
   final Worktree worktree;
   final RepoLocation repo;
-  final VoidCallback onRefresh;
 
   bool get _isThisCheckout => p.equals(worktree.path, repo.path);
 

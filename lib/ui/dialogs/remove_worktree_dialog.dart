@@ -46,6 +46,15 @@ class _RemoveWorktreeState extends ConsumerState<RemoveWorktreeDialog> {
   BranchDeleteStatus? _branchStatus;
   String? _error;
 
+  /// Set when the worktree went but git refused its branch: what is left to do
+  /// is the force delete of that branch alone.
+  String? _refusedBranch;
+
+  /// Set when the last run ended on a branch only `branch -D` deletes.
+  bool _needsForce = false;
+
+  bool get _branchUnmerged => _branchStatus?.merged == false || _needsForce;
+
   @override
   void initState() {
     super.initState();
@@ -115,7 +124,7 @@ class _RemoveWorktreeState extends ConsumerState<RemoveWorktreeDialog> {
           ],
           if (widget.worktree.branch != null)
             AppInteractiveSurface(
-              onTap: _busy
+              onTap: _busy || _refusedBranch != null
                   ? null
                   : () => setState(
                       () => _deleteBranch = !_deleteBranch,
@@ -140,7 +149,7 @@ class _RemoveWorktreeState extends ConsumerState<RemoveWorktreeDialog> {
                 ],
               ),
             ),
-          if (_deleteBranch && _branchStatus?.merged == false)
+          if (_deleteBranch && _branchUnmerged)
             AppInteractiveSurface(
               onTap: _busy
                   ? null
@@ -160,9 +169,13 @@ class _RemoveWorktreeState extends ConsumerState<RemoveWorktreeDialog> {
                     color: visual.foreground,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Force delete unmerged branch',
-                    style: TextStyle(color: visual.foreground),
+                  // Expanded, not a bare Text: the label runs to the dialog's
+                  // edge at this width.
+                  Expanded(
+                    child: Text(
+                      'Force delete unmerged branch',
+                      style: TextStyle(color: visual.foreground),
+                    ),
                   ),
                 ],
               ),
@@ -178,7 +191,7 @@ class _RemoveWorktreeState extends ConsumerState<RemoveWorktreeDialog> {
           autofocus: true,
         ),
         AppButton.danger(
-          label: 'Remove worktree',
+          label: _refusedBranch == null ? 'Remove worktree' : 'Delete branch',
           onPressed:
               _busy ||
                   _loading ||
@@ -194,7 +207,7 @@ class _RemoveWorktreeState extends ConsumerState<RemoveWorktreeDialog> {
 
   Future<void> _remove() async {
     final status = _status!;
-    if (_deleteBranch && _forceBranch && _branchStatus?.merged == false) {
+    if (_deleteBranch && _forceBranch && _branchUnmerged) {
       final confirmed = await ConfirmDialog.show(
         context,
         title: 'Force delete branch?',
@@ -205,7 +218,7 @@ class _RemoveWorktreeState extends ConsumerState<RemoveWorktreeDialog> {
       if (!confirmed || !mounted) return;
     }
     var force = false;
-    if (status.dirty) {
+    if (status.dirty && _refusedBranch == null) {
       force = await ConfirmDialog.show(
         context,
         title: 'Force remove dirty worktree?',
@@ -221,27 +234,46 @@ class _RemoveWorktreeState extends ConsumerState<RemoveWorktreeDialog> {
       _busy = true;
       _error = null;
     });
-    final run = await ref
-        .read(gitActionsControllerProvider)
-        .removeWorktreeWithBranch(
-          widget.repo,
-          widget.worktree.path,
-          force: force,
-          deleteBranch: _deleteBranch,
-          forceBranch: _forceBranch,
-        );
+    final controller = ref.read(gitActionsControllerProvider);
+    final ActionRun<BranchDeleteResult> run;
+    if (_refusedBranch case final branch?) {
+      // The worktree is already gone; the refused branch is all that is left.
+      final batch = await controller.deleteBranches(context, widget.repo, [
+        BranchDeleteRequest(branch, forceBranch: _forceBranch),
+      ]);
+      run = ActionRun(batch.status, value: batch.value?.firstOrNull);
+    } else {
+      run = await controller.removeWorktreeWithBranch(
+        widget.repo,
+        widget.worktree.path,
+        force: force,
+        deleteBranch: _deleteBranch,
+        forceBranch: _forceBranch,
+      );
+    }
     if (!mounted) return;
-    if (run.value?.error == null && run.status == ActionRunStatus.succeeded) {
+    final result = run.value;
+    // A refresh failure is the runner's toast: git did the work, so the dialog
+    // closes exactly as it does on success.
+    if (result?.error == null &&
+        (run.status == ActionRunStatus.succeeded ||
+            run.status == ActionRunStatus.refreshFailed)) {
       Navigator.pop(context);
       return;
     }
+    final needsForce = result?.needsForce ?? false;
     setState(() {
       _busy = false;
-      _error =
-          run.value?.error ??
-          (run.status == ActionRunStatus.refreshFailed
-              ? refreshFailureMessage
-              : 'Removal could not complete.');
+      _needsForce = needsForce;
+      // Only a refusal after the removal leaves the branch as all there is to
+      // do; one before it keeps this a worktree removal.
+      if (result != null && result.worktreeRemoved) {
+        _refusedBranch = result.name;
+      }
+      _error = _refusedBranch != null && needsForce
+          ? 'The worktree was removed, but branch "$_refusedBranch" is not '
+                'fully merged and was kept. Enable force delete.'
+          : result?.error ?? 'Removal could not complete.';
     });
   }
 }

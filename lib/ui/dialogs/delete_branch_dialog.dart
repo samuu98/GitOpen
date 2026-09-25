@@ -167,6 +167,10 @@ class _DeleteEntry {
   final bool current;
   bool selected;
   bool removeWorktree = false;
+
+  /// Set when the last run ended with git refusing `branch -d`, so the row
+  /// keeps offering force after a partial outcome.
+  bool needsForce = false;
   BranchDeleteStatus? status;
   String? inspectError;
 }
@@ -237,6 +241,18 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
     if (mounted) setState(() => _loading = false);
   }
 
+  /// True once a run left a branch git refused: the dialog stays interactive
+  /// for exactly that retry instead of ending on a dead result list.
+  bool get _canRetry => _entries.any((e) => e.needsForce);
+
+  /// Rows and checkboxes are frozen while a run is in flight and after a final
+  /// result — but not when a refused branch can still be force deleted.
+  bool get _locked => _busy || (_results != null && !_canRetry);
+
+  /// After a result only a refused branch can be picked again: every other
+  /// row is already deleted or reported.
+  bool _frozen(_DeleteEntry e) => _busy || (_results != null && !e.needsForce);
+
   bool _blocked(_DeleteEntry e) =>
       e.current ||
       e.inspectError != null ||
@@ -247,8 +263,9 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
   bool _ready(_DeleteEntry e) {
     if (e.remote) return true;
     final state = e.status;
-    return state != null &&
-        (state.merged || _forceBranch) &&
+    if (state == null || !state.exists) return false;
+    if (e.needsForce && !_forceBranch) return false;
+    return (state.merged || _forceBranch) &&
         (state.worktreePath == null || e.removeWorktree);
   }
 
@@ -264,7 +281,7 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
     if (state == null) return 'Checking branch…';
     if (!state.exists) return 'Branch no longer exists';
     final details = <String>[
-      if (!state.merged) 'Unmerged — force delete required',
+      if (!state.merged || e.needsForce) 'Unmerged — force delete required',
       if (state.worktreePath != null) 'Checked out in ${state.worktreePath}',
       if (state.worktreeDirty)
         'Uncommitted or untracked changes will be lost if removed',
@@ -287,7 +304,7 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
         children: [
           for (final entry in _entries) ...[
             AppInteractiveSurface(
-              onTap: _busy || _results != null || _blocked(entry)
+              onTap: _frozen(entry) || _blocked(entry)
                   ? null
                   : () => setState(() => entry.selected = !entry.selected),
               selected: entry.selected,
@@ -322,7 +339,7 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
                 entry.status?.worktreePath != null &&
                 !_blocked(entry))
               AppInteractiveSurface(
-                onTap: _busy || _results != null
+                onTap: _frozen(entry)
                     ? null
                     : () => setState(
                         () => entry.removeWorktree = !entry.removeWorktree,
@@ -348,9 +365,11 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
                 ),
               ),
           ],
-          if (_entries.any((e) => !e.remote && e.status?.merged == false))
+          if (_entries.any(
+            (e) => !e.remote && (e.status?.merged == false || e.needsForce),
+          ))
             AppInteractiveSurface(
-              onTap: _busy || _results != null
+              onTap: _locked
                   ? null
                   : () => setState(
                       () => _forceBranch = !_forceBranch,
@@ -391,7 +410,9 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
             ),
             for (final result in results.where((r) => r.error != null))
               Text(
-                '${result.name}: ${result.error}',
+                '${result.name}: '
+                '${result.worktreeRemoved ? 'Worktree removed. ' : ''}'
+                '${result.error}',
                 style: TextStyle(color: palette.accentErr, fontSize: 11.5),
               ),
           ],
@@ -403,7 +424,9 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
           onPressed: _busy ? null : () => Navigator.pop(context),
           autofocus: true,
         ),
-        if (_results == null)
+        // A refused branch keeps the action available: the force option above
+        // is only an offer if the user can act on it.
+        if (_results == null || _entries.any((e) => e.needsForce))
           AppButton.danger(
             label: count == 1 ? 'Delete' : 'Delete $count branches',
             onPressed:
@@ -420,7 +443,7 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
   Future<void> _run() async {
     final selected = _entries.where((e) => e.selected).toList();
     final unmerged = selected
-        .where((e) => !e.remote && e.status?.merged == false)
+        .where((e) => !e.remote && (e.status?.merged == false || e.needsForce))
         .toList();
     if (_forceBranch && unmerged.isNotEmpty) {
       final names = unmerged.map((e) => e.name).join(', ');
@@ -460,6 +483,8 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
       _busy = true;
       _done = 0;
       _total = selected.length;
+      _results = null;
+      _error = null;
     });
     final requests = [
       for (final entry in selected)
@@ -489,14 +514,27 @@ class _DeleteBranchesState extends ConsumerState<DeleteBranchesDialog> {
     if (!mounted) {
       return;
     }
+    final results = run.value ?? const <BranchDeleteResult>[];
+    for (final entry in _entries) {
+      final result = results.where((r) => r.name == entry.name).firstOrNull;
+      if (result == null) continue;
+      // Only a branch git refused stays selected: the retry is the force
+      // delete, not a second attempt at everything.
+      entry
+        ..needsForce = result.needsForce
+        ..selected = result.needsForce;
+    }
     setState(() {
       _busy = false;
       _results = run.value;
-      if (run.status == ActionRunStatus.refreshFailed) {
-        _error = refreshFailureMessage;
-      } else if (run.status == ActionRunStatus.skipped) {
+      // A refresh failure is the runner's toast, not a second message here.
+      if (run.status == ActionRunStatus.skipped) {
         _error = 'A deletion is already running.';
       }
+      // What the refused rows say must match what git now sees: the worktree
+      // of a refused branch is already gone.
+      if (_canRetry) _loading = true;
     });
+    if (_canRetry) unawaited(_load());
   }
 }
