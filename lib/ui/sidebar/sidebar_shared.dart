@@ -56,6 +56,7 @@ class SidebarRowSurface extends StatelessWidget {
     required this.onTap,
     super.key,
     this.onSecondaryTapDown,
+    this.onDoubleTap,
     this.tooltip,
     this.semanticLabel,
     this.selected = false,
@@ -65,22 +66,31 @@ class SidebarRowSurface extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
   final GestureTapDownCallback? onSecondaryTapDown;
+
+  /// A row's own double-click action (checkout). Null ignores double clicks —
+  /// what a row does while its action, or a checkout, is already running.
+  final VoidCallback? onDoubleTap;
   final String? tooltip;
   final String? semanticLabel;
   final bool selected;
   final EdgeInsetsGeometry? padding;
 
   @override
-  Widget build(BuildContext context) => AppInteractiveSurface(
-    onTap: onTap,
-    onSecondaryTapDown: onSecondaryTapDown,
-    tooltip: tooltip,
-    semanticLabel: semanticLabel,
-    selected: selected,
-    height: AppSpacing.of(context).listRowHeight,
-    padding: padding,
-    child: (context, visual) => child,
-  );
+  Widget build(BuildContext context) {
+    final surface = AppInteractiveSurface(
+      onTap: onTap,
+      onSecondaryTapDown: onSecondaryTapDown,
+      tooltip: tooltip,
+      semanticLabel: semanticLabel,
+      selected: selected,
+      height: AppSpacing.of(context).listRowHeight,
+      padding: padding,
+      child: (context, visual) => child,
+    );
+    // Always wrapped, so toggling the callback keeps the element tree (and
+    // the surface's hover/focus state) stable; a null callback is inert.
+    return GestureDetector(onDoubleTap: onDoubleTap, child: surface);
+  }
 }
 
 /// Selects [sha] in the graph and asks the graph panel to scroll it into

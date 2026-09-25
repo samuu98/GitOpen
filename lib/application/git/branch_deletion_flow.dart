@@ -1,3 +1,4 @@
+import 'package:gitopen/application/git/branch_deletion.dart';
 import 'package:gitopen/application/git/git_result.dart';
 import 'package:gitopen/application/git/git_write_operations.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
@@ -62,9 +63,21 @@ class BranchDeleteRequest {
 }
 
 class BranchDeleteResult {
-  const BranchDeleteResult(this.name, this.error);
+  const BranchDeleteResult(
+    this.name,
+    this.error, {
+    this.needsForce = false,
+    this.worktreeRemoved = false,
+  });
   final String name;
   final String? error;
+
+  /// True when only `branch -D` would delete it, so the dialog can offer force
+  /// instead of showing a dead end.
+  final bool needsForce;
+
+  /// True when the branch's worktree was removed, even if the branch was kept.
+  final bool worktreeRemoved;
 }
 
 /// Runs a batch in order, retaining each failure for the dialog's summary.
@@ -92,6 +105,8 @@ class BranchDeletionFlow {
     final results = <BranchDeleteResult>[];
     for (final request in requests) {
       String? error;
+      var needsForce = false;
+      var worktreeRemoved = false;
       try {
         if (request.remote) {
           error = deleteRemote != null
@@ -112,7 +127,8 @@ class BranchDeletionFlow {
           } else if (state.worktreeLocked) {
             error = 'The linked worktree is locked.';
           } else if (!state.merged && !request.forceBranch) {
-            error = 'Branch is not fully merged. Enable force delete.';
+            error = _unmergedError;
+            needsForce = true;
           } else if (state.worktreePath != null && !request.removeWorktree) {
             error =
                 'Checked out in a linked worktree at '
@@ -131,19 +147,29 @@ class BranchDeletionFlow {
                 ),
               );
             }
-            error ??= _error(
-              await write.deleteBranch(
+            if (error == null) {
+              worktreeRemoved = state.worktreePath != null;
+              final refused = await _deleteBranch(
                 repo,
                 request.name,
                 force: request.forceBranch,
-              ),
-            );
+              );
+              error = refused.error;
+              needsForce = refused.needsForce;
+            }
           }
         }
       } on Object catch (e) {
         error = e.toString();
       }
-      results.add(BranchDeleteResult(request.name, error));
+      results.add(
+        BranchDeleteResult(
+          request.name,
+          error,
+          needsForce: needsForce,
+          worktreeRemoved: worktreeRemoved,
+        ),
+      );
       onProgress?.call(results.length, requests.length);
     }
     return results;
@@ -179,7 +205,8 @@ class BranchDeletionFlow {
         if (!branch.merged && !forceBranch) {
           return BranchDeleteResult(
             state.branch!,
-            'Branch is not fully merged. Enable force delete.',
+            _unmergedError,
+            needsForce: true,
           );
         }
       }
@@ -192,14 +219,17 @@ class BranchDeletionFlow {
       );
       if (removeError != null) return BranchDeleteResult(path, removeError);
       if (deleteBranch && state.branch != null) {
-        final deleteError = _error(
-          await write.deleteBranch(
-            repo,
-            state.branch!,
-            force: forceBranch,
-          ),
+        final refused = await _deleteBranch(
+          repo,
+          state.branch!,
+          force: forceBranch,
         );
-        return BranchDeleteResult(state.branch!, deleteError);
+        return BranchDeleteResult(
+          state.branch!,
+          refused.error,
+          needsForce: refused.needsForce,
+          worktreeRemoved: true,
+        );
       }
       return BranchDeleteResult(path, null);
     } on Object catch (e) {
@@ -207,8 +237,26 @@ class BranchDeletionFlow {
     }
   }
 
+  /// Deletes the branch and reports a refusal in the app's own words: git's
+  /// stderr names `-D` and its advice config, which the dialog's force option
+  /// already covers.
+  Future<({String? error, bool needsForce})> _deleteBranch(
+    RepoLocation repo,
+    String name, {
+    required bool force,
+  }) async {
+    final error = _error(await write.deleteBranch(repo, name, force: force));
+    if (error != null && !force && isNotFullyMergedError(error)) {
+      return (error: _unmergedError, needsForce: true);
+    }
+    return (error: error, needsForce: false);
+  }
+
   String? _error(GitResult<void> result) => switch (result) {
     GitSuccess() => null,
     GitFailure(:final message) => message,
   };
 }
+
+const String _unmergedError =
+    'Branch is not fully merged. Enable force delete.';
