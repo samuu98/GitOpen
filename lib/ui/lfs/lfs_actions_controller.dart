@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -126,34 +124,27 @@ class LfsActionsController {
           .runAndRefresh<ActionResult>(
             key: 'lfs:$key',
             repo: repo,
-            scopes: const {RefreshScope.status, RefreshScope.workingCopy},
+            scopes: const {
+              RefreshScope.status,
+              RefreshScope.workingCopy,
+              RefreshScope.lfsPanel,
+            },
             action: op,
             failed: (value) => value.outcome == ActionOutcome.failed,
             operationId: (value) => value.operationId,
           );
       final result = run.value;
       if (result == null) return const ActionResult(ActionOutcome.failed);
-      if (run.status != ActionRunStatus.stale) {
-        var lfsReloaded = false;
-        try {
-          await _reloadLfs(repo);
-          lfsReloaded = true;
-        } on Object {
-          _ref
-              .read(actionFeedbackProvider)
-              .showActionFailure(
-                refreshFailureMessage,
-                retry: () => unawaited(_retryRefresh(repo)),
-              );
-        }
-        final message = result.message;
-        if (message != null && run.status != ActionRunStatus.refreshFailed) {
-          final feedback = _ref.read(actionFeedbackProvider);
-          if (result.severity == MessageSeverity.error) {
-            feedback.showActionFailure(message);
-          } else if (lfsReloaded) {
-            feedback.showActionSuccess(message);
-          }
+      final message = result.message;
+      // A refresh failure is the runner's message, with its own Retry.
+      if (message != null &&
+          run.status != ActionRunStatus.stale &&
+          run.status != ActionRunStatus.refreshFailed) {
+        final feedback = _ref.read(actionFeedbackProvider);
+        if (result.severity == MessageSeverity.error) {
+          feedback.showActionFailure(message);
+        } else {
+          feedback.showActionSuccess(message);
         }
       }
       return result;
@@ -161,38 +152,6 @@ class LfsActionsController {
       if (_ref.mounted) {
         _ref.read(lfsSyncBusyProvider(repo).notifier).state = false;
       }
-    }
-  }
-
-  Future<void> _reloadLfs(RepoLocation repo) async {
-    final status = gitLfsStatusProvider(repo);
-    final patterns = gitLfsTrackedPatternsProvider(repo);
-    final files = gitLfsFilesProvider(repo);
-    _ref
-      ..invalidate(gitLfsStatusProvider(repo))
-      ..invalidate(gitLfsTrackedPatternsProvider(repo))
-      ..invalidate(gitLfsFilesProvider(repo));
-    await Future.wait<Object>([
-      _ref.read(status.future),
-      _ref.read(patterns.future),
-      _ref.read(files.future),
-    ]);
-  }
-
-  Future<void> _retryRefresh(RepoLocation repo) async {
-    await _ref.read(actionRunnerProvider).refreshOnly(
-      repo,
-      const {RefreshScope.status, RefreshScope.workingCopy},
-    );
-    try {
-      await _reloadLfs(repo);
-    } on Object {
-      _ref
-          .read(actionFeedbackProvider)
-          .showActionFailure(
-            refreshFailureMessage,
-            retry: () => unawaited(_retryRefresh(repo)),
-          );
     }
   }
 }

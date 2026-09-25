@@ -3,7 +3,6 @@ import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/git/action_runner.dart';
-import 'package:gitopen/ui/github/github_providers.dart';
 
 String githubMutationKey(RepoLocation repo, String key) =>
     '${repo.id.value}/github/$key';
@@ -30,46 +29,40 @@ Future<ActionRun<T>> runGitHubMutation<T>(
     .runAndRefresh<T>(
       key: 'github/$key',
       repo: repo,
-      scopes: scopes,
-      successMessage: successMessage,
-      action: () async {
-        final result = await action();
-        final listKey = (slug: slug, token: token);
-        final number = pullRequest ?? createdNumber?.call(result);
-        if (number != null) {
-          final detailKey = (slug: slug, token: token, number: number);
-          ref
-            ..invalidate(githubPullRequestsProvider(listKey))
-            ..invalidate(githubPullRequestDetailProvider(detailKey));
-          await Future.wait<dynamic>([
-            ref.read(githubPullRequestsProvider(listKey).future),
-            ref.read(githubPullRequestDetailProvider(detailKey).future),
-          ]);
-          if (reviewData) {
-            ref
-              ..invalidate(githubPullRequestReviewsProvider(detailKey))
-              ..invalidate(githubPullRequestCommentsProvider(detailKey))
-              ..invalidate(githubIssueCommentsProvider(detailKey));
-            await Future.wait<dynamic>([
-              ref.read(githubPullRequestReviewsProvider(detailKey).future),
-              ref.read(githubPullRequestCommentsProvider(detailKey).future),
-              ref.read(githubIssueCommentsProvider(detailKey).future),
-            ]);
-          }
-        } else if (runId != null) {
-          final runsKey = (slug: slug, token: token, branch: branch);
-          final jobsKey = (slug: slug, token: token, runId: runId);
-          ref
-            ..invalidate(githubWorkflowRunsProvider(runsKey))
-            ..invalidate(githubWorkflowJobsProvider(jobsKey));
-          await Future.wait<dynamic>([
-            ref.read(githubWorkflowRunsProvider(runsKey).future),
-            ref.read(githubWorkflowJobsProvider(jobsKey).future),
-          ]);
-        } else {
-          ref.invalidate(githubPullRequestsProvider(listKey));
-          await ref.read(githubPullRequestsProvider(listKey).future);
-        }
-        return result;
+      scopes: {
+        ...scopes,
+        ..._gitHubScopes(
+          pullRequest: pullRequest != null || createdNumber != null,
+          reviewData: reviewData,
+          workflowRun: runId != null,
+        ),
       },
+      successMessage: successMessage,
+      action: action,
+      gitHubTarget: (value) => GitHubRefreshTarget(
+        slug: slug,
+        token: token,
+        pullRequest: pullRequest ?? createdNumber?.call(value),
+        runId: runId,
+        branch: branch,
+      ),
     );
+
+/// The GitHub views a mutation reloads: a workflow run's list and jobs, or a
+/// pull request's list, detail and review data, or — with nothing else named —
+/// just the pull-request list.
+Set<RefreshScope> _gitHubScopes({
+  required bool pullRequest,
+  required bool reviewData,
+  required bool workflowRun,
+}) {
+  if (workflowRun) {
+    return const {RefreshScope.workflowRuns, RefreshScope.workflowJobs};
+  }
+  if (!pullRequest) return const {RefreshScope.pullRequestList};
+  return {
+    RefreshScope.pullRequestList,
+    RefreshScope.pullRequestDetail,
+    if (reviewData) RefreshScope.pullRequestReviewData,
+  };
+}

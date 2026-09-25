@@ -46,7 +46,6 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
   bool _signOff = false;
   bool _sign = false;
   bool _busy = false;
-  String? _refreshError;
   String? _template;
   int _lastTrigger = 0;
   int _lastPushTrigger = 0;
@@ -128,8 +127,6 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _IdentityStrip(identity: identityAsync.value, amend: _amend),
-          if (_refreshError != null)
-            Text(_refreshError!, style: TextStyle(color: palette.accentErr)),
           const SizedBox(height: 8),
           _MessageField(
             controller: _ctl,
@@ -214,10 +211,7 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
     // message and staged content (guards the keyboard path too, not just the
     // disabled button).
     if (!_amend && (_ctl.text.trim().isEmpty || !widget.hasStaged)) return;
-    setState(() {
-      _busy = true;
-      _refreshError = null;
-    });
+    setState(() => _busy = true);
     final run = await ref
         .read(actionRunnerProvider)
         .runAndRefresh<GitResult<CommitSha>>(
@@ -253,14 +247,8 @@ class _CommitComposeState extends ConsumerState<CommitCompose> {
           );
     }
     if (!mounted) return;
-    setState(() {
-      _busy = false;
-      if (run.status == ActionRunStatus.refreshFailed) {
-        _refreshError = _amend
-            ? 'Commit amended, but the view could not refresh.'
-            : 'Commit created, but the view could not refresh.';
-      }
-    });
+    // A failed reload is the runner's one toast, with its own Retry.
+    setState(() => _busy = false);
     if (run.value is GitSuccess<CommitSha>) {
       _ctl.text = _template ?? '';
       setState(() {

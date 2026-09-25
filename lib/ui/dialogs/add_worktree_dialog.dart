@@ -32,7 +32,6 @@ class _State extends ConsumerState<AddWorktreeDialog> {
   final _branchCtl = TextEditingController();
   final _refCtl = TextEditingController();
   bool _busy = false;
-  bool _created = false;
   String? _error;
 
   @override
@@ -135,24 +134,6 @@ class _State extends ConsumerState<AddWorktreeDialog> {
     });
     final newBranch = _branchCtl.text.trim();
     final existingRef = _refCtl.text.trim();
-    if (_created) {
-      try {
-        final retry = await ref
-            .read(actionRunnerProvider)
-            .runAndRefresh<void>(
-              key: 'add-worktree-refresh:$path',
-              repo: widget.repo,
-              scopes: const {RefreshScope.sidebar},
-              action: () async {},
-            );
-        if (mounted && retry.status == ActionRunStatus.succeeded) {
-          Navigator.pop(context, true);
-        }
-      } finally {
-        if (mounted) setState(() => _busy = false);
-      }
-      return;
-    }
     final run = await ref
         .read(actionRunnerProvider)
         .runAndRefresh<GitResult<void>>(
@@ -172,14 +153,10 @@ class _State extends ConsumerState<AddWorktreeDialog> {
         );
     if (!mounted) return;
     switch (run.status) {
-      case ActionRunStatus.succeeded:
+      // The worktree exists either way; a failed reload is the runner's toast
+      // with its own Retry, not a second message inside a dialog that stays up.
+      case ActionRunStatus.succeeded || ActionRunStatus.refreshFailed:
         Navigator.pop(context, true);
-      case ActionRunStatus.refreshFailed:
-        _created = true;
-        setState(() {
-          _busy = false;
-          _error = refreshFailureMessage;
-        });
       case ActionRunStatus.failed:
         final result = run.value;
         setState(() {

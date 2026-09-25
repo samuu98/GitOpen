@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gitopen/application/active_workspace_provider.dart';
 import 'package:gitopen/application/git/repo_state_provider.dart';
+import 'package:gitopen/application/github/github_models.dart';
 import 'package:gitopen/application/operations/operations_notifier.dart';
 import 'package:gitopen/application/providers.dart';
 import 'package:gitopen/application/watch/repo_change.dart';
 import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 import 'package:gitopen/ui/commit_graph/commit_graph_providers.dart';
+import 'package:gitopen/ui/github/github_providers.dart';
 import 'package:gitopen/ui/operations/action_feedback.dart';
 import 'package:gitopen/ui/sidebar/sidebar_shared.dart';
 import 'package:gitopen/ui/working_copy/working_copy_providers.dart';
@@ -34,6 +36,49 @@ enum RefreshScope {
 
   /// The working-copy file list and the selected file's diff.
   workingCopy,
+
+  /// The Git LFS panel: install state, tracked patterns and LFS files.
+  lfsPanel,
+
+  /// The GitHub pull-request list.
+  pullRequestList,
+
+  /// One pull request's detail header.
+  pullRequestDetail,
+
+  /// One pull request's reviews, review comments and issue comments.
+  pullRequestReviewData,
+
+  /// The workflow-run list for a branch.
+  workflowRuns,
+
+  /// One workflow run's jobs.
+  workflowJobs,
+}
+
+/// Which GitHub views a refresh reloads. GitHub providers are keyed by the API
+/// identity (slug + token) plus the pull request or workflow run on screen, so
+/// a [RepoLocation] alone cannot address them.
+final class GitHubRefreshTarget {
+  const GitHubRefreshTarget({
+    required this.slug,
+    required this.token,
+    this.pullRequest,
+    this.runId,
+    this.branch,
+  });
+
+  final RepoSlug slug;
+  final String token;
+
+  /// The pull request whose detail and review data to reload, when known.
+  final int? pullRequest;
+
+  /// The workflow run whose jobs to reload, when known.
+  final int? runId;
+
+  /// Branch filter of the workflow-run list on screen.
+  final String? branch;
 }
 
 /// How a [ActionRunner.runAndRefresh] call ended.
@@ -102,6 +147,9 @@ class ActionRunner {
   /// [operationId] points at the progress record the action started, which
   /// becomes successful only once the refresh completed — or failed, with the
   /// refresh message and a retry.
+  ///
+  /// [gitHubTarget] addresses the GitHub scopes; it reads the action's value so
+  /// a just-created pull request can name itself.
   Future<ActionRun<T>> runAndRefresh<T>({
     required String key,
     required RepoLocation repo,
@@ -111,6 +159,7 @@ class ActionRunner {
     bool Function(T value)? failed,
     String? Function(T value)? operationId,
     String? successMessage,
+    GitHubRefreshTarget? Function(T value)? gitHubTarget,
   }) async {
     final scopedKey = '${repo.id.value}/$key';
     final busy = _ref.read(busyProvider.notifier);
@@ -131,6 +180,7 @@ class ActionRunner {
           failed: failed,
           operationId: operationId,
           successMessage: successMessage,
+          gitHubTarget: gitHubTarget,
         );
       } finally {
         if (!_disposed) busy.end(scopedKey);
@@ -146,15 +196,17 @@ class ActionRunner {
     bool Function(T value)? failed,
     String? Function(T value)? operationId,
     String? successMessage,
+    GitHubRefreshTarget? Function(T value)? gitHubTarget,
   }) async {
     final value = await action();
+    final gitHub = gitHubTarget?.call(value);
     if (failed?.call(value) ?? false) {
       // A failed command can still have moved the repository (a stash that
       // applied halfway, a push that updated one ref), so the views are
       // refreshed anyway — but git's own error is what the caller reports.
       if (!_isStale(generation)) {
         try {
-          await _refresh(repo, scopes);
+          await _refresh(repo, scopes, gitHub);
         } on Object {
           // The action already failed; one message is enough.
         }
@@ -169,9 +221,9 @@ class ActionRunner {
       return ActionRun<T>(ActionRunStatus.stale, value: value);
     }
     try {
-      await _refresh(repo, scopes);
+      await _refresh(repo, scopes, gitHub);
     } on Object {
-      void retry() => unawaited(refreshOnly(repo, scopes));
+      void retry() => unawaited(refreshOnly(repo, scopes, gitHub: gitHub));
       if (opId != null) {
         _operations.finishFailure(opId, refreshFailureMessage, onRetry: retry);
       } else {
@@ -189,16 +241,20 @@ class ActionRunner {
   }
 
   /// Reloads [scopes] on their own — the Retry behind a refresh failure.
-  Future<void> refreshOnly(RepoLocation repo, Set<RefreshScope> scopes) async {
+  Future<void> refreshOnly(
+    RepoLocation repo,
+    Set<RefreshScope> scopes, {
+    GitHubRefreshTarget? gitHub,
+  }) async {
     if (_disposed) return;
     try {
-      await _tracked(scopes, () => _refresh(repo, scopes));
+      await _tracked(scopes, () => _refresh(repo, scopes, gitHub));
     } on Object {
       _ref
           .read(actionFeedbackProvider)
           .showActionFailure(
             refreshFailureMessage,
-            retry: () => unawaited(refreshOnly(repo, scopes)),
+            retry: () => unawaited(refreshOnly(repo, scopes, gitHub: gitHub)),
           );
     }
   }
@@ -224,8 +280,11 @@ class ActionRunner {
     }
   }
 
-  Future<void> _refresh(RepoLocation repo, Set<RefreshScope> scopes) =>
-      _invalidateAndAwait(repo, scopes);
+  Future<void> _refresh(
+    RepoLocation repo,
+    Set<RefreshScope> scopes,
+    GitHubRefreshTarget? gitHub,
+  ) => _invalidateAndAwait(repo, scopes, gitHub);
 
   /// Invalidates every declared provider, then awaits only the ones that were
   /// already alive: a panel nobody has open needs no git process to prove the
@@ -233,6 +292,7 @@ class ActionRunner {
   Future<void> _invalidateAndAwait(
     RepoLocation repo,
     Set<RefreshScope> scopes,
+    GitHubRefreshTarget? gitHub,
   ) async {
     final wantStatus =
         scopes.contains(RefreshScope.status) &&
@@ -261,7 +321,7 @@ class ActionRunner {
     // One read-cache bust covers every `git`-backed provider (that is what the
     // service's RepoDataScope.reads has always meant); the family
     // invalidations below are for the providers this scope waits on.
-    if (scopes.any((s) => s != RefreshScope.repoState)) {
+    if (scopes.any(_readsGit)) {
       _ref.invalidate(gitReadOperationsProvider);
     }
     if (scopes.contains(RefreshScope.status)) {
@@ -305,7 +365,72 @@ class ActionRunner {
                   : unstagedFileDiffProvider((repo, selected.path)))
               .future,
         ),
+      ..._lfsPending(repo, scopes),
+      ..._gitHubPending(scopes, gitHub),
     ]);
+  }
+
+  /// The LFS panel's three providers.
+  List<Future<void>> _lfsPending(RepoLocation repo, Set<RefreshScope> scopes) {
+    if (!scopes.contains(RefreshScope.lfsPanel)) return const [];
+    return _invalidateAndRead(<FutureProvider<Object?>>[
+      gitLfsStatusProvider(repo),
+      gitLfsTrackedPatternsProvider(repo),
+      gitLfsFilesProvider(repo),
+    ]);
+  }
+
+  /// The GitHub views named by [scopes], addressed through [gitHub]. A scope
+  /// whose key the target does not carry (no pull request, no run) is skipped.
+  List<Future<void>> _gitHubPending(
+    Set<RefreshScope> scopes,
+    GitHubRefreshTarget? gitHub,
+  ) {
+    if (gitHub == null) return const [];
+    final listKey = (slug: gitHub.slug, token: gitHub.token);
+    final number = gitHub.pullRequest;
+    final prKey = number == null
+        ? null
+        : (slug: gitHub.slug, token: gitHub.token, number: number);
+    final runId = gitHub.runId;
+    return _invalidateAndRead(<FutureProvider<Object?>>[
+      if (scopes.contains(RefreshScope.pullRequestList))
+        githubPullRequestsProvider(listKey),
+      if (prKey != null && scopes.contains(RefreshScope.pullRequestDetail))
+        githubPullRequestDetailProvider(prKey),
+      if (prKey != null &&
+          scopes.contains(RefreshScope.pullRequestReviewData)) ...[
+        githubPullRequestReviewsProvider(prKey),
+        githubPullRequestCommentsProvider(prKey),
+        githubIssueCommentsProvider(prKey),
+      ],
+      if (scopes.contains(RefreshScope.workflowRuns))
+        githubWorkflowRunsProvider((
+          slug: gitHub.slug,
+          token: gitHub.token,
+          branch: gitHub.branch,
+        )),
+      if (runId != null && scopes.contains(RefreshScope.workflowJobs))
+        githubWorkflowJobsProvider((
+          slug: gitHub.slug,
+          token: gitHub.token,
+          runId: runId,
+        )),
+    ]);
+  }
+
+  /// Invalidates every [providers] entry and returns the reloads worth
+  /// awaiting — the ones a view already had open, decided before the
+  /// invalidation disposes the rest.
+  List<Future<void>> _invalidateAndRead(
+    List<FutureProvider<Object?>> providers,
+  ) {
+    final alive = [
+      for (final p in providers)
+        if (_ref.exists(p)) p,
+    ];
+    providers.forEach(_ref.invalidate);
+    return [for (final p in alive) _ref.read(p.future)];
   }
 
   /// The watcher scopes this refresh already covers, so coalesced watcher
@@ -321,6 +446,24 @@ class ActionRunner {
     if (scopes.contains(RefreshScope.repoState)) RepoRefreshScope.state,
   };
 }
+
+/// Whether a scope is served by the git read cache. `repoState` has its own
+/// reader; the LFS and GitHub scopes go through other services entirely, so a
+/// GitHub mutation must not bust the git cache.
+bool _readsGit(RefreshScope scope) => switch (scope) {
+  RefreshScope.status ||
+  RefreshScope.branches ||
+  RefreshScope.sidebar ||
+  RefreshScope.graph ||
+  RefreshScope.workingCopy => true,
+  RefreshScope.repoState ||
+  RefreshScope.lfsPanel ||
+  RefreshScope.pullRequestList ||
+  RefreshScope.pullRequestDetail ||
+  RefreshScope.pullRequestReviewData ||
+  RefreshScope.workflowRuns ||
+  RefreshScope.workflowJobs => false,
+};
 
 class _ActiveRefresh {
   _ActiveRefresh(this.covered);
