@@ -153,7 +153,6 @@ class GitActionsController {
 
   /// `git merge <ref>` into the current branch.
   Future<ActionResult> merge(
-    BuildContext context,
     RepoLocation repo,
     String ref,
     MergeStrategy strategy,
@@ -166,7 +165,6 @@ class GitActionsController {
 
   /// `git rebase <upstream>`.
   Future<ActionResult> rebase(
-    BuildContext context,
     RepoLocation repo,
     String upstream,
   ) => _runLocal(
@@ -178,7 +176,6 @@ class GitActionsController {
 
   /// `git cherry-pick <sha>` onto the current branch.
   Future<ActionResult> cherryPick(
-    BuildContext context,
     RepoLocation repo,
     CommitSha sha,
   ) => _runLocal(
@@ -190,7 +187,6 @@ class GitActionsController {
 
   /// `git revert <sha>`.
   Future<ActionResult> revert(
-    BuildContext context,
     RepoLocation repo,
     CommitSha sha,
   ) => _runLocal(
@@ -202,7 +198,6 @@ class GitActionsController {
 
   /// `git reset --<mode>` to [to].
   Future<ActionResult> reset(
-    BuildContext context,
     RepoLocation repo,
     CommitSha to,
     ResetMode mode,
@@ -215,7 +210,6 @@ class GitActionsController {
 
   /// `git rebase -i` driven by a scripted [plan].
   Future<ActionResult> interactiveRebase(
-    BuildContext context,
     RepoLocation repo,
     CommitSha onto,
     List<RebaseTodoEntry> plan,
@@ -230,7 +224,6 @@ class GitActionsController {
 
   /// Rewrites [sha]'s commit message via a scripted rebase.
   Future<ActionResult> rewordCommit(
-    BuildContext context,
     RepoLocation repo,
     CommitSha sha,
     String message,
@@ -243,7 +236,6 @@ class GitActionsController {
 
   /// Starts a rebase paused at [sha] for amending.
   Future<ActionResult> editAtCommit(
-    BuildContext context,
     RepoLocation repo,
     CommitSha sha,
   ) => _runLocal(
@@ -255,7 +247,6 @@ class GitActionsController {
 
   /// `git checkout <ref>`.
   Future<ActionResult> checkout(
-    BuildContext context,
     RepoLocation repo,
     String ref,
   ) => _runLocal(
@@ -268,7 +259,6 @@ class GitActionsController {
 
   /// `git checkout --track <remoteRef>` (remote branch → local branch).
   Future<ActionResult> checkoutTrack(
-    BuildContext context,
     RepoLocation repo,
     String remoteRef,
   ) => _runLocal(
@@ -281,7 +271,6 @@ class GitActionsController {
 
   /// `git branch <name>` (optionally at [at], optionally checked out).
   Future<ActionResult> createBranch(
-    BuildContext context,
     RepoLocation repo,
     String name, {
     CommitSha? at,
@@ -297,7 +286,6 @@ class GitActionsController {
 
   /// `git branch -m <old> <new>`.
   Future<ActionResult> renameBranch(
-    BuildContext context,
     RepoLocation repo,
     String oldName,
     String newName,
@@ -312,7 +300,6 @@ class GitActionsController {
 
   /// `git branch -d/-D <name>`.
   Future<ActionResult> deleteBranch(
-    BuildContext context,
     RepoLocation repo,
     String name, {
     bool force = false,
@@ -364,12 +351,7 @@ class GitActionsController {
     }
     var localNeedsForce = false;
     if (localName != null && context.mounted) {
-      final result = await deleteBranch(
-        context,
-        repo,
-        localName,
-        force: forceLocal,
-      );
+      final result = await deleteBranch(repo, localName, force: forceLocal);
       localNeedsForce =
           !forceLocal &&
           result.outcome == ActionOutcome.failed &&
@@ -448,7 +430,6 @@ class GitActionsController {
 
   /// `git branch --set-upstream-to=<upstream> <branch>`.
   Future<ActionResult> setUpstream(
-    BuildContext context,
     RepoLocation repo,
     String branch,
     String upstream,
@@ -463,7 +444,6 @@ class GitActionsController {
 
   /// `git tag <name>` (optionally at [at]).
   Future<ActionResult> createTag(
-    BuildContext context,
     RepoLocation repo,
     String name, {
     CommitSha? at,
@@ -479,7 +459,6 @@ class GitActionsController {
 
   /// `git tag -d <name>`.
   Future<ActionResult> deleteTag(
-    BuildContext context,
     RepoLocation repo,
     String name,
   ) => _runLocal(
@@ -491,7 +470,6 @@ class GitActionsController {
 
   /// `git stash push`.
   Future<ActionResult> stashSave(
-    BuildContext context,
     RepoLocation repo,
     String message, {
     bool includeUntracked = false,
@@ -592,7 +570,6 @@ class GitActionsController {
           GitSuccess<StashRestoreResult>(:final value) when value.hasConflict =>
             ActionResult(
               ActionOutcome.conflict,
-              invalidate: const {RepoDataScope.reads, RepoDataScope.repoState},
               message:
                   'Local edits conflicted while restoring. Resolve in the '
                   'conflicts panel. Your local edits remain in '
@@ -602,11 +579,9 @@ class GitActionsController {
             ),
           GitSuccess<StashRestoreResult>() => const ActionResult(
             ActionOutcome.success,
-            invalidate: {RepoDataScope.reads, RepoDataScope.repoState},
           ),
           GitFailure<StashRestoreResult>(:final message) => ActionResult(
             ActionOutcome.failed,
-            invalidate: const {RepoDataScope.reads, RepoDataScope.repoState},
             message: 'Stash apply failed: $message',
             severity: MessageSeverity.error,
           ),
@@ -617,7 +592,6 @@ class GitActionsController {
 
   /// `git stash drop stash@{index}`.
   Future<ActionResult> stashDrop(
-    BuildContext context,
     RepoLocation repo,
     int index,
   ) => _runLocal(
@@ -629,7 +603,6 @@ class GitActionsController {
 
   /// Resolves a conflicted file by taking one side wholesale.
   Future<ActionResult> takeConflictSide(
-    BuildContext context,
     RepoLocation repo,
     String path, {
     required bool ours,
@@ -644,7 +617,6 @@ class GitActionsController {
 
   /// Discards a unified-diff patch from the working tree.
   Future<ActionResult> discardHunk(
-    BuildContext context,
     RepoLocation repo,
     String patch,
   ) => _runLocal(
@@ -655,19 +627,15 @@ class GitActionsController {
   );
 
   /// `git merge --abort`.
-  Future<ActionResult> mergeAbort(BuildContext context, RepoLocation repo) =>
-      _runLocal(
-        repo,
-        key: 'merge-abort',
-        scopes: _fullScopes,
-        () => _ref.read(gitActionsServiceProvider).mergeAbort(repo),
-      );
+  Future<ActionResult> mergeAbort(RepoLocation repo) => _runLocal(
+    repo,
+    key: 'merge-abort',
+    scopes: _fullScopes,
+    () => _ref.read(gitActionsServiceProvider).mergeAbort(repo),
+  );
 
   /// `git merge --continue`.
-  Future<ActionResult> mergeContinue(
-    BuildContext context,
-    RepoLocation repo,
-  ) => _runLocal(
+  Future<ActionResult> mergeContinue(RepoLocation repo) => _runLocal(
     repo,
     key: 'merge-continue',
     scopes: _fullScopes,
@@ -675,10 +643,7 @@ class GitActionsController {
   );
 
   /// `git cherry-pick --abort`.
-  Future<ActionResult> cherryPickAbort(
-    BuildContext context,
-    RepoLocation repo,
-  ) => _runLocal(
+  Future<ActionResult> cherryPickAbort(RepoLocation repo) => _runLocal(
     repo,
     key: 'cherry-pick-abort',
     scopes: _fullScopes,
@@ -686,10 +651,7 @@ class GitActionsController {
   );
 
   /// `git cherry-pick --continue`.
-  Future<ActionResult> cherryPickContinue(
-    BuildContext context,
-    RepoLocation repo,
-  ) => _runLocal(
+  Future<ActionResult> cherryPickContinue(RepoLocation repo) => _runLocal(
     repo,
     key: 'cherry-pick-continue',
     scopes: _fullScopes,
@@ -697,19 +659,15 @@ class GitActionsController {
   );
 
   /// `git revert --abort`.
-  Future<ActionResult> revertAbort(BuildContext context, RepoLocation repo) =>
-      _runLocal(
-        repo,
-        key: 'revert-abort',
-        scopes: _fullScopes,
-        () => _ref.read(gitActionsServiceProvider).revertAbort(repo),
-      );
+  Future<ActionResult> revertAbort(RepoLocation repo) => _runLocal(
+    repo,
+    key: 'revert-abort',
+    scopes: _fullScopes,
+    () => _ref.read(gitActionsServiceProvider).revertAbort(repo),
+  );
 
   /// `git revert --continue`.
-  Future<ActionResult> revertContinue(
-    BuildContext context,
-    RepoLocation repo,
-  ) => _runLocal(
+  Future<ActionResult> revertContinue(RepoLocation repo) => _runLocal(
     repo,
     key: 'revert-continue',
     scopes: _fullScopes,
@@ -717,19 +675,15 @@ class GitActionsController {
   );
 
   /// `git rebase --abort`.
-  Future<ActionResult> rebaseAbort(BuildContext context, RepoLocation repo) =>
-      _runLocal(
-        repo,
-        key: 'rebase-abort',
-        scopes: _fullScopes,
-        () => _ref.read(gitActionsServiceProvider).rebaseAbort(repo),
-      );
+  Future<ActionResult> rebaseAbort(RepoLocation repo) => _runLocal(
+    repo,
+    key: 'rebase-abort',
+    scopes: _fullScopes,
+    () => _ref.read(gitActionsServiceProvider).rebaseAbort(repo),
+  );
 
   /// `git rebase --continue`.
-  Future<ActionResult> rebaseContinue(
-    BuildContext context,
-    RepoLocation repo,
-  ) => _runLocal(
+  Future<ActionResult> rebaseContinue(RepoLocation repo) => _runLocal(
     repo,
     key: 'rebase-continue',
     scopes: _fullScopes,

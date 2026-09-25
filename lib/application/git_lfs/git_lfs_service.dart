@@ -93,13 +93,9 @@ final class GitLfsService {
   ) async {
     final result = await op;
     return switch (result) {
-      GitSuccess() => const ActionResult(
-        ActionOutcome.success,
-        invalidate: {RepoDataScope.reads},
-      ),
+      GitSuccess() => const ActionResult(ActionOutcome.success),
       GitFailure(:final message) => ActionResult(
         ActionOutcome.failed,
-        invalidate: const {RepoDataScope.reads},
         message: '$label failed: $message',
         severity: MessageSeverity.error,
       ),
@@ -158,7 +154,7 @@ final class GitLfsService {
         return const ActionResult(ActionOutcome.failed);
       }
       progress.success(id);
-      return const ActionResult.reads(ActionOutcome.success);
+      return const ActionResult(ActionOutcome.success);
     } on Object catch (e) {
       if (cancelled) return const ActionResult(ActionOutcome.failed);
       // Classify ONLY the extracted error text — the full exception string

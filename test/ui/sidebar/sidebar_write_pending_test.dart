@@ -145,7 +145,7 @@ void main() {
         repo,
         read,
         write,
-        SubmoduleRow(submodule: _Read.submodule, repo: repo, onRefresh: () {}),
+        SubmoduleRow(submodule: _Read.submodule, repo: repo),
       ),
     );
     await tester.pumpAndSettle();

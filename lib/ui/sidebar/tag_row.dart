@@ -14,15 +14,9 @@ import 'package:gitopen/ui/theme/app_palette.dart';
 
 /// One tag in the TAGS section, with checkout / push / delete context menu.
 class TagRow extends ConsumerWidget {
-  const TagRow({
-    required this.tag,
-    required this.repo,
-    required this.onRefresh,
-    super.key,
-  });
+  const TagRow({required this.tag, required this.repo, super.key});
   final Tag tag;
   final RepoLocation repo;
-  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -111,13 +105,12 @@ class TagRow extends ConsumerWidget {
 
     switch (selected) {
       case 'checkout':
-        final ok = await safeCheckout(
+        await safeCheckout(
           context: context,
           ref: ref,
           repo: repo,
           targetRef: tag.name,
         );
-        if (ok) onRefresh();
 
       case 'push_tag':
         await ref
@@ -135,9 +128,7 @@ class TagRow extends ConsumerWidget {
         );
         if (!confirmed) return;
         if (!context.mounted) return;
-        await ref
-            .read(gitActionsControllerProvider)
-            .deleteTag(context, repo, tag.name);
+        await ref.read(gitActionsControllerProvider).deleteTag(repo, tag.name);
     }
   }
 }

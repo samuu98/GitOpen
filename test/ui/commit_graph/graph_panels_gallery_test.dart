@@ -83,7 +83,7 @@ Widget _gallery(AppPalette palette, RepoLocation repo, Key key) {
         ),
       ),
     ],
-    child: MaterialApp(
+    child: screenshotApp(
       theme: ThemeData(
         fontFamily: 'Roboto',
         extensions: [

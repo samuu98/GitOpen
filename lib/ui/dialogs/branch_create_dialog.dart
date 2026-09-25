@@ -86,7 +86,6 @@ class _State extends ConsumerState<BranchCreateDialog> {
   Future<void> _create() async {
     if (_ctl.text.trim().isEmpty) return;
     final result = await ref.read(gitActionsControllerProvider).createBranch(
-          context,
           widget.repo,
           _ctl.text.trim(),
           at: widget.at,

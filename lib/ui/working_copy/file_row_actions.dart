@@ -64,7 +64,6 @@ final class FileRowActions {
     await _ref
         .read(gitActionsControllerProvider)
         .stashSave(
-          context,
           repo,
           msg?.trim() ?? '',
           includeUntracked:

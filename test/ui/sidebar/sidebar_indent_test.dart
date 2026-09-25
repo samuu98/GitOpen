@@ -59,7 +59,7 @@ void main() {
         isAnnotated: false,
       );
       await tester.pumpWidget(
-        _host(TagRow(tag: tag, repo: repo, onRefresh: () {})),
+        _host(TagRow(tag: tag, repo: repo)),
       );
       await tester.pump();
 

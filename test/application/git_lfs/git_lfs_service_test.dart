@@ -16,7 +16,7 @@ import 'package:gitopen/domain/repositories/repo_id.dart';
 import 'package:gitopen/domain/repositories/repo_location.dart';
 
 void main() {
-  test('track returns success and invalidates reads', () async {
+  test('track returns success', () async {
     final lfs = _FakeLfsOperations();
     final sut = GitLfsService(
       lfs: lfs,
@@ -27,7 +27,6 @@ void main() {
     final result = await sut.track(_repo, '*.bin');
 
     expect(result.outcome, ActionOutcome.success);
-    expect(result.invalidate, contains(RepoDataScope.reads));
     expect(lfs.trackedPattern, '*.bin');
   });
 

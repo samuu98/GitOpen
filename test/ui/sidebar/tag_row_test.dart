@@ -37,11 +37,7 @@ class _Controller implements GitActionsController {
   final List<String> checkouts = [];
 
   @override
-  Future<ActionResult> checkout(
-    BuildContext context,
-    RepoLocation repo,
-    String ref,
-  ) async {
+  Future<ActionResult> checkout(RepoLocation repo, String ref) async {
     checkouts.add(ref);
     return const ActionResult(ActionOutcome.success);
   }
@@ -64,13 +60,11 @@ void ignoreMenuOverflow() {
 Widget _row() => MaterialApp(
   theme: ThemeData(extensions: [AppPalette.dark()]),
   home: Scaffold(
-    body: TagRow(tag: _tag, repo: _repo, onRefresh: _noop),
+    body: TagRow(tag: _tag, repo: _repo),
   ),
 );
 
 Widget _host() => ProviderScope(child: _row());
-
-void _noop() {}
 
 void main() {
   testWidgets('renders the tag name', (tester) async {

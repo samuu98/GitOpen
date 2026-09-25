@@ -68,7 +68,6 @@ void main() {
             body: WorktreeRow(
               worktree: Worktree(path: 'C:/feature', branch: 'feature'),
               repo: repo,
-              onRefresh: _noop,
             ),
           ),
         ),
@@ -109,7 +108,6 @@ void main() {
                         branch: 'feature',
                       ),
                       repo: repo,
-                      onRefresh: _noop,
                     )
                   : const SizedBox.shrink(),
             ),
@@ -147,7 +145,6 @@ void main() {
             body: WorktreeRow(
               worktree: Worktree(path: 'C:/feature', branch: 'feature'),
               repo: repo,
-              onRefresh: _noop,
             ),
           ),
         ),
@@ -173,5 +170,3 @@ void main() {
     expect(find.textContaining('removal failed'), findsOneWidget);
   });
 }
-
-void _noop() {}

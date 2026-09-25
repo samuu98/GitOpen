@@ -183,6 +183,10 @@ void main() {
           expect(write.commits, 1);
           expect(find.byType(CircularProgressIndicator), findsOneWidget);
           if (!failGraph) {
+            await pumpUntilPending(
+              tester,
+              find.byType(CircularProgressIndicator),
+            );
             await expectLater(
               find.byKey(key),
               matchesGoldenFile('compose_committing_$themeName.png'),

@@ -145,20 +145,13 @@ void main() {
     errorText: (e) => e.toString(),
   );
 
-  test(
-    'merge success → success, invalidates reads+repoState, no message',
-    () async {
-      final write = _FakeWrite()
-        ..mergeResult = const GitSuccess<MergeOutcome>(MergeUpToDate());
-      final r = await service(write).merge(repo, 'feature', strategy);
-      expect(r.outcome, ActionOutcome.success);
-      expect(
-        r.invalidate,
-        unorderedEquals({RepoDataScope.reads, RepoDataScope.repoState}),
-      );
-      expect(r.message, isNull);
-    },
-  );
+  test('merge success → success, no message', () async {
+    final write = _FakeWrite()
+      ..mergeResult = const GitSuccess<MergeOutcome>(MergeUpToDate());
+    final r = await service(write).merge(repo, 'feature', strategy);
+    expect(r.outcome, ActionOutcome.success);
+    expect(r.message, isNull);
+  });
 
   test('merge conflict → conflict outcome + count message', () async {
     final write = _FakeWrite()
@@ -168,7 +161,6 @@ void main() {
     final r = await service(write).merge(repo, 'feature', strategy);
     expect(r.outcome, ActionOutcome.conflict);
     expect(r.message, contains('2 file(s)'));
-    expect(r.invalidate, contains(RepoDataScope.repoState));
   });
 
   test('merge failure → failed + "Merge failed:" message', () async {
@@ -211,16 +203,12 @@ void main() {
     expect(r.message, contains('Reset failed'));
   });
 
-  test(
-    'checkout success → success, invalidates reads only, no message',
-    () async {
-      final write = _FakeWrite()..voidResult = const GitSuccess<void>(null);
-      final r = await service(write).checkout(repo, 'feature');
-      expect(r.outcome, ActionOutcome.success);
-      expect(r.invalidate, {RepoDataScope.reads});
-      expect(r.message, isNull);
-    },
-  );
+  test('checkout success → success, no message', () async {
+    final write = _FakeWrite()..voidResult = const GitSuccess<void>(null);
+    final r = await service(write).checkout(repo, 'feature');
+    expect(r.outcome, ActionOutcome.success);
+    expect(r.message, isNull);
+  });
 
   test(
     'checkout failure → failed + "Checkout failed:" error message',
@@ -238,11 +226,10 @@ void main() {
     },
   );
 
-  test('checkoutTrack success → success, invalidates reads only', () async {
+  test('checkoutTrack success → success', () async {
     final write = _FakeWrite()..voidResult = const GitSuccess<void>(null);
     final r = await service(write).checkoutTrack(repo, 'origin/feature');
     expect(r.outcome, ActionOutcome.success);
-    expect(r.invalidate, {RepoDataScope.reads});
   });
 
   test('checkoutTrack failure → "Checkout failed:" error message', () async {
@@ -295,15 +282,11 @@ void main() {
     },
   );
 
-  test('mergeContinue success → invalidates reads+repoState', () async {
+  test('mergeContinue success → success', () async {
     final write = _FakeWrite()
       ..shaResult = GitSuccess<CommitSha>(CommitSha('abcdef1'));
     final r = await service(write).mergeContinue(repo);
     expect(r.outcome, ActionOutcome.success);
-    expect(
-      r.invalidate,
-      unorderedEquals({RepoDataScope.reads, RepoDataScope.repoState}),
-    );
   });
 
   test('rebaseAbort failure → labelled error message', () async {
@@ -330,10 +313,6 @@ void main() {
       ).interactiveRebase(repo, sha, const <RebaseTodoEntry>[]);
       expect(r.outcome, ActionOutcome.conflict);
       expect(r.message, contains('2 file(s)'));
-      expect(
-        r.invalidate,
-        unorderedEquals({RepoDataScope.reads, RepoDataScope.repoState}),
-      );
     },
   );
 
@@ -375,10 +354,6 @@ void main() {
     expect(r.outcome, ActionOutcome.success);
     expect(r.message, contains('Continue'));
     expect(r.severity, MessageSeverity.info);
-    expect(
-      r.invalidate,
-      unorderedEquals({RepoDataScope.reads, RepoDataScope.repoState}),
-    );
   });
 
   test('editAtCommit conflict → conflict outcome + count message', () async {
@@ -391,24 +366,17 @@ void main() {
     expect(r.message, contains('1 file(s)'));
   });
 
-  test(
-    'takeConflictSide success → success and invalidates local scope',
-    () async {
-      final write = _FakeWrite()..voidResult = const GitSuccess<void>(null);
+  test('takeConflictSide success → success', () async {
+    final write = _FakeWrite()..voidResult = const GitSuccess<void>(null);
 
-      final r = await service(write).takeConflictSide(
-        repo,
-        'clash.txt',
-        ours: true,
-      );
+    final r = await service(write).takeConflictSide(
+      repo,
+      'clash.txt',
+      ours: true,
+    );
 
-      expect(r.outcome, ActionOutcome.success);
-      expect(
-        r.invalidate,
-        unorderedEquals({RepoDataScope.reads, RepoDataScope.repoState}),
-      );
-    },
-  );
+    expect(r.outcome, ActionOutcome.success);
+  });
 
   test('takeConflictSide failure → labelled Resolve error', () async {
     final write = _FakeWrite()
@@ -428,12 +396,11 @@ void main() {
     expect(r.message, contains('Resolve failed: no side'));
   });
 
-  test('discardHunk success → success and invalidates reads only', () async {
+  test('discardHunk success → success', () async {
     final write = _FakeWrite()..voidResult = const GitSuccess<void>(null);
 
     final r = await service(write).discardHunk(repo, 'patch');
 
     expect(r.outcome, ActionOutcome.success);
-    expect(r.invalidate, {RepoDataScope.reads});
   });
 }

@@ -44,8 +44,7 @@ const _repo = RepoLocation(RepoId('repo'), 'C:/work/repo', 'repo');
 
 Widget _frame(AppPalette palette, Key key, Widget child) => RepaintBoundary(
   key: key,
-  child: MaterialApp(
-    debugShowCheckedModeBanner: false,
+  child: screenshotApp(
     theme: ThemeData(
       fontFamily: 'Roboto',
       brightness: palette.bg0.computeLuminance() < 0.5

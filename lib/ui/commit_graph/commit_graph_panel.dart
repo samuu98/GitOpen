@@ -364,7 +364,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (strategy == null || !context.mounted) return;
         await ref
             .read(gitActionsControllerProvider)
-            .merge(context, repo, sha.value, strategy);
+            .merge(repo, sha.value, strategy);
 
       case 'rebase':
         if (!context.mounted) return;
@@ -377,9 +377,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
           confirmLabel: 'Rebase',
         );
         if (!confirmed || !context.mounted) return;
-        await ref
-            .read(gitActionsControllerProvider)
-            .rebase(context, repo, sha.value);
+        await ref.read(gitActionsControllerProvider).rebase(repo, sha.value);
 
       case 'interactive_rebase':
         if (!context.mounted) return;
@@ -393,7 +391,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         // ConflictResolutionPanel / repoStateProvider flow takes over.
         await ref
             .read(gitActionsControllerProvider)
-            .interactiveRebase(context, repo, sha, plan);
+            .interactiveRebase(repo, sha, plan);
 
       case 'reword':
         final current = await ref
@@ -410,7 +408,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (!context.mounted) return;
         await ref
             .read(gitActionsControllerProvider)
-            .rewordCommit(context, repo, sha, message.trim());
+            .rewordCommit(repo, sha, message.trim());
 
       case 'edit_commit':
         if (!context.mounted) return;
@@ -424,17 +422,13 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
           confirmLabel: 'Pause here',
         );
         if (!confirmed || !context.mounted) return;
-        await ref
-            .read(gitActionsControllerProvider)
-            .editAtCommit(context, repo, sha);
+        await ref.read(gitActionsControllerProvider).editAtCommit(repo, sha);
 
       case 'cherry_pick':
-        await ref
-            .read(gitActionsControllerProvider)
-            .cherryPick(context, repo, sha);
+        await ref.read(gitActionsControllerProvider).cherryPick(repo, sha);
 
       case 'revert':
-        await ref.read(gitActionsControllerProvider).revert(context, repo, sha);
+        await ref.read(gitActionsControllerProvider).revert(repo, sha);
 
       case 'branch_here':
         await BranchCreateDialog.show(context, repo, at: sha);
@@ -446,7 +440,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
         if (!context.mounted) return;
         await ref
             .read(gitActionsControllerProvider)
-            .createTag(context, repo, req.name, at: sha, message: req.message);
+            .createTag(repo, req.name, at: sha, message: req.message);
 
       case 'copy_sha':
         await Clipboard.setData(ClipboardData(text: sha.value));
@@ -628,7 +622,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
     if (!confirmed || !context.mounted) return;
     await ref
         .read(gitActionsControllerProvider)
-        .reset(context, widget.repo, parent, ResetMode.soft);
+        .reset(widget.repo, parent, ResetMode.soft);
   }
 
   Future<void> _doReset(
@@ -649,9 +643,7 @@ class _CommitGraphPanelState extends ConsumerState<CommitGraphPanel> {
       if (!confirmed) return;
     }
     if (!context.mounted) return;
-    await ref
-        .read(gitActionsControllerProvider)
-        .reset(context, widget.repo, sha, mode);
+    await ref.read(gitActionsControllerProvider).reset(widget.repo, sha, mode);
   }
 
   /// Single-field multiline prompt — used for commit messages.

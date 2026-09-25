@@ -5,6 +5,29 @@ All notable changes to GitOpen are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release maps to a
 `v*` Git tag — the same tags the in-app updater checks.
 
+## [1.14.1] — 2026-09-25
+
+### Fixed
+- **Deleting a branch after removing its worktree.** The delete and
+  remove worktree dialogs now judge "merged" the way `git branch -d`
+  does (against the branch's upstream, or HEAD), so a branch git would
+  refuse is shown as unmerged up front. If git still refuses it, the
+  dialog keeps the branch, says why and offers force delete.
+- **Adding a worktree when the view cannot refresh** closes the dialog
+  and shows a single "could not refresh" message with Retry, instead of
+  an error in the dialog as well.
+- **Double-clicking a tag during an action** no longer starts a second
+  checkout while the tag is busy.
+
+### Changed
+- **LFS and GitHub actions refresh only what they change.** Tracking a
+  pattern or syncing LFS reloads the LFS panel; pull request and workflow
+  actions reload the list, the open pull request or run, and its jobs. A
+  failed reload offers the same Retry as every other action.
+- Internal: removed the unused per-action invalidation hints and the
+  unused `BuildContext` parameters from the git actions controller, and
+  the sidebar rows no longer trigger a second refresh after an action.
+
 ## [1.14.0] — 2026-09-24
 
 ### Added

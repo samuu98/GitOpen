@@ -85,8 +85,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
+          child: screenshotApp(
             theme: ThemeData(
               brightness: dark ? Brightness.dark : Brightness.light,
               extensions: [
@@ -156,7 +155,6 @@ void main() {
                                   isAnnotated: false,
                                 ),
                                 repo: _repo,
-                                onRefresh: () {},
                               ),
                               const Text('STASHES'),
                               StashRow(
@@ -167,7 +165,6 @@ void main() {
                                   createdAt: DateTime.utc(2026),
                                 ),
                                 repo: _repo,
-                                onRefresh: () {},
                               ),
                               const Text('WORKTREES'),
                               const WorktreeRow(
@@ -176,14 +173,9 @@ void main() {
                                   branch: 'feature',
                                 ),
                                 repo: _repo,
-                                onRefresh: _noop,
                               ),
                               const Text('SUBMODULES'),
-                              SubmoduleRow(
-                                submodule: _submodule,
-                                repo: _repo,
-                                onRefresh: _noop,
-                              ),
+                              SubmoduleRow(submodule: _submodule, repo: _repo),
                             ],
                           ),
                         ),
@@ -246,19 +238,23 @@ void main() {
       container
           .read(busyProvider.notifier)
           .begin('${_repo.id.value}/remote-remove:origin');
-      await tester.pump();
+      await pumpUntilPending(tester, find.byType(CircularProgressIndicator));
       await capture('remote_remove_pending');
       container
           .read(busyProvider.notifier)
           .end('${_repo.id.value}/remote-remove:origin');
+      // Past the busy indicator's minimum hold: the next capture then waits
+      // for its own spinner, and no hold timer outlives the test.
+      await tester.pumpAndSettle();
       container
           .read(busyProvider.notifier)
           .begin('${_repo.id.value}/submodule-update:vendor/lib');
-      await tester.pump();
+      await pumpUntilPending(tester, find.byType(CircularProgressIndicator));
       await capture('submodule_update_pending');
       container
           .read(busyProvider.notifier)
           .end('${_repo.id.value}/submodule-update:vendor/lib');
+      await tester.pumpAndSettle();
       await mouse.removePointer();
     });
 
@@ -271,7 +267,7 @@ void main() {
       final palette = dark ? AppPalette.dark() : AppPalette.light();
       final pending = Completer<String?>();
       await tester.pumpWidget(
-        MaterialApp(
+        screenshotApp(
           theme: ThemeData(
             brightness: dark ? Brightness.dark : Brightness.light,
             extensions: [
@@ -306,7 +302,7 @@ void main() {
         ),
       );
       await tester.tap(find.text('Good'));
-      await tester.pump();
+      await pumpUntilPending(tester, find.byType(CircularProgressIndicator));
       await expectLater(
         find.byKey(const Key('banner')),
         matchesGoldenFile('bisect_busy_$mode.png'),
@@ -320,5 +316,3 @@ void main() {
     });
   }
 }
-
-void _noop() {}

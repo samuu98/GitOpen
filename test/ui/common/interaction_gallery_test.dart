@@ -85,7 +85,7 @@ Widget _gallery(AppPalette palette, Key key) {
   final width = _labelWidth + _cellWidth * _states.length;
   final height =
       _headerHeight + _rowHeight * _controls.length * _densities.length;
-  return MaterialApp(
+  return screenshotApp(
     theme: ThemeData(
       fontFamily: 'Roboto',
       brightness: palette.bg0.computeLuminance() < 0.5

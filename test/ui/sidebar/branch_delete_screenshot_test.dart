@@ -152,8 +152,7 @@ void main() {
               (ref) async => const <String, ({int ahead, int behind})>{},
             ),
           ],
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
+          child: screenshotApp(
             theme: ThemeData(
               brightness: Brightness.dark,
               scaffoldBackgroundColor: AppPalette.dark().bg0,
@@ -229,6 +228,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     }
     expect(find.text('Deleting 1 of 2…'), findsOneWidget);
+    await pumpUntilPending(tester, find.byType(CircularProgressIndicator));
     await capture(tester, 'multi_delete_progress.png');
     write.second.complete(
       const GitFailure(GitErrorKind.other, 'remote rejected deletion'),

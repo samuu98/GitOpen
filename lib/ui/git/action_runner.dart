@@ -318,8 +318,7 @@ class ActionRunner {
         ? _ref.read(selectedFileProvider)
         : null;
 
-    // One read-cache bust covers every `git`-backed provider (that is what the
-    // service's RepoDataScope.reads has always meant); the family
+    // One read-cache bust covers every `git`-backed provider; the family
     // invalidations below are for the providers this scope waits on.
     if (scopes.any(_readsGit)) {
       _ref.invalidate(gitReadOperationsProvider);
