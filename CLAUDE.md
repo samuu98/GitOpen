@@ -49,12 +49,12 @@ See `.claude/memory/project-map.md` for the module map and
 
 ## Conventions
 
-- **Lint:** `very_good_analysis`. `flutter analyze` is **fatal on any issue
-  including `info`**, and it covers `test/` too. Always run **bare
-  `flutter analyze`** (whole project) before pushing — not per-file.
-- **Format:** `dart format`, but **do NOT blanket-format**. This repo predates
+- **Lint:** `very_good_analysis`. `flutter analyze` fails on any issue, `info`
+  included, and covers `test/` too, so run bare `flutter analyze` (whole
+  project, not per-file) before pushing.
+- **Format:** `dart format`, on the files you touched only. This repo predates
   the Dart 3.12 tall-style formatter, so `dart format lib test` rewrites ~180
-  files. Format only files you touched, or do a dedicated chore PR. (This is why
+  files; a whole-tree format belongs in a dedicated chore PR. (This is why
   there is no format-on-save hook.)
 - **Generated files** (`*.g.dart`, `*.freezed.dart`) are analyzer-excluded; never
   hand-edit them — change the source and re-run `build_runner`.
@@ -66,10 +66,11 @@ See `.claude/memory/project-map.md` for the module map and
 - Windows installer: `flutter build windows --release` + Inno Setup
   (`installer/windows/gitopen.iss`); msix config lives in `pubspec.yaml`.
 - Linux `.deb`: `bash scripts/build-deb.sh`.
-- CD builds release artifacts on every tagged release. PR CI runs `analyze`,
-  3 test shards (split by file) and a `report` job, aggregated into the required
-  `build-and-test (ubuntu-latest)` check; it also builds the Windows installer
-  and the Linux bundle, which are not required checks.
+- CD (`cd-release.yml`) runs when a merge to `main` touches the app paths, or by
+  manual dispatch: it tags `v<version>` and builds the release artifacts. PR CI
+  runs `analyze`, 3 test shards (split by file) and a `report` job, aggregated
+  into the required `build-and-test (ubuntu-latest)` check; it also builds the
+  Windows installer and the Linux bundle, which are not required checks.
 
 ## Git workflow
 
@@ -79,15 +80,14 @@ See `.claude/memory/project-map.md` for the module map and
   merge.
 - Commits use the **zN3utr4l** identity (configured via git `includeIf`). Verify
   before pushing.
-- **Remotes** (re-pointed once the fork became canonical): `origin` =
+- **Remotes:** `origin` =
   **samuu98/GitOpen** — the repo you work on (you're a collaborator with push);
   local `main` tracks `origin/main`. `fork` = **zN3utr4l/GitOpen** — personal
   backup. Open PRs **same-repo**: push the branch to `origin`, then
-  `gh pr create --repo samuu98/GitOpen --base main --head <branch>`. Do NOT open
-  **cross-fork** PRs from `zN3utr4l:<branch>` — CI's "Add coverage comment to PR"
-  step needs a write token, and a forked PR only gets a read-only `GITHUB_TOKEN`,
-  so that step errors ("Resource not accessible by integration") and reddens the
-  required `build-and-test` check even though analyze/test pass. `samuu98` pushes
+  `gh pr create --repo samuu98/GitOpen --base main --head <branch>`. Don't open
+  cross-fork PRs from `zN3utr4l:<branch>`: a forked PR gets a read-only
+  `GITHUB_TOKEN`, so CI skips the "Add coverage comment to PR" step and the PR
+  gets no coverage comment. `samuu98` pushes
   occasionally, so `git fetch origin` and branch off a fresh `origin/main` (don't
   `git pull` blindly — check the tracking branch first).
 
